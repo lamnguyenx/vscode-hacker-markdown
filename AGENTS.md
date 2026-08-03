@@ -7,10 +7,8 @@
   not exist. **Do not put tracked code here.**
 - `./tests` contains the test harness (`open_view.cjs`, `test_preview.cjs`,
   `cdp_eval.cjs`) and the `tests/workspace/` fixtures used by the dev host.
-- `_refs/`-style external references do not exist in this project; the VS Code
-  source checkout used as a reference lives at the sibling path
-  `/Volumes/APPLEFS/data/docker/git/vscode` (read-only reference).
-
+- `_refs/`: references, read-only
+  - `_refs/vscode` : source code of vscode for refrence only
 ## Testing
 
 ```bash

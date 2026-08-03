@@ -52,3 +52,12 @@ console.log(x);
 Inline `code` and **bold** and *italic*.
 
 - [ ] todo item
+
+## Mermaid
+
+```mermaid
+flowchart LR
+    A[Start] --> B{Is it working?}
+    B -->|Yes| C[Great]
+    B -->|No| D[Debug]
+```

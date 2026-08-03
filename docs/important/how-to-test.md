@@ -18,7 +18,7 @@ Test scripts live in [`tests/`](../../tests/):
 | Script | Purpose |
 | --- | --- |
 | `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
-| `tests/test_preview.cjs` | Full 13-check functional smoke test |
+| `tests/test_preview.cjs` | Full 15-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
 
 ---
@@ -99,7 +99,7 @@ to attach to.
 node tests/test_preview.cjs 9335
 ```
 
-The 13 checks (current status: **all passing**):
+The 15 checks (current status: **all passing**):
 
 | # | Check | What it proves |
 | --- | --- | --- |
@@ -109,13 +109,15 @@ The 13 checks (current status: **all passing**):
 | 4 | Table rendered | GFM output present |
 | 5 | Empty state hidden / preview visible | Initial state is correct |
 | 6 | `[data-line]` source markers present | Scroll-sync metadata rendered |
-| 7 | Link click opens `sub.md` and preview follows | Relative link resolution + follow-active-editor |
-| 8 | `sub.md` content rendered | Second document renders |
-| 9 | Live update after typing in the editor | Debounced re-render on document change |
-| 10 | Second preview webview created | `Open Preview in Editor` works |
-| 11 | Editor panel follows the same document | Shared render controller |
-| 12 | Editor panel hides the Open-in-Editor button | Host chrome varies by container type |
-| 13 | Empty state for a non-markdown active editor | Empty-state messaging on editor switch |
+| 7 | Mermaid diagram rendered (`#preview .mermaid svg`) | Contributed `markdown.previewScripts` (mermaid) load and render `.mermaid` blocks |
+| 8 | Link click opens `sub.md` and preview follows | Relative link resolution + follow-active-editor |
+| 9 | `sub.md` content rendered | Second document renders |
+| 10 | Live update after typing in the editor | Debounced re-render on document change |
+| 11 | Mermaid re-renders after a live edit | `vscode.markdown.updateContent` event dispatched after content updates |
+| 12 | Second preview webview created | `Open Preview in Editor` works |
+| 13 | Editor panel follows the same document | Shared render controller |
+| 14 | Editor panel hides the Open-in-Editor button | Host chrome varies by container type |
+| 15 | Empty state for a non-markdown active editor | Empty-state messaging on editor switch |
 
 ### How the checks work
 
@@ -212,10 +214,12 @@ node tests/test_preview.cjs 9335
 - **System-browser opening is not tested on purpose**: opening external links
   would pop the user's real browser. The handler is a thin wrapper around
   `vscode.env.openExternal`.
-- **Math / contributed scripts are not exercised**: `markdown.api.render`
-  renders math via the engine plugin, but the contributed KaTeX stylesheet is
-  not loaded in this wrapper (see README limitations), so there is nothing to
-  assert.
+- **Contributed preview scripts are exercised via mermaid only.** The smoke
+  test asserts the mermaid diagram renders and re-renders on live edits
+  (checks 7 and 11). Math (KaTeX) is verified by hand: the contributed
+  `markdown.previewStyles` (e.g. `katex.min.css`) are loaded now, and the
+  engine's markdown-it math plugin runs inside `markdown.api.render`, so math
+  renders styled — but there is no automated check for it.
 - **Key bindings inside cross-origin iframes** behave like the browser
   project: keystrokes inside a cross-origin page never reach VS Code. The
   preview chrome itself (our own webview) does forward keys.

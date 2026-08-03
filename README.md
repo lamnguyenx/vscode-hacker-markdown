@@ -10,6 +10,7 @@ A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open
 - **Follows the active editor**: switches when you open another Markdown file; updates live (debounced) as you type.
 - **Scroll sync** (bidirectional, like the built-in preview; togglable via `hackerMarkdown.scrollPreviewWithEditor` / `hackerMarkdown.scrollEditorWithPreview`).
 - **Clickable links**: internal links open in the editor, external links open in the system browser, `#fragment` links scroll within the preview.
+- **Contributed preview extensions**: `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions are loaded, so mermaid diagrams render and KaTeX math is styled like in the built-in preview.
 - **User styles & font settings** from the stock `markdown.styles`, `markdown.preview.fontFamily/fontSize/lineHeight` settings.
 - **Link-based file navigation**: clicking a `./other.md` link in the preview opens that file in the editor and re-targets the preview to it.
 
@@ -43,8 +44,8 @@ The preview appears in the bottom Panel under the "Hacker Markdown" tab. Drag it
 - `package.json` contributes a **panel view container** (`viewsContainers.panel`) and a **webview view** inside it.
 - `src/extension.ts` registers the `WebviewViewProvider` plus the three commands.
 - `src/previewManager.ts` tracks the active Markdown editor, renders via the built-in engine, and drives every attached preview (docked views + editor panels).
-- `src/previewHost.ts` builds the webview HTML (CSP with nonce, `markdown.css` / `highlight.css`, toolbar) and handles host messages (link clicks, scroll sync, toolbar commands).
-- `media/index.js` renders the HTML fragment, preserves the reading position across re-renders, and reports the topmost visible line for scroll sync.
+- `src/previewHost.ts` builds the webview HTML (CSP with nonce, `markdown.css` / `highlight.css`, toolbar) and handles host messages (link clicks, scroll sync, toolbar commands). It also injects `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions (e.g. the mermaid renderer) and adds their folders to `localResourceRoots`.
+- `media/index.js` renders the HTML fragment, preserves the reading position across re-renders, reports the topmost visible line for scroll sync, and dispatches `vscode.markdown.updateContent` after each render so contributed scripts (mermaid) re-render on live edits.
 
 ## Testing
 
@@ -52,12 +53,11 @@ See [docs/important/how-to-test.md](docs/important/how-to-test.md) for the CDP-b
 
 ```sh
 node tests/open_view.cjs 9335   # dismiss onboarding, open the view
-node tests/test_preview.cjs 9335  # 13-check functional smoke test (all passing)
+node tests/test_preview.cjs 9335  # 15-check functional smoke test (all passing)
 ```
 
 ## Limitations
 
 - The editor-area preview is a separate `WebviewPanel` instance (views cannot move into the editor area; see `viewsExtensionPoint.ts` — a view id can only be registered in one container).
 - Rendering happens through `markdown.api.render`, which cannot rewrite relative image paths, so image `src` attributes are rewritten extension-side against the document folder (same behavior as the built-in preview's resource provider).
-- Contributed preview *scripts* (e.g. KaTeX runtime for math) are not loaded — math is rendered by the engine's markdown-it plugin but without the contributed stylesheet/script, so it may not be styled. The contributed `previewStyles` from other extensions are also not included.
-- `markdown.css` / `highlight.css` are copied from `microsoft/vscode` (MIT) to keep rendering identical to the stock preview.
+- Contributed preview scripts and styles are loaded (mermaid, KaTeX, …), but the extension has no control over *when* other extensions activate; a script contributed by an extension that never activates simply never loads. `markdown.css` / `highlight.css` are copied from `microsoft/vscode` (MIT) to keep rendering identical to the stock preview.

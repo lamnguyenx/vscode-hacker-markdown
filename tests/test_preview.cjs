@@ -138,6 +138,10 @@ async function main() {
   check('empty state hidden, preview visible', state.emptyHidden && state.previewVisible);
   check('source-line markers (data-line) present', state.hasDataLine);
 
+  // 6b) Mermaid diagram rendered by the contributed preview script.
+  const mermaidSvg = await evalUntil(first.session, `(() => { const s = d.querySelector('#preview .mermaid svg'); return !!s && s.children.length > 0; })()`, 20000);
+  check('mermaid diagram rendered', mermaidSvg === true);
+
   // 2) Follow active editor via link click: ./sub.md opens in the editor.
   await run(`(() => { const a = [...d.querySelectorAll('#preview a')].find(x => x.getAttribute('data-href') === './sub.md'); a.scrollIntoView({block:'center'}); return true; })()`);
   await sleep(400);
@@ -157,9 +161,11 @@ async function main() {
     const pageSession = await openCdpSession(page.webSocketDebuggerUrl);
     await sleep(800);
     await pageSession.send('Input.insertText', { text: '\n\nTyped live. 42' });
-    const live = await evalUntil(first.session, `d.querySelector('#preview').textContent.includes('Typed live. 42')`, 10000);
-    check('live update after typing in editor', live === true);
-    pageSession.close();
+  const live = await evalUntil(first.session, `d.querySelector('#preview').textContent.includes('Typed live. 42')`, 10000);
+  check('live update after typing in editor', live === true);
+  const mermaidSub = await evalUntil(first.session, `(() => { const s = d.querySelector('#preview .mermaid svg'); return !!s && s.children.length > 0; })()`, 20000);
+  check('mermaid re-renders after live edit', mermaidSub === true);
+  pageSession.close();
   } else {
     check('live update after typing in editor', false, 'no page target');
   }

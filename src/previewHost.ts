@@ -11,6 +11,11 @@ export interface PreviewHostMessage {
 	[key: string]: unknown;
 }
 
+interface ContributedPreviewScript {
+	readonly resource: vscode.Uri;
+	readonly type?: 'module';
+}
+
 /**
  * A single markdown-preview webview, either a docked WebviewView or a
  * WebviewPanel in the editor area. All hosts of a {@link PreviewManager}
@@ -64,7 +69,8 @@ export class PreviewHost {
 			localResourceRoots: [
 				vscode.Uri.joinPath(this.extensionUri, 'media'),
 				...this.extraRoots,
-				...this.styleResourceRoots()
+				...this.styleResourceRoots(),
+				...this.contributedPreviewRoots()
 			]
 		};
 	}
@@ -166,6 +172,7 @@ export class PreviewHost {
 				<link rel="stylesheet" type="text/css" href="${markdownCss}">
 				<link rel="stylesheet" type="text/css" href="${highlightCss}">
 				<link rel="stylesheet" type="text/css" href="${mainCss}">
+				${this.getContributedStyles()}
 				${this.getUserStyles()}
 			</head>
 			<body class="vscode-body">
@@ -184,6 +191,7 @@ export class PreviewHost {
 					<p class="hint">The preview follows the active editor. Drag this view to any sidebar or panel container to re-dock it.</p>
 				</div>
 				<script src="${mainJs}" nonce="${nonce}"></script>
+				${this.getContributedScripts(nonce)}
 			</body>
 			</html>`;
 	}
@@ -227,6 +235,86 @@ export class PreviewHost {
 
 	private customStyles(): string[] {
 		return vscode.workspace.getConfiguration('hackerMarkdown').get<string[]>('styles') ?? [];
+	}
+
+	/**
+	 * Preview scripts contributed by other extensions via
+	 * `markdown.previewScripts` (e.g. `mermaid-markdown-features` renders
+	 * `.mermaid` blocks in the built-in preview this way). Injected like the
+	 * built-in preview does in `documentRenderer.ts#getScripts`.
+	 */
+	private contributedPreviewScripts(): ContributedPreviewScript[] {
+		const scripts: ContributedPreviewScript[] = [];
+		for (const extension of vscode.extensions.all) {
+			const raw = extension.packageJSON?.contributes?.['markdown.previewScripts'];
+			if (!Array.isArray(raw)) {
+				continue;
+			}
+			for (const script of raw) {
+				const contribution = getPreviewScriptContribution(script);
+				if (!contribution) {
+					continue;
+				}
+				try {
+					scripts.push({
+						resource: vscode.Uri.joinPath(extension.extensionUri, contribution.path),
+						type: contribution.type
+					});
+				} catch {
+					// skip unresolvable scripts
+				}
+			}
+		}
+		return scripts;
+	}
+
+	/** Styles contributed by other extensions via `markdown.previewStyles`. */
+	private contributedPreviewStyles(): vscode.Uri[] {
+		const styles: vscode.Uri[] = [];
+		for (const extension of vscode.extensions.all) {
+			const raw = extension.packageJSON?.contributes?.['markdown.previewStyles'];
+			if (!Array.isArray(raw)) {
+				continue;
+			}
+			for (const style of raw) {
+				try {
+					styles.push(vscode.Uri.joinPath(extension.extensionUri, style));
+				} catch {
+					// skip unresolvable styles
+				}
+			}
+		}
+		return styles;
+	}
+
+	/** Extension folders that contribute preview scripts/styles (needed as localResourceRoots). */
+	private contributedPreviewRoots(): vscode.Uri[] {
+		const roots: vscode.Uri[] = [];
+		for (const extension of vscode.extensions.all) {
+			const contributes = extension.packageJSON?.contributes;
+			if (Array.isArray(contributes?.['markdown.previewScripts']) || Array.isArray(contributes?.['markdown.previewStyles'])) {
+				roots.push(extension.extensionUri);
+			}
+		}
+		return roots;
+	}
+
+	private getContributedStyles(): string {
+		return this.contributedPreviewStyles()
+			.map((style) => `<link rel="stylesheet" type="text/css" href="${escapeAttribute(this.webview.asWebviewUri(style).toString())}">`)
+			.join('\n');
+	}
+
+	private getContributedScripts(nonce: string): string {
+		return this.contributedPreviewScripts()
+			.map((script) => {
+				const type = script.type ? ` type="${escapeAttribute(script.type)}"` : '';
+				return `<script async${type}
+					src="${escapeAttribute(this.webview.asWebviewUri(script.resource).toString())}"
+					nonce="${nonce}"
+					charset="UTF-8"></script>`;
+			})
+			.join('\n');
 	}
 
 	private resolveStyleHref(style: string): string {
@@ -277,6 +365,23 @@ export class PreviewHost {
 
 function escapeAttribute(value: string): string {
 	return value.replace(/"/g, '&quot;');
+}
+
+function getPreviewScriptContribution(script: unknown): { path: string; type?: 'module' } | undefined {
+	if (typeof script === 'string') {
+		return { path: script };
+	}
+	if (!script || typeof script !== 'object') {
+		return undefined;
+	}
+	const contribution = script as Record<string, unknown>;
+	if (typeof contribution.path !== 'string') {
+		return undefined;
+	}
+	return {
+		path: contribution.path,
+		type: contribution.type === 'module' ? 'module' : undefined
+	};
 }
 
 /** True for `/abs/path` (unix) or `C:\abs` (windows); false for workspace-relative `/foo`. */

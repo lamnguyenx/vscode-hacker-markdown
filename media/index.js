@@ -82,6 +82,9 @@
 		if (anchorLine >= 0) {
 			scrollToLine(anchorLine);
 		}
+		// Notify contributed preview scripts (e.g. the mermaid renderer) that
+		// the document content changed, like the built-in preview does.
+		window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 	}
 
 	function setEmpty() {
