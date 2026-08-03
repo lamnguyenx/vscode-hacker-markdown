@@ -31,6 +31,14 @@
 					"type": "boolean",
 					"default": true,
 					"description": "When the preview is scrolled, scroll the Markdown editor to the matching line."
+				},
+				"hackerMarkdown.styles": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "Custom CSS files applied to the preview. Accepts file:// URLs, absolute paths, and https URLs; relative paths are resolved against the Markdown file's folder."
 				}
 			}
 		},

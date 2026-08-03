@@ -48,6 +48,13 @@ export class PreviewManager implements vscode.Disposable {
 				if (e.textEditor.document === this.doc) {
 					this.onEditorSelection(e.selections[0].active.line);
 				}
+			}),
+			vscode.workspace.onDidChangeConfiguration((e) => {
+				if (e.affectsConfiguration('hackerMarkdown.styles') || e.affectsConfiguration('markdown.styles')) {
+					for (const host of this.hosts) {
+						host.rebuild();
+					}
+				}
 			})
 		);
 
@@ -76,7 +83,22 @@ export class PreviewManager implements vscode.Disposable {
 	}
 
 	public refresh(): void {
+		if (this.hasUserStyles()) {
+			// Rebuild the webviews so stylesheet links are regenerated (and
+			// cache-busted by mtime), then re-render the markdown.
+			for (const host of this.hosts) {
+				host.rebuild();
+			}
+		}
 		this.scheduleRender(0);
+	}
+
+	private hasUserStyles(): boolean {
+		const styles = vscode.workspace.getConfiguration('hackerMarkdown').get<string[]>('styles') ?? [];
+		if (styles.length > 0) {
+			return true;
+		}
+		return (vscode.workspace.getConfiguration('markdown').get<string[]>('styles') ?? []).length > 0;
 	}
 
 	public dispose(): void {
@@ -97,8 +119,8 @@ export class PreviewManager implements vscode.Disposable {
 		for (const host of this.hosts) {
 			host.docUri = this.doc?.uri;
 			if (this.doc) {
-				host.setDocument(this.doc.uri);
 				host.setResourceRoots(this.doc.uri.scheme === 'file' ? [vscode.Uri.joinPath(this.doc.uri, '..')] : []);
+				host.setDocument(this.doc.uri);
 			} else {
 				host.empty();
 			}
@@ -109,8 +131,8 @@ export class PreviewManager implements vscode.Disposable {
 	private pushCurrentState(host: PreviewHost): void {
 		host.docUri = this.doc?.uri;
 		if (this.doc) {
-			host.setDocument(this.doc.uri);
 			host.setResourceRoots(this.doc.uri.scheme === 'file' ? [vscode.Uri.joinPath(this.doc.uri, '..')] : []);
+			host.setDocument(this.doc.uri);
 			this.scheduleRender(0);
 		} else {
 			host.empty();

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 
 export interface PreviewHostOptions {
 	/** Show the "Open in Editor" button in the toolbar (docked view only). */
@@ -26,6 +27,9 @@ export class PreviewHost {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	private docName = '';
+	private lastRenderedHtml = '';
+	private isEmpty = true;
+	private extraRoots: vscode.Uri[] = [];
 
 	constructor(
 		webview: vscode.Webview,
@@ -50,10 +54,36 @@ export class PreviewHost {
 	}
 
 	public setResourceRoots(extraRoots: readonly vscode.Uri[]): void {
+		this.extraRoots = [...extraRoots];
+		this.applyResourceRoots();
+	}
+
+	private applyResourceRoots(): void {
 		this.webview.options = {
 			...this.webview.options,
-			localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media'), ...extraRoots]
+			localResourceRoots: [
+				vscode.Uri.joinPath(this.extensionUri, 'media'),
+				...this.extraRoots,
+				...this.styleResourceRoots()
+			]
 		};
+	}
+
+	/**
+	 * Custom styles may live anywhere on disk (`file://` or absolute paths),
+	 * so the parent folders must be added to `localResourceRoots` or the
+	 * webview will refuse to load them.
+	 */
+	private styleResourceRoots(): vscode.Uri[] {
+		const roots: vscode.Uri[] = [];
+		for (const style of this.customStyles()) {
+			if (/^file:/i.test(style)) {
+				roots.push(vscode.Uri.joinPath(vscode.Uri.parse(style), '..'));
+			} else if (isAbsolutePath(style) && fs.existsSync(style)) {
+				roots.push(vscode.Uri.joinPath(vscode.Uri.file(style), '..'));
+			}
+		}
+		return roots;
 	}
 
 	public setDocument(uri: vscode.Uri): void {
@@ -62,11 +92,34 @@ export class PreviewHost {
 	}
 
 	public render(fragment: string): void {
+		this.lastRenderedHtml = fragment;
+		this.isEmpty = false;
 		this.post({ type: 'render', html: fragment });
 	}
 
 	public empty(): void {
+		this.lastRenderedHtml = '';
+		this.isEmpty = true;
 		this.post({ type: 'empty' });
+	}
+
+	/**
+	 * Rebuilds the webview HTML from scratch (new styles take effect). The
+	 * previous document state is re-posted so the preview does not blank out.
+	 * The state messages are deferred past the HTML swap so the page re-render
+	 * triggered by the content update cannot race them.
+	 */
+	public rebuild(): void {
+		this.applyResourceRoots();
+		this.webview.html = this.buildHtml();
+		setTimeout(() => {
+			if (this.isEmpty) {
+				this.post({ type: 'empty' });
+			} else {
+				this.post({ type: 'setDoc', name: this.docName });
+				this.post({ type: 'render', html: this.lastRenderedHtml });
+			}
+		}, 50);
 	}
 
 	public scrollToLine(line: number): void {
@@ -106,7 +159,7 @@ export class PreviewHost {
 					img-src ${cspSource} https: data: http://localhost:* http://127.0.0.1:*;
 					media-src ${cspSource} https: data: http://localhost:* http://127.0.0.1:*;
 					script-src 'nonce-${nonce}';
-					style-src ${cspSource} 'unsafe-inline';
+					style-src ${cspSource} 'unsafe-inline' https:;
 					font-src ${cspSource} https: data:;
 					">
 
@@ -154,9 +207,12 @@ export class PreviewHost {
 		return out.join(' ');
 	}
 
-	/** User styles from the built-in `markdown.styles` setting. */
+	/** User styles from the built-in `markdown.styles` + `hackerMarkdown.styles`. */
 	private getUserStyles(): string {
-		const styles = vscode.workspace.getConfiguration('markdown').get<string[]>('styles') ?? [];
+		const styles = [
+			...(vscode.workspace.getConfiguration('markdown').get<string[]>('styles') ?? []),
+			...this.customStyles()
+		];
 		const out: string[] = [];
 		for (const style of styles) {
 			try {
@@ -169,26 +225,50 @@ export class PreviewHost {
 		return out.join('\n');
 	}
 
+	private customStyles(): string[] {
+		return vscode.workspace.getConfiguration('hackerMarkdown').get<string[]>('styles') ?? [];
+	}
+
 	private resolveStyleHref(style: string): string {
-		if (/^(https?:|file:)/i.test(style)) {
+		if (/^https?:/i.test(style)) {
 			return this.webview.asWebviewUri(vscode.Uri.parse(style)).toString();
+		}
+		if (/^file:/i.test(style)) {
+			return this.cacheBust(this.webview.asWebviewUri(vscode.Uri.parse(style)).toString(), vscode.Uri.parse(style).fsPath);
+		}
+		if (isAbsolutePath(style) && fs.existsSync(style)) {
+			return this.cacheBust(this.webview.asWebviewUri(vscode.Uri.file(style)).toString(), style);
 		}
 		if (style.startsWith('/')) {
 			const folder = this.docUri ? vscode.workspace.getWorkspaceFolder(this.docUri) : undefined;
 			const root = folder ?? vscode.workspace.workspaceFolders?.[0];
 			if (root) {
-				return this.webview.asWebviewUri(vscode.Uri.joinPath(root.uri, style)).toString();
+				return this.cacheBust(this.webview.asWebviewUri(vscode.Uri.joinPath(root.uri, style)).toString(), vscode.Uri.joinPath(root.uri, style).fsPath);
 			}
 			return style;
 		}
 		if (this.docUri && this.docUri.scheme === 'file') {
-			return this.webview.asWebviewUri(vscode.Uri.joinPath(vscode.Uri.joinPath(this.docUri, '..'), style)).toString();
+			const file = vscode.Uri.joinPath(vscode.Uri.joinPath(this.docUri, '..'), style);
+			return this.cacheBust(this.webview.asWebviewUri(file).toString(), file.fsPath);
 		}
 		const root = vscode.workspace.workspaceFolders?.[0];
 		if (root) {
-			return this.webview.asWebviewUri(vscode.Uri.joinPath(root.uri, style)).toString();
+			const file = vscode.Uri.joinPath(root.uri, style);
+			return this.cacheBust(this.webview.asWebviewUri(file).toString(), file.fsPath);
 		}
 		return style;
+	}
+
+	/**
+	 * Appends the file's modification time to the href so a rebuilt page never
+	 * serves a stale cached stylesheet when the CSS file changes on disk.
+	 */
+	private cacheBust(href: string, fsPath: string): string {
+		try {
+			return `${href}?v=${fs.statSync(fsPath).mtimeMs}`;
+		} catch {
+			return href;
+		}
 	}
 
 	/** The markdown document currently rendered by this host. */
@@ -197,6 +277,14 @@ export class PreviewHost {
 
 function escapeAttribute(value: string): string {
 	return value.replace(/"/g, '&quot;');
+}
+
+/** True for `/abs/path` (unix) or `C:\abs` (windows); false for workspace-relative `/foo`. */
+function isAbsolutePath(value: string): boolean {
+	if (/^[a-zA-Z]:[\\/]/.test(value)) {
+		return true;
+	}
+	return value.startsWith('/');
 }
 
 function getNonce(): string {
