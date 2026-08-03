@@ -13,6 +13,10 @@ use to test it end-to-end:
 4. Simulate user actions (trusted CDP input only) and assert on observable state
 5. Use the built-in `markdown.api.render` engine + DOM state as ground truth
 
+For the generalized "why is the tool doing this" knowledge (scroll-event
+timing, monaco virtualization, CDP keybinding flags, …), see
+[`docs/important/quirks.md`](quirks.md).
+
 Test scripts live in [`tests/`](../../tests/):
 
 | Script | Purpose |
@@ -20,6 +24,7 @@ Test scripts live in [`tests/`](../../tests/):
 | `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
 | `tests/test_preview.cjs` | Full 15-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
+| `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
 
 ---
 
@@ -112,8 +117,8 @@ The 15 checks (current status: **all passing**):
 | 7 | Mermaid diagram rendered (`#preview .mermaid svg`) | Contributed `markdown.previewScripts` (mermaid) load and render `.mermaid` blocks |
 | 8 | Link click opens `sub.md` and preview follows | Relative link resolution + follow-active-editor |
 | 9 | `sub.md` content rendered | Second document renders |
-| 10 | Live update after typing in the editor | Debounced re-render on document change |
-| 11 | Mermaid re-renders after a live edit | `vscode.markdown.updateContent` event dispatched after content updates |
+| 10 | Re-render after save shows typed text | `hackerMarkdown.renderOnSave` (default on): a saved edit re-renders the preview |
+| 11 | Mermaid re-renders after a saved edit | `vscode.markdown.updateContent` event dispatched after content updates |
 | 12 | Second preview webview created | `Open Preview in Editor` works |
 | 13 | Editor panel follows the same document | Shared render controller |
 | 14 | Editor panel hides the Open-in-Editor button | Host chrome varies by container type |
@@ -159,8 +164,46 @@ The 15 checks (current status: **all passing**):
   preview's behavior).
 - After clicking a link in the preview, `showTextDocument` has already focused
   the editor, so `Input.insertText` lands in it without any extra click — a
-  click is not only unnecessary, it can steal focus and make the live-update
+  click is not only unnecessary, it can steal focus and make the save-render
   check flaky.
+
+## 3b. Scroll-Anchor E2E (diagram re-render)
+
+The smoke test does not assert scroll positions, so the async-diagram case
+(edit a puml/mermaid block → the rendered diagram reloads → does the reading
+position survive?) has its own script. It needs the dev host launched with
+the fixture document (it edits the mermaid block on a known line):
+
+```sh
+pkill -f "extensionDevelopmentPath.*hacker-markdown"
+code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
+     --remote-debugging-port=9335 --new-window --disable-extensions \
+     "$PWD/exp/e2e-anchor.md"
+node tests/open_view.cjs 9335
+node exp/e2e-anchor.cjs 9335   # PASS: reading position held across mermaid re-render
+```
+
+What it does: focuses the editor, jumps to the last mermaid line
+(`Ctrl+G` + `End`), inserts a node that grows the diagram, asserts the
+preview did **not** re-render while typing (render-on-save is the default),
+saves (Cmd+S), and asserts the note below the diagram stays within 4px of
+its pre-edit viewport position while the SVG grows.
+
+Gotchas baked into the script:
+
+- **Monaco virtualizes lines** — a line only exists in the DOM once it is
+  scrolled into view. Never click a line by DOM query without scrolling
+  first (or use `Ctrl+G` which works regardless of scroll).
+- **Session restore** — the dev-host profile restores the previous cursor
+  position on relaunch, so "click the editor, then ArrowDown ×N" is not
+  deterministic. `Ctrl+G` + `End` is.
+- **`End` before inserting** — inserting at column 1 of a mermaid line
+  corrupts the diagram (the old line content merges onto the inserted
+  line), which removes the SVG and makes the assertion crash on `null`.
+- **Render happens on save, not on keystroke** — any test that edits a
+  document and expects a re-render must send Cmd+S (trusted key event with
+  `modifiers: 4`) afterwards; assertions made between typing and saving
+  must expect the *old* content.
 
 ## 4. Reading the VS Code Logs
 
@@ -189,6 +232,14 @@ node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335
 ```
 
+**The suite is not idempotent.** `test_preview.cjs` mutates the dev host
+state as it goes (opens files, creates panels, switches editors), so
+re-running it against a live host without a fresh launch produces bogus
+failures (observed: checks 6/7/11 fail with a stray `scrollIntoView`
+TypeError). Always restart the dev host between runs — and before
+troubleshooting a failure, re-run once on a fresh host to rule out
+contamination.
+
 ---
 
 ## Quick Reference
@@ -199,6 +250,7 @@ node tests/test_preview.cjs 9335
 | List CDP targets | `curl -s http://127.0.0.1:9335/json/list` |
 | Prepare the view | `node tests/open_view.cjs 9335` |
 | Full functional smoke test | `node tests/test_preview.cjs 9335` |
+| Scroll-anchor E2E (start host with `exp/e2e-anchor.md`) | `node exp/e2e-anchor.cjs 9335` |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 
 ## Known Limits of This Setup
@@ -210,7 +262,15 @@ node tests/test_preview.cjs 9335
   preview→editor path (scroll the preview, the editor reveals the line) has no
   stable DOM-level oracle from outside the window, so the test scrolls the
   preview and checks the extension doesn't error rather than asserting editor
-  position.
+  position. The *preview-side* scroll anchoring (reading position survives
+  async diagram re-renders) IS covered by `exp/e2e-anchor.cjs` (section 3b).
+- **The anchor E2E covers mermaid only.** The puml renderer is the same
+  mechanism (contributed `markdown.previewScripts` replacing a placeholder)
+  but is not installed in the dev host; the harness in
+  `exp/scroll-anchor-test.html` simulates the placeholder replacement and is
+  the cross-renderer proof. The original bug was reported against puml
+  (`tests/samples/enroll-flow-elements.puml.md`) — see
+  `docs/issues/bugs/2026/08/03/2026-08-03-scroll-position-jumps-after-diagram-re-render-CLOSED.md`.
 - **System-browser opening is not tested on purpose**: opening external links
   would pop the user's real browser. The handler is a thin wrapper around
   `vscode.env.openExternal`.

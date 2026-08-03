@@ -7,7 +7,7 @@ A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open
 - **Dockable preview**: lives in a Webview View inside a Panel container. Drag the view header to any sidebar / panel container to re-dock it (Primary Sidebar, Secondary Sidebar, Panel).
 - **Open in Editor**: `Hacker Markdown: Open Preview in Editor` opens a second preview in the editor area (`ViewColumn.Beside`).
 - **Built-in rendering engine**: renders through the built-in `markdown-language-features` extension (`markdown.api.render`), so output comes from the same engine as the stock preview — front matter, `highlight.js` code highlighting, tables, and markdown-it plugins contributed by other extensions.
-- **Follows the active editor**: switches when you open another Markdown file; updates live (debounced) as you type.
+- **Follows the active editor**: switches when you open another Markdown file; re-renders **on save** by default (`hackerMarkdown.renderOnSave`), or live (debounced) as you type when the setting is disabled.
 - **Scroll sync** (bidirectional, like the built-in preview; togglable via `hackerMarkdown.scrollPreviewWithEditor` / `hackerMarkdown.scrollEditorWithPreview`).
 - **Clickable links**: internal links open in the editor, external links open in the system browser, `#fragment` links scroll within the preview.
 - **Contributed preview extensions**: `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions are loaded, so mermaid diagrams render and KaTeX math is styled like in the built-in preview.

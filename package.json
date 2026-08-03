@@ -39,6 +39,11 @@
 					},
 					"default": [],
 					"description": "Custom CSS files applied to the preview. Accepts file:// URLs, absolute paths, and https URLs; relative paths are resolved against the Markdown file's folder."
+				},
+				"hackerMarkdown.renderOnSave": {
+					"type": "boolean",
+					"default": true,
+					"description": "Re-render the preview only when the Markdown document is saved. When disabled, the preview re-renders live (debounced) as you type."
 				}
 			}
 		},

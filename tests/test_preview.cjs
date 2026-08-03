@@ -155,19 +155,29 @@ async function main() {
   check('sub.md content rendered', subH1 === 'Sub', `h1=${subH1}`);
 
   // 3) Live update: after the link click, showTextDocument has focused the
-  // sub.md editor, so trusted CDP input lands there directly.
+  // sub.md editor, so trusted CDP input lands there directly. The extension
+  // renders on save by default (hackerMarkdown.renderOnSave), so the edit
+  // must be saved (Cmd+S) for the preview to re-render. A timestamp token
+  // keeps the check meaningful even when re-run against a dirty fixture.
   const page = targets.find((t) => t.type === 'page');
   if (page) {
     const pageSession = await openCdpSession(page.webSocketDebuggerUrl);
     await sleep(800);
-    await pageSession.send('Input.insertText', { text: '\n\nTyped live. 42' });
-  const live = await evalUntil(first.session, `d.querySelector('#preview').textContent.includes('Typed live. 42')`, 10000);
-  check('live update after typing in editor', live === true);
-  const mermaidSub = await evalUntil(first.session, `(() => { const s = d.querySelector('#preview .mermaid svg'); return !!s && s.children.length > 0; })()`, 20000);
-  check('mermaid re-renders after live edit', mermaidSub === true);
-  pageSession.close();
+    const token = `Typed live. ${Date.now()}`;
+    await pageSession.send('Input.insertText', { text: `\n\n${token}` });
+    await sleep(400);
+    const saved = await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 's', code: 'KeyS', modifiers: 4 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 's', code: 'KeyS', modifiers: 4 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
+    const live = await evalUntil(first.session, `d.querySelector('#preview').textContent.includes(${JSON.stringify(token)})`, 10000);
+    check('re-render after save shows typed text', live === true);
+    const mermaidSub = await evalUntil(first.session, `(() => { const s = d.querySelector('#preview .mermaid svg'); return !!s && s.children.length > 0; })()`, 20000);
+    check('mermaid re-renders after saved edit', mermaidSub === true);
+    pageSession.close();
   } else {
-    check('live update after typing in editor', false, 'no page target');
+    check('re-render after save shows typed text', false, 'no page target');
+    check('mermaid re-renders after saved edit', false, 'no page target');
   }
 
   // 4) Preview -> editor scroll sync (exercise the path; no DOM assert).

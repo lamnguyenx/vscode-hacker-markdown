@@ -15,6 +15,9 @@ body {
 	height: 100%;
 	background: var(--container-background);
 	color: var(--container-foreground);
+	/* The preview re-anchors the reading position itself after re-renders;
+	 * disable the browser's scroll anchoring so it cannot fight it. */
+	overflow-anchor: none;
 }
 
 /* markdown.css targets the preview body directly; the toolbar lives in the

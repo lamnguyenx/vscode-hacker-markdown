@@ -35,7 +35,12 @@ export class PreviewManager implements vscode.Disposable {
 				}
 			}),
 			vscode.workspace.onDidChangeTextDocument((e) => {
-				if (this.doc && e.document === this.doc) {
+				if (this.doc && e.document === this.doc && !this.renderOnSave()) {
+					this.scheduleRender();
+				}
+			}),
+			vscode.workspace.onDidSaveTextDocument((document) => {
+				if (this.doc === document && this.renderOnSave()) {
 					this.scheduleRender();
 				}
 			}),
@@ -50,6 +55,11 @@ export class PreviewManager implements vscode.Disposable {
 				}
 			}),
 			vscode.workspace.onDidChangeConfiguration((e) => {
+				if (e.affectsConfiguration('hackerMarkdown.renderOnSave')) {
+					// Picking up unsaved changes (or switching back to live
+					// rendering) should be reflected immediately.
+					this.scheduleRender(0);
+				}
 				if (e.affectsConfiguration('hackerMarkdown.styles') || e.affectsConfiguration('markdown.styles')) {
 					for (const host of this.hosts) {
 						host.rebuild();
@@ -63,6 +73,10 @@ export class PreviewManager implements vscode.Disposable {
 
 	public hasMarkdownDocument(): boolean {
 		return !!this.doc;
+	}
+
+	private renderOnSave(): boolean {
+		return vscode.workspace.getConfiguration('hackerMarkdown').get<boolean>('renderOnSave', true);
 	}
 
 	public createHost(
