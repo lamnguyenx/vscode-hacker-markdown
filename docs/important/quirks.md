@@ -43,6 +43,13 @@ quirk is, why it bites, and the workaround.
   target. Every expression must reach
   `document.querySelector('iframe').contentDocument` — there is no shortcut
   and `contentWindow` from the parent is cross-origin.
+- **Probing the wrong window lies silently.** The extension's scripts run
+  in the *inner* iframe (`contentWindow`); evaluating in the OOPIF's outer
+  frame and reading `window.x` reads the *outer* window. A marker set by
+  the webview code reads as "missing" from outside — check
+  `contentWindow.__marker`, not `window.__marker`, before concluding the
+  webview serves stale code (this burned ~an hour as a false "cached
+  index.js" investigation).
 - Find the right target by *probing*: iterate `/json/list` for `type ===
   'iframe'` with a `vscode-webview://` URL and eval a marker query (this
   repo uses `.toolbar .doc-name`). Editor-area previews are separate OOPIF
@@ -117,6 +124,36 @@ quirk is, why it bites, and the workaround.
   shared deadline — don't assume your `await` resumes before the observer's
   debounce fires.
 
+## Contributed preview renderers (mermaid/puml/KaTeX)
+
+Knowledge for anyone poking at the async diagram renderers this extension
+integrates with:
+
+- **The container's `textContent` can be the diagram source.** The built-in
+  mermaid renderer reads `container.textContent` as the mermaid source.
+  Anything you insert *inside* the placeholder as a DOM node becomes part
+  of the diagram ("Parse error on line 7"). Overlays/badges over
+  placeholders must be CSS pseudo-elements (`::after`) — invisible to
+  `textContent` — or siblings.
+- **Renderers replace or empty the placeholder element itself.** The
+  built-in mermaid removes `.mermaid > svg`, clears `innerHTML`, renders,
+  then writes the new svg back; bierner's `replaceWith`s the whole
+  wrapper. A `min-height` on the placeholder dies with it — the height
+  hold must live on a *wrapper div* that survives the swap.
+- **`style="all: unset"` makes placeholders inline.** `offsetHeight` of an
+  inline element is 0, so height filters must use
+  `getBoundingClientRect().height`.
+- **Edits shift `data-line` values.** Inserting a line inside a diagram
+  bumps every following `data-line` by one — matching old↔new blocks by
+  line *values* breaks. Match by position (count of preceding data-line
+  elements + order within the gap), which is stable across edits.
+- **Fast renders complete in <16ms.** A tiny diagram re-renders faster than
+  a 100ms poll; the "re-rendering" state can be missed entirely. Either
+  poll tightly or give the indicator a minimum visible duration.
+- **Kind switches never settle.** Pairing an old container with a new img
+  (or vice versa) means a min-height wrapper around an img that never
+  satisfies the "content landed" observer. Only pair same-kind blocks.
+
 ## Dev host lifecycle
 
 - **The smoke suite is not idempotent.** It mutates host state as it goes
@@ -128,6 +165,13 @@ quirk is, why it bites, and the workaround.
   step 1). It is persisted afterwards.
 - **The panel switcher renders lazily.** After launch the panel tab list may
   be empty; toggle the panel (`Cmd+J`) and poll for the tab before clicking.
+- **The webview caches media aggressively.** The extension's own `media/*`
+  (served through the webview resource server + a service worker with
+  ETag revalidation) can be served stale long after you edit the file —
+  observed: an edited `index.js` not reloading even across dev-host
+  restarts. The webview HTML must mtime-bust every media URL
+  (`previewHost.ts#cacheBustMedia`); without it, debugging webview code is
+  chaos. (User *styles* were already busted; the base media were not.)
 - **Verify the extension actually re-loaded your changes.** Webview media
   (`media/*`) is served from disk, but the page only picks it up on the next
   webview load (`Refresh Preview` rebuilds it) — restart the host when in

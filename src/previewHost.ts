@@ -147,14 +147,20 @@ export class PreviewHost {
 		return this.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', relativePath));
 	}
 
+	private cacheBustMedia(relativePath: string): string {
+		return this.cacheBust(this.asMediaWebviewUri(relativePath).toString(), vscode.Uri.joinPath(this.extensionUri, 'media', relativePath).fsPath);
+	}
+
 	private buildHtml(): string {
 		const nonce = getNonce();
 		const cspSource = this.webview.cspSource;
 
-		const mainCss = this.asMediaWebviewUri('main.css');
-		const markdownCss = this.asMediaWebviewUri('markdown.css');
-		const highlightCss = this.asMediaWebviewUri('highlight.css');
-		const mainJs = this.asMediaWebviewUri('index.js');
+		// Cache-busted by mtime so a rebuilt page never serves stale media
+		// (the webview resource server otherwise caches index.js / css).
+		const mainCss = this.cacheBustMedia('main.css');
+		const markdownCss = this.cacheBustMedia('markdown.css');
+		const highlightCss = this.cacheBustMedia('highlight.css');
+		const mainJs = this.cacheBustMedia('index.js');
 
 		return /* html */ `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles())}">

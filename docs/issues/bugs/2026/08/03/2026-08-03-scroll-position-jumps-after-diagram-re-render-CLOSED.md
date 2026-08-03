@@ -56,6 +56,10 @@ Two cooperating problems in `media/index.js`:
 
 Files: `media/index.js` (render/keepAnchor/settleAnchor, ~140 lines), `media/main.css` (+3).
 
+The follow-up "no collapse flicker" work (keep the old diagram visible with
+a "Re-rendering…" badge while it re-renders) is documented in
+`docs/plans/2026/08/03/2026-08-03-diagram-re-render-keep-stale-visible.md`.
+
 ## Verification
 
 - Isolated harness (`exp/scroll-anchor-test.html` — loads the real

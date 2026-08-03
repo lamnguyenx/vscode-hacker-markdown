@@ -186,8 +186,15 @@ node exp/e2e-anchor.cjs 9335   # PASS: reading position held across mermaid re-r
 What it does: focuses the editor, jumps to the last mermaid line
 (`Ctrl+G` + `End`), inserts a node that grows the diagram, asserts the
 preview did **not** re-render while typing (render-on-save is the default),
-saves (Cmd+S), and asserts the note below the diagram stays within 4px of
-its pre-edit viewport position while the SVG grows.
+saves (Cmd+S), then asserts three things:
+
+1. **No collapse while re-rendering** — a "Re-rendering…" keeper badge
+   (`.hmk-stale-holder`) appears and the note below the diagram does not
+   jump upward (the placeholder is held at its old height until the new
+   render lands; the diagram may legitimately grow *downward*);
+2. **The re-render happened** — the new SVG contains the inserted node;
+3. **The position is restored** — the note is back within 4px of its
+   pre-edit position and the badge is gone.
 
 Gotchas baked into the script:
 
@@ -204,6 +211,35 @@ Gotchas baked into the script:
   document and expects a re-render must send Cmd+S (trusted key event with
   `modifiers: 4`) afterwards; assertions made between typing and saving
   must expect the *old* content.
+- **The keeper window can be very short** — a tiny diagram re-renders in
+  <16ms, so the badge poll must be tight (15ms) and the keeper's badge has
+  a 120ms minimum life. Don't "simplify" the poll to 100ms.
+- **Session restore can hand you a corrupted buffer** — the restored editor
+  buffer can differ from disk (hot exit); observed: a stray edit left the
+  mermaid fence unclosed, turning the rest of the doc into the diagram
+  source. When a run misbehaves inexplicably, wipe
+  `exp/devhost/User/workspaceStorage/*/backups` and relaunch.
+
+## 3c. The Harness (webview logic in a plain page)
+
+`exp/scroll-anchor-test.html` drives the *real* `media/index.js` in a
+plain page (stubbed `acquireVsCodeApi`) to test the stale-diagram keepers
+cross-renderer: scenario A is the container pattern (mermaid: placeholder
+held at its old height + badge), scenario B is the img pattern (plantuml:
+old img kept in flow until the new one loads). It needs two local servers:
+
+```sh
+python3 -m http.server 8377 --bind 127.0.0.1 &   # serves the harness + media
+node exp/slow-img-server.cjs &                    # 2s-delayed image on 8378
+# open http://127.0.0.1:8377/exp/scroll-anchor-test.html in a browser;
+# the page title flips to PASS/FAIL and window.__log has the detail.
+```
+
+Harness-specific gotchas: it must load `media/main.css` (the badge CSS is
+part of the behavior), then override `html, body { height: auto !important }`
+after it — main.css's `height: 100%` shrinks the sticky toolbar's
+containing block in a plain page and silently breaks every scroll
+measurement.
 
 ## 4. Reading the VS Code Logs
 
@@ -251,6 +287,7 @@ contamination.
 | Prepare the view | `node tests/open_view.cjs 9335` |
 | Full functional smoke test | `node tests/test_preview.cjs 9335` |
 | Scroll-anchor E2E (start host with `exp/e2e-anchor.md`) | `node exp/e2e-anchor.cjs 9335` |
+| Harness (webview logic; needs ports 8377/8378) | open `http://127.0.0.1:8377/exp/scroll-anchor-test.html` (section 3c) |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 
 ## Known Limits of This Setup
