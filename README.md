@@ -6,7 +6,7 @@ A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open
 
 - **Dockable preview**: lives in a Webview View inside a Panel container. Drag the view header to any sidebar / panel container to re-dock it (Primary Sidebar, Secondary Sidebar, Panel).
 - **Open in Editor**: `Hacker Markdown: Open Preview in Editor` opens a second preview in the editor area (`ViewColumn.Beside`).
-- **Built-in rendering engine**: renders through the built-in `markdown-language-features` extension (`markdown.api.render`), so output is feature-identical to the stock preview — front matter, `highlight.js` code highlighting, tables, and markdown-it plugins contributed by other extensions.
+- **Built-in rendering engine**: renders through the built-in `markdown-language-features` extension (`markdown.api.render`), so output comes from the same engine as the stock preview — front matter, `highlight.js` code highlighting, tables, and markdown-it plugins contributed by other extensions.
 - **Follows the active editor**: switches when you open another Markdown file; updates live (debounced) as you type.
 - **Scroll sync** (bidirectional, like the built-in preview; togglable via `hackerMarkdown.scrollPreviewWithEditor` / `hackerMarkdown.scrollEditorWithPreview`).
 - **Clickable links**: internal links open in the editor, external links open in the system browser, `#fragment` links scroll within the preview.
@@ -28,14 +28,15 @@ npm install
 npm run compile
 ```
 
-Press `F5` in VS Code, or launch an Extension Development Host manually:
+Press `F5` in VS Code (a `Run Extension` launch config is provided), or launch
+an Extension Development Host manually:
 
 ```sh
 code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
      --remote-debugging-port=9335 --new-window --disable-extensions tests/workspace/test.md
 ```
 
-The preview appears in the bottom Panel under the "Hacker Markdown" tab. Drag its header to the Primary Sidebar if you prefer it there.
+The preview appears in the bottom Panel under the "Hacker Markdown" tab. Drag its header to the Primary Sidebar if you prefer it there (in a fresh profile, toggle the panel once with `Cmd+J` so the container switcher appears).
 
 ## How it works
 
@@ -47,7 +48,7 @@ The preview appears in the bottom Panel under the "Hacker Markdown" tab. Drag it
 
 ## Testing
 
-See [docs/important/how-to-test.md](docs/important/how-to-test.md) for the CDP-based end-to-end pipeline (same approach as the [hacker browser](https://github.com/lamnguyenx/vscode-hacker-browser) project):
+See [docs/important/how-to-test.md](docs/important/how-to-test.md) for the CDP-based end-to-end pipeline (same approach as the [hacker browser](https://github.com/lamnguyenx/vscode-hacker-browser) project). With the dev host from above running on port 9335:
 
 ```sh
 node tests/open_view.cjs 9335   # dismiss onboarding, open the view

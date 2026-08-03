@@ -9,7 +9,7 @@ build:
 	npm run compile
 
 install: build
-	rm -r "$(DEST)"
+	rm -r "$(DEST)" || true
 	mkdir -p "$(DEST)"
 	cp -R out media "$(DEST)"/
 	cp package.json README.md "$(DEST)"/
