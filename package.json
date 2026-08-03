@@ -1,0 +1,95 @@
+{
+	"name": "vscode-hacker-markdown",
+	"displayName": "Hacker Markdown",
+	"description": "A Markdown preview you can dock in the Panel or Primary Sidebar, or open in the Editor.",
+	"version": "0.0.1",
+	"publisher": "lamnt45",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onView:hackerMarkdown.preview",
+		"onCommand:hackerMarkdown.open",
+		"onCommand:hackerMarkdown.openInEditor",
+		"onCommand:hackerMarkdown.refresh"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"configuration": {
+			"title": "Hacker Markdown",
+			"properties": {
+				"hackerMarkdown.scrollPreviewWithEditor": {
+					"type": "boolean",
+					"default": true,
+					"description": "When the cursor moves in the Markdown editor, scroll the preview to the matching line."
+				},
+				"hackerMarkdown.scrollEditorWithPreview": {
+					"type": "boolean",
+					"default": true,
+					"description": "When the preview is scrolled, scroll the Markdown editor to the matching line."
+				}
+			}
+		},
+		"viewsContainers": {
+			"panel": [
+				{
+					"id": "hacker-markdown",
+					"title": "Hacker Markdown",
+					"icon": "media/icon.svg"
+				}
+			]
+		},
+		"views": {
+			"hacker-markdown": [
+				{
+					"type": "webview",
+					"id": "hackerMarkdown.preview",
+					"name": "Markdown Preview",
+					"icon": "media/icon.svg",
+					"contextualTitle": "Hacker Markdown"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "hackerMarkdown.open",
+				"title": "Hacker Markdown: Open"
+			},
+			{
+				"command": "hackerMarkdown.openInEditor",
+				"title": "Hacker Markdown: Open Preview in Editor"
+			},
+			{
+				"command": "hackerMarkdown.refresh",
+				"title": "Hacker Markdown: Refresh Preview"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "hackerMarkdown.open"
+				},
+				{
+					"command": "hackerMarkdown.openInEditor"
+				},
+				{
+					"command": "hackerMarkdown.refresh"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"compile": "tsc -p ./",
+		"watch": "tsc -w -p ./",
+		"vscode:prepublish": "npm run compile"
+	},
+	"devDependencies": {
+		"@types/node": "^26.1.2",
+		"@types/vscode": "^1.100.0",
+		"typescript": "^5.5.0"
+	}
+}

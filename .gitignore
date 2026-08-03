@@ -1,0 +1,6 @@
+node_modules/
+out/
+exp/devhost*/
+exp/*.log
+exp/*.png
+*.vsix

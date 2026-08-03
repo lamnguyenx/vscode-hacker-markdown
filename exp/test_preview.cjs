@@ -1,0 +1,198 @@
+const http = require('http');
+
+function getTargets(port) {
+  return new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path: '/json/list' }, (res) => {
+      let data = '';
+      res.on('data', (c) => (data += c));
+      res.on('end', () => resolve(JSON.parse(data)));
+    }).on('error', reject);
+  });
+}
+
+async function openCdpSession(wsUrl) {
+  const ws = new WebSocket(wsUrl);
+  let id = 0;
+  const pending = new Map();
+  const send = (method, params = {}) =>
+    new Promise((resolve, reject) => {
+      const msgId = ++id;
+      pending.set(msgId, { resolve, reject });
+      ws.send(JSON.stringify({ id: msgId, method, params }));
+    });
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.id && pending.has(msg.id)) {
+      const { resolve, reject } = pending.get(msg.id);
+      pending.delete(msg.id);
+      msg.error ? reject(new Error(JSON.stringify(msg.error))) : resolve(msg.result);
+    }
+  };
+  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+  await send('Runtime.enable');
+  return {
+    send,
+    eval: async (expression) => {
+      const r = await send('Runtime.evaluate', { expression, returnByValue: true });
+      if (r.exceptionDetails) throw new Error((r.exceptionDetails.exception?.description || r.exceptionDetails.text).slice(0, 600));
+      return r.result.value;
+    },
+    close: () => ws.close()
+  };
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function main() {
+  const port = process.argv[2];
+  const targets = await getTargets(port);
+
+  // The webview OOPIFs: vscode-webview:// targets whose child frame has our UI.
+  const candidates = targets.filter((t) => t.type === 'iframe' && (t.url || '').startsWith('vscode-webview://'));
+  if (candidates.length === 0) { console.error('NO_WEBVIEW_TARGET'); process.exit(2); }
+
+  const webviews = [];
+  for (const c of candidates) {
+    const session = await openCdpSession(c.webSocketDebuggerUrl);
+    const probe = await session.eval(`(() => { const d = document.querySelector('iframe'); const c = d && d.contentDocument; return !!(c && c.querySelector('.toolbar .doc-name')); })()`);
+    if (probe) { webviews.push({ target: c, session }); }
+  }
+  if (webviews.length === 0) { console.error('NO_PREVIEW_WEBVIEW_TARGET (open the Hacker Markdown view first)'); process.exit(2); }
+  console.log(`found ${webviews.length} preview webview(s)`);
+
+  const ui = (session) => (expr) => session.eval(`(() => { const d = document.querySelector('iframe').contentDocument; return (${expr}); })()`);
+
+  const results = [];
+  const check = (name, ok, extra = '') => {
+    results.push({ name, ok });
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`);
+  };
+
+  const first = webviews[0];
+  const run = ui(first.session);
+  const evalUntil = async (session, expr, timeoutMs = 15000) => {
+    const deadline = Date.now() + timeoutMs;
+    let last;
+    while (Date.now() < deadline) {
+      last = await ui(session)(expr);
+      if (last) return last;
+      await sleep(300);
+    }
+    return last;
+  };
+
+  // 1) Initial render: test.md is the active editor on launch.
+  const docName = await evalUntil(first.session, `d.querySelector('.toolbar .doc-name').textContent`);
+  check('initial render: doc-name follows active editor', docName === 'test.md', `name=${docName}`);
+
+  const state = await run(`({
+    hasH1: !!d.querySelector('#preview h1'),
+    hasH2: !!d.querySelector('#preview h2'),
+    hasCode: !!d.querySelector('#preview pre code.hljs'),
+    hasTable: !!d.querySelector('#preview table'),
+    emptyHidden: d.querySelector('#empty').hidden,
+    previewVisible: !d.querySelector('#preview').hidden,
+    hasDataLine: d.querySelectorAll('#preview [data-line]').length > 0
+  })`);
+  check('renders headings', state.hasH1 && state.hasH2);
+  check('renders highlighted code block', state.hasCode);
+  check('renders table', state.hasTable);
+  check('empty state hidden, preview visible', state.emptyHidden && state.previewVisible);
+  check('source-line markers (data-line) present', state.hasDataLine);
+
+  // 2) Follow active editor via link click: ./sub.md opens in the editor.
+  await run(`(() => { const a = [...d.querySelectorAll('#preview a')].find(x => x.getAttribute('data-href') === './sub.md'); a.scrollIntoView({block:'center'}); return true; })()`);
+  await sleep(400);
+  const linkRect = await run(`(() => { const a = [...d.querySelectorAll('#preview a')].find(x => x.getAttribute('data-href') === './sub.md'); const r = a.getBoundingClientRect(); return {x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2)}; })()`);
+  await first.session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: linkRect.x, y: linkRect.y, button: 'left', clickCount: 1 });
+  await first.session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: linkRect.x, y: linkRect.y, button: 'left', clickCount: 1 });
+  await sleep(1200);
+  const name2 = await evalUntil(first.session, `d.querySelector('.toolbar .doc-name').textContent`);
+  check('link click opens sub.md and preview follows', name2 === 'sub.md', `name=${name2}`);
+  const subH1 = await run(`d.querySelector('#preview h1').textContent`);
+  check('sub.md content rendered', subH1 === 'Sub', `h1=${subH1}`);
+
+  // 3) Live update: click into the editor first (gives it focus), then type.
+  const page = targets.find((t) => t.type === 'page');
+  if (page) {
+    const pageSession = await openCdpSession(page.webSocketDebuggerUrl);
+    const editorPoint = await pageSession.eval(`(() => { const v = document.querySelector('.monaco-editor'); if (!v) return null; const b = v.getBoundingClientRect(); return {x: Math.round(b.x + b.width/2), y: Math.round(b.y + 40)}; })()`);
+    if (editorPoint) {
+      await pageSession.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: editorPoint.x, y: editorPoint.y, button: 'left', clickCount: 1 });
+      await pageSession.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: editorPoint.x, y: editorPoint.y, button: 'left', clickCount: 1 });
+      await sleep(600);
+      await pageSession.send('Input.insertText', { text: '\n\nTyped live. 42' });
+      await sleep(1200);
+    }
+    const live = await run(`d.querySelector('#preview').textContent.includes('Typed live. 42')`);
+    check('live update after typing in editor', live === true);
+    pageSession.close();
+  } else {
+    check('live update after typing in editor', false, 'no page target');
+  }
+
+  // 4) Preview -> editor scroll sync (exercise the path; no DOM assert).
+  await run(`(() => { d.scrollingElement.scrollTop = 400; d.scrollingElement.dispatchEvent(new Event('scroll')); return true; })()`);
+  await sleep(600);
+
+  // 5) Open a second preview in the Editor area via the command palette.
+  const page2 = await openCdpSession((targets.find((t) => t.type === 'page')).webSocketDebuggerUrl);
+  await page2.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
+  await page2.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', modifiers: 4 });
+  await page2.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'P', code: 'KeyP', modifiers: 4 | 8 });
+  await page2.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'P', code: 'KeyP', modifiers: 4 | 8 });
+  await page2.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', modifiers: 4 });
+  await page2.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Meta', code: 'MetaLeft' });
+  await sleep(800);
+  await page2.send('Input.insertText', { text: 'Hacker Markdown: Open Preview in Editor' });
+  await sleep(400);
+  await page2.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
+  await page2.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
+  await sleep(2500);
+
+  // Find the second preview webview (editor panel).
+  const targets2 = await getTargets(port);
+  const panelCandidates = targets2.filter((t) => t.type === 'iframe' && (t.url || '').startsWith('vscode-webview://'));
+  let panelSession = null;
+  for (const c of panelCandidates) {
+    const s = await openCdpSession(c.webSocketDebuggerUrl);
+    const probe = await s.eval(`(() => { const d = document.querySelector('iframe'); const c = d && d.contentDocument; return !!(c && c.querySelector('.toolbar .doc-name')); })()`);
+    if (probe && c !== first.target) { panelSession = s; break; }
+    s.close();
+  }
+  check('open in editor creates a second preview webview', !!panelSession);
+  if (panelSession) {
+    const pname = await evalUntil(panelSession, `d.querySelector('.toolbar .doc-name').textContent`, 8000);
+    check('editor panel follows the same document', pname === 'sub.md', `name=${pname}`);
+    const ptype = await ui(panelSession)(`d.querySelector('.toolbar [data-command="openInEditor"]') === null`);
+    check('editor panel hides Open-in-Editor button', ptype === true);
+    panelSession.close();
+  }
+  page2.close();
+
+  // 6) Empty state when a non-markdown file is active.
+  const page3 = await openCdpSession((targets.find((t) => t.type === 'page')).webSocketDebuggerUrl);
+  await page3.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
+  await page3.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', modifiers: 4 });
+  await page3.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'P', code: 'KeyP', modifiers: 4 | 8 });
+  await page3.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'P', code: 'KeyP', modifiers: 4 | 8 });
+  await page3.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', modifiers: 4 });
+  await page3.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Meta', code: 'MetaLeft' });
+  await sleep(800);
+  await page3.send('Input.insertText', { text: 'File: New Untitled Text File' });
+  await sleep(400);
+  await page3.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
+  await page3.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
+  await sleep(1200);
+  const emptyState = await evalUntil(first.session, `d.querySelector('#empty').hidden === false && d.querySelector('#preview').hidden === true`);
+  check('empty state for non-markdown active editor', emptyState === true);
+  page3.close();
+
+  for (const w of webviews) w.session.close();
+
+  const failed = results.filter((r) => !r.ok);
+  console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
+  process.exit(failed.length ? 1 : 0);
+}
+
+main().catch((e) => { console.error('ERR', e.message); process.exit(1); });
