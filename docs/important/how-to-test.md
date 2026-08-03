@@ -13,19 +13,19 @@ use to test it end-to-end:
 4. Simulate user actions (trusted CDP input only) and assert on observable state
 5. Use the built-in `markdown.api.render` engine + DOM state as ground truth
 
-Test scripts live in [`exp/`](../../exp/):
+Test scripts live in [`tests/`](../../tests/):
 
 | Script | Purpose |
 | --- | --- |
-| `exp/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
-| `exp/test_preview.cjs` | Full 13-check functional smoke test |
-| `exp/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
+| `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
+| `tests/test_preview.cjs` | Full 13-check functional smoke test |
+| `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
 
 ---
 
 ## Prerequisites
 
-- Node.js (for `exp/*.cjs` and `npm run compile`)
+- Node.js (for `tests/*.cjs` and `npm run compile`)
 - The extension compiled: `npm run compile`
 - A local build of VS Code on the `code` CLI
 
@@ -40,7 +40,7 @@ code --extensionDevelopmentPath="$PWD" \
      --user-data-dir="$PWD/exp/devhost" \
      --remote-debugging-port=9335 \
      --new-window \
-     --disable-extensions "$PWD/exp/workspace/test.md"
+     --disable-extensions "$PWD/tests/workspace/test.md"
 ```
 
 Notes:
@@ -49,7 +49,7 @@ Notes:
   it, the window would join an already-running VS Code and ignore the port.
 - `--disable-extensions` keeps Copilot & co. out of the way; the dev extension
   is still loaded via `--extensionDevelopmentPath`.
-- Opening `exp/workspace/test.md` as the file argument makes a Markdown editor
+- Opening `tests/workspace/test.md` as the file argument makes a Markdown editor
   active at startup, so the preview renders immediately.
 - The harmless warning `'remote-debugging-port' is not in the list of known
   options` can be ignored. (The CLI prepends its own
@@ -70,7 +70,7 @@ or run `Hacker Markdown: Open` / `Hacker Markdown: Open Preview in Editor` /
 A fresh dev-host profile needs three manual-ish steps before the preview exists:
 
 ```sh
-node exp/open_view.cjs 9335
+node tests/open_view.cjs 9335
 ```
 
 This script does, in order:
@@ -96,7 +96,7 @@ to attach to.
 ## 3. The Functional Smoke Test
 
 ```sh
-node exp/test_preview.cjs 9335
+node tests/test_preview.cjs 9335
 ```
 
 The 13 checks (current status: **all passing**):
@@ -182,9 +182,9 @@ npm run compile                    # tsc -> out/
 pkill -f "extensionDevelopmentPath.*hacker-markdown"
 code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
      --remote-debugging-port=9335 --new-window --disable-extensions \
-     "$PWD/exp/workspace/test.md"
-node exp/open_view.cjs 9335
-node exp/test_preview.cjs 9335
+     "$PWD/tests/workspace/test.md"
+node tests/open_view.cjs 9335
+node tests/test_preview.cjs 9335
 ```
 
 ---
@@ -193,11 +193,11 @@ node exp/test_preview.cjs 9335
 
 | Task | Command |
 | --- | --- |
-| Start dev host (port 9335) | `code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" --remote-debugging-port=9335 --new-window --disable-extensions "$PWD/exp/workspace/test.md"` |
+| Start dev host (port 9335) | `code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" --remote-debugging-port=9335 --new-window --disable-extensions "$PWD/tests/workspace/test.md"` |
 | List CDP targets | `curl -s http://127.0.0.1:9335/json/list` |
-| Prepare the view | `node exp/open_view.cjs 9335` |
-| Full functional smoke test | `node exp/test_preview.cjs 9335` |
-| Evaluate in webview | `node exp/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
+| Prepare the view | `node tests/open_view.cjs 9335` |
+| Full functional smoke test | `node tests/test_preview.cjs 9335` |
+| Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 
 ## Known Limits of This Setup
 
