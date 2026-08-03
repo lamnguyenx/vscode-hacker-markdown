@@ -50,7 +50,8 @@ The preview appears in the bottom Panel under the "Hacker Markdown" tab. Drag it
 See [docs/important/how-to-test.md](docs/important/how-to-test.md) for the CDP-based end-to-end pipeline (same approach as the [hacker browser](https://github.com/lamnguyenx/vscode-hacker-browser) project):
 
 ```sh
-node exp/test_preview.cjs 9335
+node exp/open_view.cjs 9335   # dismiss onboarding, open the view
+node exp/test_preview.cjs 9335  # 13-check functional smoke test (all passing)
 ```
 
 ## Limitations

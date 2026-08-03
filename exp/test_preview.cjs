@@ -43,6 +43,44 @@ async function openCdpSession(wsUrl) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Runs a command through the workbench command palette: opens it with
+ * trusted CDP key input, types `text`, then clicks the *exact* matching row
+ * (fuzzy matching can rank a different item first, e.g.
+ * "File: Compare New Untitled Text Files" before "File: New Untitled Text
+ * File"). A real CDP mouse click on the row is deterministic.
+ */
+async function runPaletteCommand(pageSession, text) {
+  const metaDown = async () => {
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', modifiers: 12 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'P', code: 'KeyP', modifiers: 12 });
+  };
+  const metaUp = async () => {
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'P', code: 'KeyP', modifiers: 12 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', modifiers: 12 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
+  };
+  await metaDown();
+  await sleep(800);
+  await metaUp();
+  await pageSession.send('Input.insertText', { text });
+  await sleep(600);
+  const rect = await pageSession.eval(`(() => {
+    const rows = [...document.querySelectorAll('.quick-input-list .monaco-list-row')];
+    const row = rows.find(r => r.textContent.trim().startsWith(${JSON.stringify(text)}));
+    if (!row) return null;
+    const b = row.getBoundingClientRect();
+    return { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) };
+  })()`);
+  if (!rect) {
+    throw new Error(`palette row not found for: ${text}`);
+  }
+  await pageSession.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+  await pageSession.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+  await sleep(400);
+}
+
 async function main() {
   const port = process.argv[2];
   const targets = await getTargets(port);
@@ -88,7 +126,7 @@ async function main() {
   const state = await run(`({
     hasH1: !!d.querySelector('#preview h1'),
     hasH2: !!d.querySelector('#preview h2'),
-    hasCode: !!d.querySelector('#preview pre code.hljs'),
+    hasCode: !!d.querySelector('#preview pre code span.hljs-keyword'),
     hasTable: !!d.querySelector('#preview table'),
     emptyHidden: d.querySelector('#empty').hidden,
     previewVisible: !d.querySelector('#preview').hidden,
@@ -112,19 +150,14 @@ async function main() {
   const subH1 = await run(`d.querySelector('#preview h1').textContent`);
   check('sub.md content rendered', subH1 === 'Sub', `h1=${subH1}`);
 
-  // 3) Live update: click into the editor first (gives it focus), then type.
+  // 3) Live update: after the link click, showTextDocument has focused the
+  // sub.md editor, so trusted CDP input lands there directly.
   const page = targets.find((t) => t.type === 'page');
   if (page) {
     const pageSession = await openCdpSession(page.webSocketDebuggerUrl);
-    const editorPoint = await pageSession.eval(`(() => { const v = document.querySelector('.monaco-editor'); if (!v) return null; const b = v.getBoundingClientRect(); return {x: Math.round(b.x + b.width/2), y: Math.round(b.y + 40)}; })()`);
-    if (editorPoint) {
-      await pageSession.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: editorPoint.x, y: editorPoint.y, button: 'left', clickCount: 1 });
-      await pageSession.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: editorPoint.x, y: editorPoint.y, button: 'left', clickCount: 1 });
-      await sleep(600);
-      await pageSession.send('Input.insertText', { text: '\n\nTyped live. 42' });
-      await sleep(1200);
-    }
-    const live = await run(`d.querySelector('#preview').textContent.includes('Typed live. 42')`);
+    await sleep(800);
+    await pageSession.send('Input.insertText', { text: '\n\nTyped live. 42' });
+    const live = await evalUntil(first.session, `d.querySelector('#preview').textContent.includes('Typed live. 42')`, 10000);
     check('live update after typing in editor', live === true);
     pageSession.close();
   } else {
@@ -137,18 +170,8 @@ async function main() {
 
   // 5) Open a second preview in the Editor area via the command palette.
   const page2 = await openCdpSession((targets.find((t) => t.type === 'page')).webSocketDebuggerUrl);
-  await page2.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
-  await page2.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', modifiers: 4 });
-  await page2.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'P', code: 'KeyP', modifiers: 4 | 8 });
-  await page2.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'P', code: 'KeyP', modifiers: 4 | 8 });
-  await page2.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', modifiers: 4 });
-  await page2.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Meta', code: 'MetaLeft' });
-  await sleep(800);
-  await page2.send('Input.insertText', { text: 'Hacker Markdown: Open Preview in Editor' });
-  await sleep(400);
-  await page2.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
-  await page2.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
-  await sleep(2500);
+  await runPaletteCommand(page2, 'Hacker Markdown: Open Preview in Editor');
+  await sleep(2000);
 
   // Find the second preview webview (editor panel).
   const targets2 = await getTargets(port);
@@ -157,7 +180,7 @@ async function main() {
   for (const c of panelCandidates) {
     const s = await openCdpSession(c.webSocketDebuggerUrl);
     const probe = await s.eval(`(() => { const d = document.querySelector('iframe'); const c = d && d.contentDocument; return !!(c && c.querySelector('.toolbar .doc-name')); })()`);
-    if (probe && c !== first.target) { panelSession = s; break; }
+    if (probe && c.webSocketDebuggerUrl !== first.target.webSocketDebuggerUrl) { panelSession = s; break; }
     s.close();
   }
   check('open in editor creates a second preview webview', !!panelSession);
@@ -170,19 +193,17 @@ async function main() {
   }
   page2.close();
 
-  // 6) Empty state when a non-markdown file is active.
+  // 6) Empty state when a non-markdown file is active. The untitled file
+  // opens in a NEW editor group, so click its tab to make it the active
+  // editor (the preview follows the active editor).
   const page3 = await openCdpSession((targets.find((t) => t.type === 'page')).webSocketDebuggerUrl);
-  await page3.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
-  await page3.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', modifiers: 4 });
-  await page3.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'P', code: 'KeyP', modifiers: 4 | 8 });
-  await page3.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'P', code: 'KeyP', modifiers: 4 | 8 });
-  await page3.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', modifiers: 4 });
-  await page3.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Meta', code: 'MetaLeft' });
-  await sleep(800);
-  await page3.send('Input.insertText', { text: 'File: New Untitled Text File' });
-  await sleep(400);
-  await page3.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
-  await page3.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
+  await runPaletteCommand(page3, 'File: New Untitled Text File');
+  await sleep(1000);
+  const untitledRect = await page3.eval(`(() => { const t = [...document.querySelectorAll('.tab')].find(e => (e.textContent || '').trim().startsWith('Untitled')); if (!t) return null; const b = t.getBoundingClientRect(); return {x: Math.round(b.x + b.width/2), y: Math.round(b.y + b.height/2)}; })()`);
+  if (untitledRect) {
+    await page3.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: untitledRect.x, y: untitledRect.y, button: 'left', clickCount: 1 });
+    await page3.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: untitledRect.x, y: untitledRect.y, button: 'left', clickCount: 1 });
+  }
   await sleep(1200);
   const emptyState = await evalUntil(first.session, `d.querySelector('#empty').hidden === false && d.querySelector('#preview').hidden === true`);
   check('empty state for non-markdown active editor', emptyState === true);

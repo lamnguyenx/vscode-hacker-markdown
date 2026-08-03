@@ -99,6 +99,8 @@ export class PreviewManager implements vscode.Disposable {
 			if (this.doc) {
 				host.setDocument(this.doc.uri);
 				host.setResourceRoots(this.doc.uri.scheme === 'file' ? [vscode.Uri.joinPath(this.doc.uri, '..')] : []);
+			} else {
+				host.empty();
 			}
 		}
 		this.scheduleRender(0);
