@@ -22,7 +22,7 @@ Test scripts live in [`tests/`](../../tests/):
 | Script | Purpose |
 | --- | --- |
 | `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
-| `tests/test_preview.cjs` | Full 15-check functional smoke test |
+| `tests/test_preview.cjs` | Full 18-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
 | `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
 
@@ -45,15 +45,22 @@ code --extensionDevelopmentPath="$PWD" \
      --user-data-dir="$PWD/exp/devhost" \
      --remote-debugging-port=9335 \
      --new-window \
-     --disable-extensions "$PWD/tests/workspace/test.md"
+     "$PWD/tests/workspace/test.md"
 ```
 
 Notes:
 
 - `--user-data-dir` with a fresh profile forces a **separate instance**; without
   it, the window would join an already-running VS Code and ignore the port.
-- `--disable-extensions` keeps Copilot & co. out of the way; the dev extension
-  is still loaded via `--extensionDevelopmentPath`.
+- **No `--disable-extensions`.** The dev host loads the real user extensions,
+  which the suite depends on: check 7 (mermaid) requires
+  `bierner.markdown-mermaid`, and puml rendering requires `jebbs.plantuml`.
+  With `--disable-extensions` both silently degrade (mermaid never renders,
+  `Error: Tool "renderMermaidDiagram" was not contributed`; puml stays a plain
+  code block). The cost: ~30 extensions activate, startup is slow, and extra
+  webview targets appear (Copilot chat, other previewers) — the test helpers
+  always find the preview by probing for `.toolbar .doc-name`, never by target
+  order.
 - Opening `tests/workspace/test.md` as the file argument makes a Markdown editor
   active at startup, so the preview renders immediately.
 - The harmless warning `'remote-debugging-port' is not in the list of known
@@ -104,7 +111,7 @@ to attach to.
 node tests/test_preview.cjs 9335
 ```
 
-The 15 checks (current status: **all passing**):
+The 18 checks (current status: **all passing**):
 
 | # | Check | What it proves |
 | --- | --- | --- |
@@ -115,6 +122,9 @@ The 15 checks (current status: **all passing**):
 | 5 | Empty state hidden / preview visible | Initial state is correct |
 | 6 | `[data-line]` source markers present | Scroll-sync metadata rendered |
 | 7 | Mermaid diagram rendered (`#preview .mermaid svg`) | Contributed `markdown.previewScripts` (mermaid) load and render `.mermaid` blocks |
+| 7b | Image wrapped in a pan/zoom frame (`.hmk-frame`) | Generic frames apply to block-level imgs (plantuml-style output) |
+| 7c | Mermaid is not double-framed | Frame scanning skips `.mermaid-wrapper` (the mermaid extension self-frames) |
+| 7d | Frame zoom-in / Alt+drag pan / reset work | The frame interaction model (transform on `.hmk-frame-content`) |
 | 8 | Link click opens `sub.md` and preview follows | Relative link resolution + follow-active-editor |
 | 9 | `sub.md` content rendered | Second document renders |
 | 10 | Re-render after save shows typed text | `hackerMarkdown.renderOnSave` (default on): a saved edit re-renders the preview |
@@ -177,7 +187,7 @@ the fixture document (it edits the mermaid block on a known line):
 ```sh
 pkill -f "extensionDevelopmentPath.*hacker-markdown"
 code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window --disable-extensions \
+     --remote-debugging-port=9335 --new-window \
      "$PWD/exp/e2e-anchor.md"
 node tests/open_view.cjs 9335
 node exp/e2e-anchor.cjs 9335   # PASS: reading position held across mermaid re-render
@@ -241,6 +251,45 @@ after it — main.css's `height: 100%` shrinks the sticky toolbar's
 containing block in a plain page and silently breaks every scroll
 measurement.
 
+## 3d. PlantUML (puml) diagrams
+
+The dev host renders puml only when *both* hold:
+
+1. Launched **without** `--disable-extensions` — `jebbs.plantuml` must load
+   (it contributes `markdown.markdownItPlugins: true` and `extendMarkdownIt`,
+   so the plugin runs inside `markdown.api.render`).
+2. A PlantUML server configured in the dev host profile
+   (`exp/devhost/User/settings.json`):
+   ```json
+   "plantuml.server": "http://localhost:9274",
+   "plantuml.render": "PlantUMLServer"
+   ```
+   (match the values in your real VS Code settings; the server itself is not
+   part of this repo). Without a server the plugin emits a `⚠️` placeholder
+   `<pre>` with the diagram source — no `<img>`, no frames.
+
+To verify the pan/zoom frames against `tests/samples/enroll-flow-elements.puml.md`:
+
+```sh
+pkill -f "extensionDevelopmentPath.*hacker-markdown"
+code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
+     --remote-debugging-port=9335 --new-window \
+     "$PWD/tests/samples/enroll-flow-elements.puml.md"
+node tests/open_view.cjs 9335
+node exp/probe_all.cjs 9335 "<expr>"   # iterate ALL iframe targets (extra webviews present)
+node exp/persist_test.cjs 9335          # zoom -> save -> zoom restored
+```
+
+Expected: 12 puml `<img>`s, all wrapped in `.hmk-frame`; zoom-in / Alt+drag
+pan / reset work; zoom+pan state survives a save-triggered re-render (the
+frame state is keyed by the img `src`, and plantuml URLs encode the diagram
+source). Why the framing works: the markdown-it plugin emits the `<img>` as a
+*direct child of `#preview`* (block level, no `<p>` wrapper), so
+`isFrameable` must not treat block siblings (H2/H3…) as "inline prose" —
+the sibling check applies only inside phrasing containers (`p`/`span`/…).
+The pan/zoom fixture checks in `tests/test_preview.cjs` (7b–7d) cover the
+same behavior on `test.md`'s `<p>`-wrapped image.
+
 ## 4. Reading the VS Code Logs
 
 `exp/devhost/logs/<timestamp>/window1/exthost/exthost.log` records extension
@@ -262,10 +311,11 @@ npm run compile                    # tsc -> out/
 # restart the dev host (kill the old window first):
 pkill -f "extensionDevelopmentPath.*hacker-markdown"
 code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window --disable-extensions \
+     --remote-debugging-port=9335 --new-window \
      "$PWD/tests/workspace/test.md"
 node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335
+git checkout -- tests/workspace/sub.md   # the suite saves the live-edit token into the fixture
 ```
 
 **The suite is not idempotent.** `test_preview.cjs` mutates the dev host
@@ -274,7 +324,10 @@ re-running it against a live host without a fresh launch produces bogus
 failures (observed: checks 6/7/11 fail with a stray `scrollIntoView`
 TypeError). Always restart the dev host between runs — and before
 troubleshooting a failure, re-run once on a fresh host to rule out
-contamination.
+contamination. It also **dirties tracked fixtures by design**: the live-edit
+check types into `sub.md` and saves it, and any failed palette input leaks
+typed text into the open buffer — `git checkout` the fixtures after a run
+(`tests/workspace/sub.md`, any sample file you opened).
 
 ---
 
@@ -282,12 +335,13 @@ contamination.
 
 | Task | Command |
 | --- | --- |
-| Start dev host (port 9335) | `code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" --remote-debugging-port=9335 --new-window --disable-extensions "$PWD/tests/workspace/test.md"` |
+| Start dev host (port 9335) | `code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" --remote-debugging-port=9335 --new-window "$PWD/tests/workspace/test.md"` |
 | List CDP targets | `curl -s http://127.0.0.1:9335/json/list` |
 | Prepare the view | `node tests/open_view.cjs 9335` |
 | Full functional smoke test | `node tests/test_preview.cjs 9335` |
 | Scroll-anchor E2E (start host with `exp/e2e-anchor.md`) | `node exp/e2e-anchor.cjs 9335` |
 | Harness (webview logic; needs ports 8377/8378) | open `http://127.0.0.1:8377/exp/scroll-anchor-test.html` (section 3c) |
+| Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs 9335` + `node exp/persist_test.cjs 9335` (section 3d) |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 
 ## Known Limits of This Setup
@@ -301,11 +355,14 @@ contamination.
   preview and checks the extension doesn't error rather than asserting editor
   position. The *preview-side* scroll anchoring (reading position survives
   async diagram re-renders) IS covered by `exp/e2e-anchor.cjs` (section 3b).
-- **The anchor E2E covers mermaid only.** The puml renderer is the same
-  mechanism (contributed `markdown.previewScripts` replacing a placeholder)
-  but is not installed in the dev host; the harness in
-  `exp/scroll-anchor-test.html` simulates the placeholder replacement and is
-  the cross-renderer proof. The original bug was reported against puml
+- **The anchor E2E covers mermaid only.** PlantUML is *not* a
+  placeholder-replacement renderer: `jebbs.plantuml` contributes a markdown-it
+  plugin (`extendMarkdownIt`) that turns `puml` fences into `<img>` tags
+  *inside* `markdown.api.render` — no `markdown.previewScripts` involved, no
+  placeholder swap. Its re-render path is the stale-IMG keeper (old img kept
+  in flow until the new one loads), which is scenario B of the harness in
+  `exp/scroll-anchor-test.html`. See section 3d for rendering puml in the dev
+  host. The original scroll-jump bug was reported against puml
   (`tests/samples/enroll-flow-elements.puml.md`) — see
   `docs/issues/bugs/2026/08/03/2026-08-03-scroll-position-jumps-after-diagram-re-render-CLOSED.md`.
 - **System-browser opening is not tested on purpose**: opening external links

@@ -225,6 +225,13 @@ export class PreviewManager implements vscode.Disposable {
 
 	private onHostMessage(host: PreviewHost, message: { type: string; [key: string]: unknown }): void {
 		switch (message.type) {
+			case 'ready':
+				// The webview page signals it finished loading (it may have
+				// missed the state pushed at host creation). Re-capture the
+				// active document and re-render so the preview never gets
+				// stuck in the empty state.
+				this.setDocument(vscode.window.activeTextEditor?.document);
+				break;
 			case 'openLink':
 				this.openLink(host, String(message.href ?? ''));
 				break;

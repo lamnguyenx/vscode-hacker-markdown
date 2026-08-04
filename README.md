@@ -11,6 +11,7 @@ A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open
 - **Scroll sync** (bidirectional, like the built-in preview; togglable via `hackerMarkdown.scrollPreviewWithEditor` / `hackerMarkdown.scrollEditorWithPreview`).
 - **Clickable links**: internal links open in the editor, external links open in the system browser, `#fragment` links scroll within the preview.
 - **Contributed preview extensions**: `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions are loaded, so mermaid diagrams render and KaTeX math is styled like in the built-in preview.
+- **Pan/zoom frames for diagrams**: block-level diagram images and SVGs (plantuml, other renderers, plain images) get the same frame as built-in mermaid diagrams — Alt+drag to pan, Alt+wheel (or pinch) to zoom at the cursor, Alt+click to zoom in/out; an auto-hiding toolbar adds pan mode, zoom in/out and reset. Zoom state survives re-renders, and mermaid keeps its own frame (never double-framed).
 - **User styles & font settings** from the stock `markdown.styles`, `markdown.preview.fontFamily/fontSize/lineHeight` settings.
 - **Link-based file navigation**: clicking a `./other.md` link in the preview opens that file in the editor and re-targets the preview to it.
 
@@ -34,7 +35,7 @@ an Extension Development Host manually:
 
 ```sh
 code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window --disable-extensions tests/workspace/test.md
+     --remote-debugging-port=9335 --new-window tests/workspace/test.md
 ```
 
 The preview appears in the bottom Panel under the "Hacker Markdown" tab. Drag its header to the Primary Sidebar if you prefer it there (in a fresh profile, toggle the panel once with `Cmd+J` so the container switcher appears).
@@ -53,7 +54,7 @@ See [docs/important/how-to-test.md](docs/important/how-to-test.md) for the CDP-b
 
 ```sh
 node tests/open_view.cjs 9335   # dismiss onboarding, open the view
-node tests/test_preview.cjs 9335  # 15-check functional smoke test (all passing)
+node tests/test_preview.cjs 9335  # 18-check functional smoke test (all passing)
 ```
 
 ## Limitations

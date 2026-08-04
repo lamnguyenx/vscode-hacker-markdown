@@ -14,7 +14,7 @@
 ```bash
 npm run compile
 code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window --disable-extensions \
+     --remote-debugging-port=9335 --new-window \
      "$PWD/tests/workspace/test.md"
 node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335

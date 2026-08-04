@@ -55,6 +55,18 @@ quirk is, why it bites, and the workaround.
   repo uses `.toolbar .doc-name`). Editor-area previews are separate OOPIF
   targets; distinguish them by `webSocketDebuggerUrl` (object identity does
   not survive re-fetching).
+- **State pushed at host creation can be lost.** Setting `webview.html`
+  starts the page load asynchronously; messages posted before the page's
+  `acquireVsCodeApi` listener is ready vanish silently and nothing re-posts —
+  the preview sits in the empty state forever (observed on slow startups
+  where ~30 user extensions load; the smoke suite's own launch usually wins
+  the race, which is why this hid for so long). Any extension that pushes
+  state to a webview at creation needs the page to *pull*: the page posts a
+  `ready` message on load and the host re-pushes current state (this repo:
+  `media/index.js` + `previewManager.ts#onHostMessage`). Retrying "refresh"
+  does NOT help if the manager never captured the document in the first
+  place — the `ready` handler must re-read
+  `vscode.window.activeTextEditor`, not just re-post.
 - `file://` pages are unique origins: a harness HTML file cannot
   `<script src>` a sibling JS file. Serve the harness over `http://` so the
   real `media/*` assets load.
@@ -129,6 +141,19 @@ quirk is, why it bites, and the workaround.
 Knowledge for anyone poking at the async diagram renderers this extension
 integrates with:
 
+- **`jebbs.plantuml` is a markdown-it plugin, not a `previewScripts`
+  renderer.** It contributes `markdown.markdownItPlugins: true` +
+  `extendMarkdownIt`, so puml fences become `\n<img style="background-color:#FFF;">`
+  tags *inside* `markdown.api.render` — direct children of the preview
+  container (no `<p>` wrapper, no placeholder that gets swapped later).
+  Consequences: (1) any "is this image inline prose?" check that looks at
+  siblings must not reject block siblings (H2/H3 next to the img) — only
+  inline/phrasing containers (p/span/…) trigger the strict sibling check;
+  (2) without `plantuml.server`/`plantuml.render: PlantUMLServer` configured
+  it emits a `⚠️` placeholder `<pre>` with the diagram source — no `<img>` at
+  all; (3) its re-render is an img reload, so keepers must be the keep-old-img
+  kind, not the hold-placeholder-height kind.
+
 - **The container's `textContent` can be the diagram source.** The built-in
   mermaid renderer reads `container.textContent` as the mermaid source.
   Anything you insert *inside* the placeholder as a DOM node becomes part
@@ -156,6 +181,33 @@ integrates with:
 
 ## Dev host lifecycle
 
+- **The dev host must run WITHOUT `--disable-extensions`.** The smoke
+  suite's mermaid check needs `bierner.markdown-mermaid` and puml needs
+  `jebbs.plantuml`; with the flag both silently degrade (mermaid: `Error:
+  Tool "renderMermaidDiagram" was not contributed`; puml: plain code
+  blocks). Costs of loading the real user extensions: ~30 extensions
+  activate (slow startup — the preview can render *minutes* late), extra
+  webview targets appear (Copilot chat, markdown-preview-enhanced's
+  `lute.min.js` preview, …) — find the preview by marker, never by target
+  order.
+- **`Cmd+Shift+P` can silently stop opening the command palette** while
+  `Cmd+P` quick open still works (cause unpinned; observed after loading all
+  user extensions). Fallback that always works: `Cmd+P`, then type
+  `>command name` into quick open and click the row. Don't debug the
+  extension while the palette itself is broken.
+- **An open editor-area preview empties every preview.** The `WebviewPanel`
+  becomes the active tab when opened, and then
+  `vscode.window.activeTextEditor` is `undefined` — this extension's
+  follow-the-active-editor model broadcasts `empty()` to *all* hosts. After
+  `Open Preview in Editor`, click back to a markdown tab before asserting
+  content (the smoke suite passes only because it probes the panel before
+  focus settles).
+- **The smoke suite dirties tracked fixtures by design.** The live-edit
+  check types into `tests/workspace/sub.md` and saves it, and a failed
+  palette command leaks its typed text into the open buffer (observed: a
+  stray `} O` inside a puml sample). `git checkout` the fixtures after a
+  run; wipe `exp/devhost/User/workspaceStorage/*/backups` to clear hot-exit
+  buffers.
 - **The smoke suite is not idempotent.** It mutates host state as it goes
   (opens files, panels, editors); re-running without a fresh launch yields
   bogus failures (stray TypeErrors in probes, missing elements). Restart the

@@ -141,3 +141,76 @@ body {
 	z-index: 5;
 	opacity: 0.9;
 }
+
+/* Pan/zoom frame for block-level diagram images and svgs. The built-in
+ * mermaid extension frames its own diagrams; everything else (plantuml,
+ * other preview renderers, plain images) gets one of these: an
+ * overflow-hidden wrapper whose inner content is transformed (translate/
+ * scale, origin 0 0), with auto-hiding zoom controls. */
+.hmk-frame {
+	position: relative;
+	overflow: hidden;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	transition: border-color 0.2s ease-in-out;
+}
+
+.hmk-frame:hover,
+.hmk-frame:focus,
+.hmk-frame:focus-within {
+	border-color: var(--vscode-editorWidget-border);
+}
+
+.hmk-frame-content {
+	transform-origin: 0 0;
+}
+
+.hmk-frame-content > img,
+.hmk-frame-content > svg {
+	display: block;
+	max-width: 100%;
+}
+
+.hmk-frame-controls {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	z-index: 100;
+	background: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, transparent);
+	border-radius: 6px;
+}
+
+.hmk-frame:hover .hmk-frame-controls,
+.hmk-frame:focus .hmk-frame-controls,
+.hmk-frame:focus-within .hmk-frame-controls {
+	opacity: 1;
+}
+
+.hmk-frame-controls button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	background: transparent;
+	border: none;
+	border-radius: 4px;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+}
+
+.hmk-frame-controls button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.hmk-frame-controls button.active {
+	background: var(--vscode-toolbar-activeBackground);
+	color: var(--vscode-focusBorder);
+}

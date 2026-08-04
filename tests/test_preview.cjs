@@ -142,6 +142,44 @@ async function main() {
   const mermaidSvg = await evalUntil(first.session, `(() => { const s = d.querySelector('#preview .mermaid svg'); return !!s && s.children.length > 0; })()`, 20000);
   check('mermaid diagram rendered', mermaidSvg === true);
 
+  // 6c) Generic pan/zoom frame: block-level images get framed, mermaid does
+  // not (it self-frames via the contributed extension).
+  const frameInfo = await evalUntil(first.session, `(() => {
+    const f = d.querySelector('#preview .hmk-frame .hmk-frame-content img');
+    if (!f) return null;
+    const w = d.querySelector('#preview .mermaid-wrapper');
+    return { framed: true, notDouble: !!w && d.querySelectorAll('#preview .mermaid-wrapper .hmk-frame').length === 0 };
+  })()`);
+  check('frame: image wrapped in pan/zoom frame', frameInfo?.framed === true, frameInfo ? '' : 'no frame');
+  check('frame: mermaid not double-framed', frameInfo?.notDouble === true);
+
+  // 6d) Frame interactions: zoom-in button, Alt+drag pan, reset. Synthetic
+  // events are fine here (they drive our own webview handlers, not VS Code).
+  const frameIx = await run(`(() => {
+    const frame = d.querySelector('#preview .hmk-frame');
+    const content = frame.querySelector('.hmk-frame-content');
+    frame.querySelector('.hmk-zoom-in-btn').click();
+    const afterZoom = content.style.transform;
+    const r = frame.getBoundingClientRect();
+    frame.dispatchEvent(new MouseEvent('mousedown', { button: 0, altKey: true, bubbles: true, clientX: r.left + 40, clientY: r.top + 40 }));
+    d.dispatchEvent(new MouseEvent('mousemove', { buttons: 1, clientX: r.left + 80, clientY: r.top + 60 }));
+    d.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    const afterPan = content.style.transform;
+    const parse = (t) => {
+      const m = t.match(/translate\\((-?[\\d.]+)px, (-?[\\d.]+)px\\) scale\\((\\d+(?:\\.\\d+)?)\\)/);
+      return m ? [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])] : null;
+    };
+    const z = parse(afterZoom);
+    const p = parse(afterPan);
+    frame.querySelector('.hmk-zoom-reset-btn').click();
+    return {
+      zoomed: !!z && Math.abs(z[2] - 1.25) < 0.001,
+      panned: !!z && !!p && Math.abs(p[0] - (z[0] + 40)) < 0.5 && Math.abs(p[1] - (z[1] + 20)) < 0.5,
+      reset: content.style.transform === 'translate(0px, 0px) scale(1)'
+    };
+  })()`);
+  check('frame: zoom-in / alt-drag pan / reset work', frameIx.zoomed && frameIx.panned && frameIx.reset);
+
   // 2) Follow active editor via link click: ./sub.md opens in the editor.
   await run(`(() => { const a = [...d.querySelectorAll('#preview a')].find(x => x.getAttribute('data-href') === './sub.md'); a.scrollIntoView({block:'center'}); return true; })()`);
   await sleep(400);
