@@ -19,10 +19,12 @@ timing, monaco virtualization, CDP keybinding flags, …), see
 (source layout, rendering pipeline, pan/zoom frames, image `src` rewriting)
 see [`docs/important/architecture.md`](architecture.md).
 
-Test scripts live in [`tests/`](../../tests/):
+Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
 
 | Script | Purpose |
 | --- | --- |
+| `tools/launch-devhost.sh` | Launch/restart the dev host in the background; restores the previously active macOS app (section 1) |
+| `tools/kill-devhost.sh` | Gracefully shut down the dev host on a port (SIGTERM to the main process, so no "Closed … Reopen?" dialog) |
 | `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
 | `tests/test_preview.cjs` | Full 18-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
@@ -45,6 +47,30 @@ extension in its own instance with a debug port:
 
 ```sh
 cd /Users/lamnt45/git/vscode-hacker-markdown
+tools/launch-devhost.sh          # defaults: port 9335, exp/devhost profile, tests/workspace/test.md
+```
+
+What the script does, in order: captures the currently active macOS app
+(`lsappinfo front`), gracefully shuts down any previous dev host bound to the
+same CDP port (`tools/kill-devhost.sh` — SIGTERM to the main process only, so
+no "Closed … Reopen?" dialog), launches `code` under `nohup`, polls the CDP
+port until the window is up, then re-activates the captured app (`open -b` —
+no osascript, so no automation-permission prompt). It does not steal your
+keyboard focus, so you can keep working in the editor while the host starts in
+the background.
+
+For other fixtures/profiles/ports it accepts `--file`, `--profile`, `--port`:
+
+```sh
+tools/launch-devhost.sh --file "$PWD/exp/e2e-anchor.md"                      # scroll-anchor E2E (section 3b)
+tools/launch-devhost.sh --file "$PWD/tests/samples/enroll-flow-elements.puml.md"   # puml frames (section 3d)
+tools/launch-devhost.sh --port 9337 --profile "$PWD/exp/devhost-puml" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"  # isolated puml host (section 3e)
+```
+
+The underlying command it runs (for reference; the script also handles the
+kill + focus restoration around it):
+
+```sh
 code --extensionDevelopmentPath="$PWD" \
      --user-data-dir="$PWD/exp/devhost" \
      --remote-debugging-port=9335 \
@@ -196,10 +222,7 @@ position survive?) has its own script. It needs the dev host launched with
 the fixture document (it edits the mermaid block on a known line):
 
 ```sh
-pkill -f "extensionDevelopmentPath.*hacker-markdown"
-code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window \
-     "$PWD/exp/e2e-anchor.md"
+tools/launch-devhost.sh --file "$PWD/exp/e2e-anchor.md"
 node tests/open_view.cjs 9335
 node exp/e2e-anchor.cjs 9335   # PASS: reading position held across mermaid re-render
 ```
@@ -284,10 +307,7 @@ The dev host renders puml only when *both* hold:
 To verify the pan/zoom frames against `tests/samples/enroll-flow-elements.puml.md`:
 
 ```sh
-pkill -f "extensionDevelopmentPath.*hacker-markdown"
-code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window \
-     "$PWD/tests/samples/enroll-flow-elements.puml.md"
+tools/launch-devhost.sh --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
 node tests/open_view.cjs 9335
 node exp/probe_all.cjs 9335 "<expr>"   # iterate ALL iframe targets (extra webviews present)
 node exp/persist_test.cjs 9335          # zoom -> save -> zoom restored
@@ -323,10 +343,8 @@ The e2e path (isolated host, a real server) is documented in the plan doc:
 ```sh
 # fresh profile => ONLY this extension loads ("disable all extensions");
 # plantuml.server = http://localhost:9274 in exp/devhost-puml settings
-pkill -f "extensionDevelopmentPath.*hacker-markdown"
-code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-puml" \
-     --remote-debugging-port=9337 --new-window \
-     "$PWD/tests/samples/enroll-flow-elements.puml.md"
+tools/launch-devhost.sh --port 9337 --profile "$PWD/exp/devhost-puml" \
+     --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
 node tests/open_view.cjs 9337
 # assert: a puml fence rendered an <img> (decoded from the server URL) wrapped in .hmk-frame
 ```
@@ -354,11 +372,8 @@ first `markdown.api.render` call (it activates automatically on that command).
 
 ```sh
 npm run compile                    # tsc -> out/ + esbuild -> build/ (bundle + copied src/media)
-# restart the dev host (kill the old window first):
-pkill -f "extensionDevelopmentPath.*hacker-markdown"
-code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window \
-     "$PWD/tests/workspace/test.md"
+# restart the dev host (the script kills the old window on the same port first):
+tools/launch-devhost.sh
 node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335
 git checkout -- tests/workspace/sub.md   # the suite saves the live-edit token into the fixture
@@ -381,7 +396,8 @@ typed text into the open buffer — `git checkout` the fixtures after a run
 
 | Task | Command |
 | --- | --- |
-| Start dev host (port 9335) | `code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" --remote-debugging-port=9335 --new-window "$PWD/tests/workspace/test.md"` |
+| Start dev host (port 9335) | `tools/launch-devhost.sh` (flags: `--port`, `--profile`, `--file`) |
+| Stop dev host | `tools/kill-devhost.sh [port]` (graceful SIGTERM; no "Reopen?" dialog) |
 | List CDP targets | `curl -s http://127.0.0.1:9335/json/list` |
 | Prepare the view | `node tests/open_view.cjs 9335` |
 | Full functional smoke test | `node tests/test_preview.cjs 9335` |

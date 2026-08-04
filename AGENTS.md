@@ -7,17 +7,25 @@
   not exist. **Do not put tracked code here.**
 - `./tests` contains the test harness (`open_view.cjs`, `test_preview.cjs`,
   `cdp_eval.cjs`) and the `tests/workspace/` fixtures used by the dev host.
+- `./tools` contains dev-host tooling (`launch-devhost.sh`, `kill-devhost.sh`).
 - `_refs/`: references, read-only
   - `_refs/vscode` : source code of vscode for refrence only
+
 ## Testing
 
 ```bash
 npm run compile
-code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window \
-     "$PWD/tests/workspace/test.md"
+tools/launch-devhost.sh      # launches the dev host in the background and
+                             # restores the previously active macOS app
 node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335
 ```
+
+`tools/launch-devhost.sh` gracefully kills the old dev host on the port
+(`tools/kill-devhost.sh`, SIGTERM to the main process only, no "Reopen?"
+dialog), launches a fresh one (defaults: port 9335, `exp/devhost` profile,
+`tests/workspace/test.md`), waits for the CDP port, then re-activates the app
+that was active before the launch (`lsappinfo` + `open -b`, no osascript) —
+run it via `--file`, `--profile`, `--port` for other fixtures.
 
 See `docs/important/how-to-test.md` for the full pipeline and gotchas.
