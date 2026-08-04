@@ -67,7 +67,7 @@
 				{
 					"id": "hacker-markdown",
 					"title": "Hacker Markdown",
-					"icon": "media/icon.svg"
+					"icon": "build/icon.svg"
 				}
 			]
 		},
@@ -77,7 +77,7 @@
 					"type": "webview",
 					"id": "hackerMarkdown.preview",
 					"name": "Markdown Preview",
-					"icon": "media/icon.svg",
+					"icon": "build/icon.svg",
 					"contextualTitle": "Hacker Markdown"
 				}
 			]
@@ -111,13 +111,17 @@
 		}
 	},
 	"scripts": {
-		"compile": "tsc -p ./",
+		"build:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2020 --outfile=build/index.js",
+		"build:webview-assets": "node scripts/copy-webview-assets.cjs",
+		"watch:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2020 --outfile=build/index.js --watch",
+		"compile": "npm run build:webview && npm run build:webview-assets && tsc -p ./ && tsc -p tsconfig.webview.json",
 		"watch": "tsc -w -p ./",
 		"vscode:prepublish": "npm run compile"
 	},
 	"devDependencies": {
 		"@types/node": "^26.1.2",
 		"@types/vscode": "^1.100.0",
+		"esbuild": "^0.28.1",
 		"typescript": "^5.5.0"
 	}
 }

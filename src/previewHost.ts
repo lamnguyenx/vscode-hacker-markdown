@@ -51,7 +51,7 @@ export class PreviewHost {
 
 		webview.options = {
 			enableScripts: true,
-			localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
+			localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'build')]
 		};
 
 		webview.html = this.buildHtml();
@@ -67,7 +67,7 @@ export class PreviewHost {
 		this.webview.options = {
 			...this.webview.options,
 			localResourceRoots: [
-				vscode.Uri.joinPath(this.extensionUri, 'media'),
+				vscode.Uri.joinPath(this.extensionUri, 'build'),
 				...this.extraRoots,
 				...this.styleResourceRoots(),
 				...this.contributedPreviewRoots()
@@ -143,24 +143,26 @@ export class PreviewHost {
 		this.disposables.length = 0;
 	}
 
-	private asMediaWebviewUri(relativePath: string): vscode.Uri {
-		return this.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', relativePath));
-	}
-
-	private cacheBustMedia(relativePath: string): string {
-		return this.cacheBust(this.asMediaWebviewUri(relativePath).toString(), vscode.Uri.joinPath(this.extensionUri, 'media', relativePath).fsPath);
+	/**
+	 * Webview asset (bundle or css) served from `build/` — the compiled
+	 * build dir (esbuild + copied copy of src/media/*), mtime-busted like
+	 * media used to be.
+	 */
+	private cacheBustBuild(relativePath: string): string {
+		const file = vscode.Uri.joinPath(this.extensionUri, 'build', relativePath);
+		return this.cacheBust(this.webview.asWebviewUri(file).toString(), file.fsPath);
 	}
 
 	private buildHtml(): string {
 		const nonce = getNonce();
 		const cspSource = this.webview.cspSource;
 
-		// Cache-busted by mtime so a rebuilt page never serves stale media
+		// Cache-busted by mtime so a rebuilt page never serves stale assets
 		// (the webview resource server otherwise caches index.js / css).
-		const mainCss = this.cacheBustMedia('main.css');
-		const markdownCss = this.cacheBustMedia('markdown.css');
-		const highlightCss = this.cacheBustMedia('highlight.css');
-		const mainJs = this.cacheBustMedia('index.js');
+		const mainCss = this.cacheBustBuild('main.css');
+		const markdownCss = this.cacheBustBuild('markdown.css');
+		const highlightCss = this.cacheBustBuild('highlight.css');
+		const mainJs = this.cacheBustBuild('index.js');
 
 		return /* html */ `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles())}">

@@ -67,13 +67,13 @@ limitations, see [`docs/important/architecture.md`](architecture.md).
   the race, which is why this hid for so long). Any extension that pushes
   state to a webview at creation needs the page to *pull*: the page posts a
   `ready` message on load and the host re-pushes current state (this repo:
-  `media/index.js` + `previewManager.ts#onHostMessage`). Retrying "refresh"
+  `src/webview/main.ts` + `previewManager.ts#onHostMessage`). Retrying "refresh"
   does NOT help if the manager never captured the document in the first
   place — the `ready` handler must re-read
   `vscode.window.activeTextEditor`, not just re-post.
 - `file://` pages are unique origins: a harness HTML file cannot
   `<script src>` a sibling JS file. Serve the harness over `http://` so the
-  real `media/*` assets load.
+  real `build/*` assets load.
 
 ## The VS Code workbench DOM (monaco)
 
@@ -117,8 +117,9 @@ limitations, see [`docs/important/architecture.md`](architecture.md).
 
 ## Harness design (webview logic in a plain page)
 
-- Stub `acquireVsCodeApi()` and drive the real `media/index.js` by
-  dispatching `MessageEvent`s (`type: 'render'` etc.) — this tests the
+- Stub `acquireVsCodeApi()` and drive the real `build/index.js` (the
+  bundled webview script; sources in `src/webview/**`) by dispatching
+  `MessageEvent`s (`type: 'render'` etc.) — this tests the
   actual shipped code, not a copy.
 - Isolate the logic under test: `overflow-anchor: none`, no external
   network, no contributed scripts. Browser behaviors you did not disable
@@ -221,17 +222,20 @@ integrates with:
   step 1). It is persisted afterwards.
 - **The panel switcher renders lazily.** After launch the panel tab list may
   be empty; toggle the panel (`Cmd+J`) and poll for the tab before clicking.
-- **The webview caches media aggressively.** The extension's own `media/*`
-  (served through the webview resource server + a service worker with
+- **The webview caches assets aggressively.** The extension's own webview
+  assets (`build/*` — the esbuild bundle plus the `src/media` css copied
+  there, served through the webview resource server + a service worker with
   ETag revalidation) can be served stale long after you edit the file —
   observed: an edited `index.js` not reloading even across dev-host
-  restarts. The webview HTML must mtime-bust every media URL
-  (`previewHost.ts#cacheBustMedia`); without it, debugging webview code is
+  restarts. The webview HTML must mtime-bust every asset URL
+  (`previewHost.ts#cacheBustBuild`); without it, debugging webview code is
   chaos. (User *styles* were already busted; the base media were not.)
-- **Verify the extension actually re-loaded your changes.** Webview media
-  (`media/*`) is served from disk, but the page only picks it up on the next
-  webview load (`Refresh Preview` rebuilds it) — restart the host when in
-  doubt.
+- **Verify the extension actually re-loaded your changes.** Webview assets
+  (`build/*`) are served from disk, but the page only picks them up on the
+  next webview load (`Refresh Preview` rebuilds it) — restart the host when
+  in doubt. Remember the webview assets are built: after editing
+  `src/webview/**` or `src/media/*` run `npm run compile` (or
+  `npm run build:webview && npm run build:webview-assets`).
 - **A launch can silently JOIN the running instance.** If a dev host with
   the same `--user-data-dir` is still alive, a new `code` invocation joins
   it instead of starting fresh — the port, the extension, and the buffers

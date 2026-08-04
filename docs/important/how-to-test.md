@@ -34,7 +34,8 @@ Test scripts live in [`tests/`](../../tests/):
 ## Prerequisites
 
 - Node.js (for `tests/*.cjs` and `npm run compile`)
-- The extension compiled: `npm run compile`
+- The extension compiled: `npm run compile` (compiles `src/` → `out/`, and
+  bundles `src/webview/**` → `build/index.js`)
 - A local build of VS Code on the `code` CLI
 
 ## 1. Launch the Extension Development Host
@@ -242,20 +243,22 @@ Gotchas baked into the script:
 
 ## 3c. The Harness (webview logic in a plain page)
 
-`exp/scroll-anchor-test.html` drives the *real* `media/index.js` in a
+`exp/scroll-anchor-test.html` drives the *real* `build/index.js` (the
+esbuild bundle of `src/webview/**`) in a
 plain page (stubbed `acquireVsCodeApi`) to test the stale-diagram keepers
 cross-renderer: scenario A is the container pattern (mermaid: placeholder
 held at its old height + badge), scenario B is the img pattern (plantuml:
 old img kept in flow until the new one loads). It needs two local servers:
 
 ```sh
-python3 -m http.server 8377 --bind 127.0.0.1 &   # serves the harness + media
+npm run compile                                     # build/index.js + build/*.css (bundle + copied src/media)
+python3 -m http.server 8377 --bind 127.0.0.1 &   # serves the harness + build
 node exp/slow-img-server.cjs &                    # 2s-delayed image on 8378
 # open http://127.0.0.1:8377/exp/scroll-anchor-test.html in a browser;
 # the page title flips to PASS/FAIL and window.__log has the detail.
 ```
 
-Harness-specific gotchas: it must load `media/main.css` (the badge CSS is
+Harness-specific gotchas: it must load `build/main.css` (the badge CSS is
 part of the behavior), then override `html, body { height: auto !important }`
 after it — main.css's `height: 100%` shrinks the sticky toolbar's
 containing block in a plain page and silently breaks every scroll
@@ -350,7 +353,7 @@ first `markdown.api.render` call (it activates automatically on that command).
 ## 5. Re-running After an Edit
 
 ```sh
-npm run compile                    # tsc -> out/
+npm run compile                    # tsc -> out/ + esbuild -> build/ (bundle + copied src/media)
 # restart the dev host (kill the old window first):
 pkill -f "extensionDevelopmentPath.*hacker-markdown"
 code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \

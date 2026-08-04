@@ -8,8 +8,8 @@ details underneath the feature list, and the product limitations.
 - `package.json` contributes a **panel view container** (`viewsContainers.panel`) and a **webview view** inside it, so the preview can be docked in the Panel, Primary Sidebar, or Secondary Sidebar.
 - `src/extension.ts` registers the `WebviewViewProvider` plus the three commands (`Hacker Markdown: Open`, `Open Preview in Editor`, `Refresh Preview`).
 - `src/previewManager.ts` tracks the active Markdown editor, renders via the built-in `markdown-language-features` engine (`markdown.api.render`), and drives every attached preview (docked views + editor panels).
-- `src/previewHost.ts` builds the webview HTML (CSP with nonce, `markdown.css` / `highlight.css`, toolbar) and handles host messages (link clicks, scroll sync, toolbar commands). It also injects `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions (e.g. the mermaid renderer) and adds their folders to `localResourceRoots`. Media URLs are mtime-busted here (`cacheBustMedia`).
-- `media/index.js` renders the HTML fragment, preserves the reading position across re-renders, reports the topmost visible line for scroll sync, and dispatches `vscode.markdown.updateContent` after each render so contributed scripts (mermaid) re-render on live edits.
+- `src/previewHost.ts` builds the webview HTML (CSP with nonce, `markdown.css` / `highlight.css`, toolbar) and handles host messages (link clicks, scroll sync, toolbar commands). It also injects `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions (e.g. the mermaid renderer) and adds their folders to `localResourceRoots`. Webview asset URLs (the `build/*` bundle and css) are mtime-busted here (`cacheBustBuild`).
+- `src/webview/**` (strict TS, bundled by esbuild → `build/index.js`) renders the HTML fragment, preserves the reading position across re-renders, reports the topmost visible line for scroll sync, and dispatches `vscode.markdown.updateContent` after each render so contributed scripts (mermaid) re-render on live edits.
 
 ## Feature deep-dives
 
@@ -37,8 +37,7 @@ details underneath the feature list, and the product limitations.
   fence becomes an in-preview error notice ("PlantUML server is not set", with
   an *Open Settings* button that opens the setting via
   `workbench.action.openSettings`, and the source kept behind a `<details>`;
-  styles in `main.css`, button wired by the `[data-command]` click delegate in
-  `media/index.js`). The emitted `<img>` is a bare block child of
+  styles in `main.css`, button wired by the `[data-command]` click delegate in `src/webview/main.ts`). The emitted `<img>` is a bare block child of
   `#preview`, so the pan/zoom frames and the stale-diagram imgs keeper apply
   unchanged. If `jebbs.plantuml` is also installed, its global plugin already
   turns the fence into an `<img>` inside the engine and our pass finds nothing

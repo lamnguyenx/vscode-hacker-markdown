@@ -11,6 +11,6 @@ build:
 install: build
 	rm -r "$(DEST)" || true
 	mkdir -p "$(DEST)"
-	cp -R out media "$(DEST)"/
+	cp -R out build "$(DEST)"/
 	cp package.json README.md "$(DEST)"/
 	@echo "Installed to $(DEST). Reload VS Code (Cmd+Shift+P > Developer: Reload Window) to activate."

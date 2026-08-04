@@ -1,6 +1,8 @@
+.vscode/
 exp
 node_modules/
 out/
+build/
 exp/devhost*/
 exp/*.log
 exp/*.png
