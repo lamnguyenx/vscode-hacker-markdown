@@ -26,6 +26,7 @@ Test scripts live in [`tests/`](../../tests/):
 | `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
 | `tests/test_preview.cjs` | Full 18-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
+| `tests/plantuml_check.cjs` | Pure-logic check of the PlantUML preview rendering (no dev host, no server) |
 | `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
 
 ---
@@ -299,6 +300,34 @@ the sibling check applies only inside phrasing containers (`p`/`span`/…).
 The pan/zoom fixture checks in `tests/test_preview.cjs` (7b–7d) cover the
 same behavior on `test.md`'s `<p>`-wrapped image.
 
+## 3e. PlantUML rendering (no jebbs.plantuml required)
+
+`puml` / `plantuml` / `uml` fences render as PlantUML-server SVG images
+**without** `jebbs.plantuml` (see `docs/plans/2026/08/04/2026-08-04-plantuml-markdown-preview-rendering.md`
+and `docs/important/architecture.md`). The rewrite happens extension-side on
+the fragment returned by `markdown.api.render`, so the stock preview is
+unaffected. The rendering core (`src/plantuml/{fences,diagram,type,plantumlURL,include}.ts`)
+is pure (no `vscode` import) and is unit-checked against the real shipped
+`out/` code without a dev host:
+
+```sh
+npm run compile
+node tests/plantuml_check.cjs   # fence rewrite, svg/png, newpage, escaping round-trip, !include
+```
+
+The e2e path (isolated host, a real server) is documented in the plan doc:
+
+```sh
+# fresh profile => ONLY this extension loads ("disable all extensions");
+# plantuml.server = http://localhost:9274 in exp/devhost-puml settings
+pkill -f "extensionDevelopmentPath.*hacker-markdown"
+code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-puml" \
+     --remote-debugging-port=9337 --new-window \
+     "$PWD/tests/samples/enroll-flow-elements.puml.md"
+node tests/open_view.cjs 9337
+# assert: a puml fence rendered an <img> (decoded from the server URL) wrapped in .hmk-frame
+```
+
 ## 4. Reading the VS Code Logs
 
 `exp/devhost/logs/<timestamp>/window1/exthost/exthost.log` records extension
@@ -351,6 +380,7 @@ typed text into the open buffer — `git checkout` the fixtures after a run
 | Scroll-anchor E2E (start host with `exp/e2e-anchor.md`) | `node exp/e2e-anchor.cjs 9335` |
 | Harness (webview logic; needs ports 8377/8378) | open `http://127.0.0.1:8377/exp/scroll-anchor-test.html` (section 3c) |
 | Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs 9335` + `node exp/persist_test.cjs 9335` (section 3d) |
+| PlantUML rendering pure-logic check (no dev host) | `node tests/plantuml_check.cjs` (section 3e) |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 
 ## Known Limits of This Setup

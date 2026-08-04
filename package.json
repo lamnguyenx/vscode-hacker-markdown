@@ -44,6 +44,21 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Re-render the preview only when the Markdown document is saved. When disabled, the preview re-renders live (debounced) as you type."
+				},
+				"hackerMarkdown.plantuml.server": {
+					"type": "string",
+					"scope": "machine-overridable",
+					"default": "",
+					"description": "PlantUML server used to render `puml`/`plantuml`/`uml` fences in the preview as SVG images (e.g. http://localhost:8080). When empty, those fences stay as ordinary code blocks."
+				},
+				"hackerMarkdown.plantuml.includepaths": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"scope": "resource",
+					"default": [],
+					"description": "Additional folders to resolve `!include` / `!includesub` directives against, beyond the Markdown file's own folder."
 				}
 			}
 		},

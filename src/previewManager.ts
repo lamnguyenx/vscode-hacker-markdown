@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { PreviewHost } from './previewHost';
+import { rewritePumlFences } from './plantuml/renderFragment';
 
 const RENDER_DELAY_MS = 300;
 const SCROLL_SYNC_GRACE_MS = 1500;
@@ -176,10 +177,14 @@ export class PreviewManager implements vscode.Disposable {
 		}
 		this.renderInFlight = true;
 		try {
-			const fragment = await vscode.commands.executeCommand<string>('markdown.api.render', doc);
+			let fragment = await vscode.commands.executeCommand<string>('markdown.api.render', doc);
 			if (!fragment) {
 				return;
 			}
+			// Render `puml`/`plantuml`/`uml` fences to PlantUML-server images
+			// for this preview only (the stock preview is untouched — we
+			// rewrite our own copy of the fragment, not the shared engine).
+			fragment = rewritePumlFences(fragment, doc);
 			// Only broadcast if the document didn't change while rendering.
 			if (this.doc === doc) {
 				for (const host of this.hosts) {
