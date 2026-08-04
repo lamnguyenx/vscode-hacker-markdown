@@ -1,19 +1,17 @@
 # Hacker Markdown
 
-A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open in the Editor — unlike the built-in preview, which is locked to the editor area.
+A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open in the Editor — unlike the built-in preview, which is locked to the editor area. It renders through the built-in `markdown-language-features` engine, so the output matches the stock preview (front matter, `highlight.js`, tables, contributed markdown-it plugins).
 
 ## Features
 
-- **Dockable preview**: lives in a Webview View inside a Panel container. Drag the view header to any sidebar / panel container to re-dock it (Primary Sidebar, Secondary Sidebar, Panel).
-- **Open in Editor**: `Hacker Markdown: Open Preview in Editor` opens a second preview in the editor area (`ViewColumn.Beside`).
-- **Built-in rendering engine**: renders through the built-in `markdown-language-features` extension (`markdown.api.render`), so output comes from the same engine as the stock preview — front matter, `highlight.js` code highlighting, tables, and markdown-it plugins contributed by other extensions.
-- **Follows the active editor**: switches when you open another Markdown file; re-renders **on save** by default (`hackerMarkdown.renderOnSave`), or live (debounced) as you type when the setting is disabled.
-- **Scroll sync** (bidirectional, like the built-in preview; togglable via `hackerMarkdown.scrollPreviewWithEditor` / `hackerMarkdown.scrollEditorWithPreview`).
-- **Clickable links**: internal links open in the editor, external links open in the system browser, `#fragment` links scroll within the preview.
-- **Contributed preview extensions**: `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions are loaded, so mermaid diagrams render and KaTeX math is styled like in the built-in preview.
-- **Pan/zoom frames for diagrams**: block-level diagram images and SVGs (plantuml, other renderers, plain images) get the same frame as built-in mermaid diagrams — Alt+drag to pan, Alt+wheel (or pinch) to zoom at the cursor, Alt+click to zoom in/out; an auto-hiding toolbar adds pan mode, zoom in/out and reset. Zoom state survives re-renders, and mermaid keeps its own frame (never double-framed).
-- **User styles & font settings** from the stock `markdown.styles`, `markdown.preview.fontFamily/fontSize/lineHeight` settings.
-- **Link-based file navigation**: clicking a `./other.md` link in the preview opens that file in the editor and re-targets the preview to it.
+- **Dockable preview** — lives in a Webview View; drag the header to any sidebar / panel container to re-dock it.
+- **Open in Editor** — opens a second preview in the editor area, to the side.
+- **Follows the active editor** — re-renders on save by default, or live (debounced) as you type.
+- **Bidirectional scroll sync** — togglable.
+- **Clickable links** — internal → editor, external → system browser, `#fragment` → scroll in preview.
+- **Contributed preview extensions** — `markdown.previewScripts` / `previewStyles` load, so mermaid renders and KaTeX math is styled.
+- **Pan/zoom frames for diagrams** — block-level diagram images/SVGs (plantuml, …) and mermaid get pan/zoom with a toolbar; zoom survives re-renders.
+- **Link-based file navigation** — clicking a `./other.md` link opens it in the editor and re-targets the preview.
 
 ## Commands
 
@@ -23,7 +21,7 @@ A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open
 | `Hacker Markdown: Open Preview in Editor` | Open a preview as an editor tab, to the side |
 | `Hacker Markdown: Refresh Preview` | Re-render the current document |
 
-## Install & run (development)
+## Quick start
 
 ```sh
 npm install
@@ -31,34 +29,11 @@ npm run compile
 ```
 
 Press `F5` in VS Code (a `Run Extension` launch config is provided), or launch
-an Extension Development Host manually:
+an Extension Development Host manually — see
+[docs/important/how-to-test.md](docs/important/how-to-test.md#1-launch-the-extension-development-host).
 
-```sh
-code --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 --new-window tests/workspace/test.md
-```
+## Docs
 
-The preview appears in the bottom Panel under the "Hacker Markdown" tab. Drag its header to the Primary Sidebar if you prefer it there (in a fresh profile, toggle the panel once with `Cmd+J` so the container switcher appears).
-
-## How it works
-
-- `package.json` contributes a **panel view container** (`viewsContainers.panel`) and a **webview view** inside it.
-- `src/extension.ts` registers the `WebviewViewProvider` plus the three commands.
-- `src/previewManager.ts` tracks the active Markdown editor, renders via the built-in engine, and drives every attached preview (docked views + editor panels).
-- `src/previewHost.ts` builds the webview HTML (CSP with nonce, `markdown.css` / `highlight.css`, toolbar) and handles host messages (link clicks, scroll sync, toolbar commands). It also injects `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions (e.g. the mermaid renderer) and adds their folders to `localResourceRoots`.
-- `media/index.js` renders the HTML fragment, preserves the reading position across re-renders, reports the topmost visible line for scroll sync, and dispatches `vscode.markdown.updateContent` after each render so contributed scripts (mermaid) re-render on live edits.
-
-## Testing
-
-See [docs/important/how-to-test.md](docs/important/how-to-test.md) for the CDP-based end-to-end pipeline (same approach as the [hacker browser](https://github.com/lamnguyenx/vscode-hacker-browser) project). With the dev host from above running on port 9335:
-
-```sh
-node tests/open_view.cjs 9335   # dismiss onboarding, open the view
-node tests/test_preview.cjs 9335  # 18-check functional smoke test (all passing)
-```
-
-## Limitations
-
-- The editor-area preview is a separate `WebviewPanel` instance (views cannot move into the editor area; see `viewsExtensionPoint.ts` — a view id can only be registered in one container).
-- Rendering happens through `markdown.api.render`, which cannot rewrite relative image paths, so image `src` attributes are rewritten extension-side against the document folder (same behavior as the built-in preview's resource provider).
-- Contributed preview scripts and styles are loaded (mermaid, KaTeX, …), but the extension has no control over *when* other extensions activate; a script contributed by an extension that never activates simply never loads. `markdown.css` / `highlight.css` are copied from `microsoft/vscode` (MIT) to keep rendering identical to the stock preview.
+- [docs/important/how-to-test.md](docs/important/how-to-test.md) — end-to-end CDP test pipeline
+- [docs/important/quirks.md](docs/important/quirks.md) — generalized tool / webview behaviors
+- [docs/important/architecture.md](docs/important/architecture.md) — how it works, feature deep-dives, limitations

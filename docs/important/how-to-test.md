@@ -15,7 +15,9 @@ use to test it end-to-end:
 
 For the generalized "why is the tool doing this" knowledge (scroll-event
 timing, monaco virtualization, CDP keybinding flags, …), see
-[`docs/important/quirks.md`](quirks.md).
+[`docs/important/quirks.md`](quirks.md). For how the extension is wired up
+(source layout, rendering pipeline, pan/zoom frames, image `src` rewriting)
+see [`docs/important/architecture.md`](architecture.md).
 
 Test scripts live in [`tests/`](../../tests/):
 
@@ -47,6 +49,13 @@ code --extensionDevelopmentPath="$PWD" \
      --new-window \
      "$PWD/tests/workspace/test.md"
 ```
+
+(The `Run Extension` launch config from `F5` starts the same host; the
+pipeline below just pins the port and fixture explicitly.)
+
+The preview appears in the bottom Panel under the "Hacker Markdown" tab. Drag
+its header to the Primary Sidebar if you prefer it there — in a fresh profile,
+toggle the panel once with `Cmd+J` so the container switcher appears.
 
 Notes:
 
