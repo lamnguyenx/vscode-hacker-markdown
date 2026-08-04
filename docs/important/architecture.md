@@ -33,8 +33,12 @@ details underneath the feature list, and the product limitations.
   `fences.ts`): escaped fence source → deflate+encode64 (synchro.js) →
   `<img src="<server>/<svg|png>/<…>">`, one per `newpage`. Config lives in
   `hackerMarkdown.plantuml.server` / `.includepaths`; `!include` resolves
-  relative to the Markdown file's folder. No server configured → the fence
-  stays an ordinary code block. The emitted `<img>` is a bare block child of
+  relative to the Markdown file's folder. No server configured → each puml
+  fence becomes an in-preview error notice ("PlantUML server is not set", with
+  an *Open Settings* button that opens the setting via
+  `workbench.action.openSettings`, and the source kept behind a `<details>`;
+  styles in `main.css`, button wired by the `[data-command]` click delegate in
+  `media/index.js`). The emitted `<img>` is a bare block child of
   `#preview`, so the pan/zoom frames and the stale-diagram imgs keeper apply
   unchanged. If `jebbs.plantuml` is also installed, its global plugin already
   turns the fence into an `<img>` inside the engine and our pass finds nothing

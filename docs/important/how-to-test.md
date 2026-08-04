@@ -328,6 +328,11 @@ node tests/open_view.cjs 9337
 # assert: a puml fence rendered an <img> (decoded from the server URL) wrapped in .hmk-frame
 ```
 
+Also covered by `plantuml_check.cjs`: with `hackerMarkdown.plantuml.server`
+empty, a puml fence becomes the `.hmk-puml-error` notice with an *Open
+Settings* button (opens the setting via `workbench.action.openSettings`),
+instead of an image.
+
 ## 4. Reading the VS Code Logs
 
 `exp/devhost/logs/<timestamp>/window1/exthost/exthost.log` records extension

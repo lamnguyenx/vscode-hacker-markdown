@@ -755,6 +755,14 @@
 		if (e.defaultPrevented) {
 			return;
 		}
+		// Buttons injected into the rendered fragment (e.g. the PlantUML
+		// "Open Settings" error button) post a command to the extension host.
+		const commandEl = e.target.closest('[data-command]');
+		if (commandEl) {
+			e.preventDefault();
+			vscode.postMessage({ type: 'command', id: commandEl.dataset.command });
+			return;
+		}
 		const anchor = e.target.closest('a[href]');
 		if (!anchor) {
 			return;

@@ -113,9 +113,26 @@ run('unrelated code fence untouched', () => {
   assert.strictEqual(out, html);
 });
 
-section('no server configured -> fragments left alone');
-run('identical output', () => {
-  const html = fenceHtml('puml', '@startuml\nA -> B\n@enduml');
+section('no server configured -> puml fences become an error notice');
+run('puml replaced with actionable error', () => {
+  const src = '@startuml\nA -> B\n@enduml';
+  const html = fenceHtml('puml', src);
+  const out = rewritePumlFences(html, { server: '', includePaths: [] });
+  assert.ok(out.includes('class="hmk-puml-error"'), 'error notice missing: ' + out);
+  assert.ok(out.includes('hackerMarkdown.plantuml.server'), 'message lacks the setting name');
+  assert.ok(out.includes('data-command="openPumlSettings"'), 'Open Settings button missing');
+  assert.ok(!out.includes('<pre class="code-line'), 'original fence block not replaced');
+});
+run('escaped source preserved under details', () => {
+  const src = '@startuml\nA <-> "B"\n@enduml';
+  const html = fenceHtml('puml', src);
+  const out = rewritePumlFences(html, { server: '', includePaths: [] });
+  const trimmed = out.replace(/\s+/g, ' ');
+  assert.ok(out.includes('<details'), 'no details element');
+  assert.ok(trimmed.includes('A &lt;-&gt; &quot;B&quot;'), 'escaped source not preserved: ' + out);
+});
+run('no server, non-puml content untouched', () => {
+  const html = fenceHtml('mermaid', 'flowchart LR\n A --> B') + '\n' + fenceHtml('python', 'print(1)');
   assert.strictEqual(rewritePumlFences(html, { server: '', includePaths: [] }), html);
 });
 

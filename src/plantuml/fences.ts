@@ -24,21 +24,44 @@ const PUML_FENCE_REG = /<pre[^>]*>\s*<code[^>]*class="[^"]*language-(?:plantuml|
  * every `plantuml`/`puml`/`uml` fenced block with a PlantUML-server `<img>`
  * (one per `newpage`), the same way jebbs.plantuml renders fences inside the
  * markdown-it engine — but here only our preview's copy of the fragment is
- * rewritten. No server configured → fences are left untouched. Pure (no
- * `vscode` import) so the real shipped code is unit-testable in Node.
+ * rewritten. With no server configured the block becomes an actionable error
+ * notice instead ("PlantUML server is not set" + an Open Settings button).
+ * Pure (no `vscode` import) so the real shipped code is unit-testable in Node.
  */
 export function rewritePumlFences(html: string, opts: FenceOptions): string {
-	if (!opts.server) {
-		return html;
-	}
 	const docUri: DiagramUri | undefined = opts.docUri && opts.docUri.scheme === 'file' ? opts.docUri : undefined;
 	return html.replace(PUML_FENCE_REG, (full, innerHtml: string) => {
+		if (!opts.server) {
+			return pumlServerError(innerHtml);
+		}
 		const diagram = new Diagram(unescapeHtml(innerHtml), docUri, opts.includePaths);
 		const format = diagram.type === DiagramType.Ditaa ? 'png' : 'svg';
 		const urls = Array.from({ length: diagram.pageCount }, (_, index) =>
 			makePlantumlURL(opts.server, diagram, format, index));
 		return urls.map((url) => `\n<img style="background-color:#FFF;" src="${url}">`).join('');
 	});
+}
+
+/**
+ * In-preview error shown when a puml fence exists but no server is configured.
+ * The raw (still HTML-escaped) source is kept behind a `<details>` so the
+ * diagram text is recoverable. The button is wired up in the webview
+ * (`data-command="openPumlSettings"` → `previewManager.ts`) to open the
+ * setting directly.
+ */
+function pumlServerError(escapedSource: string): string {
+	return [
+		`<div class="hmk-puml-error" role="alert">`,
+		`<div class="hmk-puml-error-head">`,
+		`<span class="hmk-puml-error-msg">PlantUML server is not set. Set <code>hackerMarkdown.plantuml.server</code> in Settings to render <code>plantuml</code>/<code>puml</code>/<code>uml</code> diagrams.</span>`,
+		`<button class="hmk-puml-settings-btn" data-command="openPumlSettings">Open Settings</button>`,
+		`</div>`,
+		`<details class="hmk-puml-error-source">`,
+		`<summary>Show diagram source</summary>`,
+		`<pre><code>${escapedSource}</code></pre>`,
+		`</details>`,
+		`</div>`
+	].join('\n');
 }
 
 /**

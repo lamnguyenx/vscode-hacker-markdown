@@ -256,6 +256,9 @@ export class PreviewManager implements vscode.Disposable {
 					case 'openInEditor':
 						this.openInEditor();
 						break;
+					case 'openPumlSettings':
+						void vscode.commands.executeCommand('workbench.action.openSettings', 'hackerMarkdown.plantuml.server');
+						break;
 				}
 				break;
 		}

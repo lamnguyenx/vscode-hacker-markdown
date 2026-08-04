@@ -11,7 +11,7 @@ A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open
 - **Clickable links** — internal → editor, external → system browser, `#fragment` → scroll in preview.
 - **Contributed preview extensions** — `markdown.previewScripts` / `previewStyles` load, so mermaid renders and KaTeX math is styled.
 - **Pan/zoom frames for diagrams** — block-level diagram images/SVGs (plantuml, …) and mermaid get pan/zoom with a toolbar; zoom survives re-renders.
-- **PlantUML without the plantuml extension** — `puml`/`plantuml`/`uml` fences render as PlantUML-server SVGs (needs `hackerMarkdown.plantuml.server`); `!include` resolves relative to the Markdown file. Scoped to this preview only — the stock preview is untouched.
+- **PlantUML without the plantuml extension** — `puml`/`plantuml`/`uml` fences render as PlantUML-server SVGs (set `hackerMarkdown.plantuml.server`; `!include` resolves relative to the Markdown file). Unset → an in-preview notice with an *Open Settings* button. Scoped to this preview only — the stock preview is untouched.
 - **Link-based file navigation** — clicking a `./other.md` link opens it in the editor and re-targets the preview.
 
 ## Commands

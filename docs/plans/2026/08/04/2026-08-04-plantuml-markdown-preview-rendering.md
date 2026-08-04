@@ -4,7 +4,7 @@
 **Status:** DONE (verified)
 **Source:** `_refs/vscode-plantuml` (`src/markdown-it-plantuml/*`, `src/plantuml/{diagram,type,urlMaker/urlMaker,plantumlURL,diagram/include}.*`) — MIT (c) 2016 jebbs
 **Files added:** `src/plantuml/*` (7 files), `tests/plantuml_check.cjs`
-**Files edited:** `src/previewManager.ts`, `package.json`
+**Files edited:** `src/previewManager.ts`, `package.json`, `media/main.css` (+error notice styles), `media/index.js` (+`data-command` click delegate in the preview)
 
 ## Goal
 
@@ -31,8 +31,10 @@ of the fragment.
 `render.ts` builds `<img src="<server>/<svg|png>/<deflate+encode64 of source>">`
 per page; `newpage` directives produce one extra image per page. Format is
 `svg` for everything except `ditaa` (png). No server configured → jebbs emits a
-`⚠️` placeholder `<pre>`. In our design, no server → we simply **leave the
-fence as a normal code block** (no replacement).
+`⚠️` placeholder `<pre>`. In our design, no server → the fence becomes an
+**actionable in-preview error notice** ("PlantUML server is not set. Set
+`hackerMarkdown.plantuml.server` in Settings…", with an *Open Settings* button
+and the escaped source behind a `<details>`).
 
 `plantumlURL.ts` encodes via `zlib.deflateRawSync` + the synchro.js `encode64`.
 `include.ts` expands `!include` / `!includesub` against search paths (the
@@ -53,7 +55,11 @@ fragment = rewritePumlFences(fragment, doc)
 `<pre…><code class="language-(plantuml|puml|uml)"…>…</code></pre>`, unescapes the
 HTML-escaped source, builds a lean `Diagram`, and replaces the whole block with
 `\n<img style="background-color:#FFF;" src="<server>/<svg|png>/<…>"` per page.
-No server configured → the block is left untouched.
+No server configured → the block is replaced by the `hmk-puml-error` notice
+(styled in `main.css`), whose Open Settings button posts
+`{ type: 'command', id: 'openPumlSettings' }` (handled by the webview click
+delegate in `media/index.js` → `previewManager.ts` →
+`workbench.action.openSettings`).
 
 Config comes from new settings `hackerMarkdown.plantuml.server`
 (`machine-overridable`, like jebbs) and `hackerMarkdown.plantuml.includepaths`
@@ -93,7 +99,7 @@ same char codes (latin1), no size limit. Everything else is verbatim.
 - **`package.json`** — two new configuration properties under
   `hackerMarkdown.plantuml.*`.
 
-## What already works, no webview/media changes needed
+## What already works, webview/media touch is tiny
 
 - The `<img>` lands as a bare block child of `#preview` (same shape jebbs
   produced), so `isFrameable` wraps it in a `.hmk-frame` (pan/zoom, section
@@ -104,13 +110,17 @@ same char codes (latin1), no size limit. Everything else is verbatim.
   `media/index.js`.
 - CSP `img-src` already allows `https:` and `http://localhost:*` /
   `http://127.0.0.1:*` (the common dev server case).
+- Only two small media additions: the `.hmk-puml-error` styles in `main.css`
+  and a generic `[data-command]` click delegate in the preview's click handler
+  (used solely by the error notice's Open Settings button).
 
 ## Verification
 
 - `npm run compile` passes (strict TS).
 - `tests/plantuml_check.cjs` — pure-logic check of the real `out/plantuml/*.js`:
   - fence infos `plantuml|puml|uml` all rewritten; `mermaid` untouched;
-  - no server → HTML unchanged;
+  - no server → puml fences become the `hmk-puml-error` notice (message, Open
+    Settings button, escaped source preserved); non-puml content untouched;
   - `svg` vs `png` (ditaa) URL paths;
   - `newpage` → one img per page;
   - URL round-trips (independent decode64+inflateRaw === original source);
@@ -186,10 +196,11 @@ to rewrite, so no double-render).
    not a port error — the re-run proved the strip works.
 6. **Deliberate deviations from jebbs-in-preview** (documented above, but
    collected):
-   - no server → we leave the fence as an ordinary code block; jebbs emits a
-     `⚠️` placeholder `<pre>` (its message strings live in its nls bundles we
-     dropped). Keeping the code block is information-preserving and needs no
-     localization.
+   - no server → a styled in-preview error notice with an *Open Settings*
+     button (opens `workbench.action.openSettings` scoped to the setting);
+     jebbs emits a `⚠️` placeholder `<pre>` with no way to fix it from the
+     preview. (Initially this was "leave the fence as a code block"; the user
+     asked for an explicit error, so it became the notice.)
    - `!include` resolves relative to the **Markdown file's folder**; jebbs's
      markdown renderer only uses window-scoped `plantuml.includepaths`
      (it ignores `env.currentDocument`). Strictly a superset of its behavior.
