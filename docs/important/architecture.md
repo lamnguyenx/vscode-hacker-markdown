@@ -10,6 +10,13 @@ details underneath the feature list, and the product limitations.
 - `src/previewManager.ts` tracks the active Markdown editor, renders via the built-in `markdown-language-features` engine (`markdown.api.render`), and drives every attached preview (docked views + editor panels).
 - `src/previewHost.ts` builds the webview HTML (CSP with nonce, `markdown.css` / `highlight.css`, toolbar) and handles host messages (link clicks, scroll sync, toolbar commands). It also injects `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions (e.g. the mermaid renderer) and adds their folders to `localResourceRoots`. Webview asset URLs (the `build/*` bundle and css) are mtime-busted here (`cacheBustBuild`).
 - `src/webview/**` (strict TS, bundled by esbuild → `build/index.js`) renders the HTML fragment, preserves the reading position across re-renders, reports the topmost visible line for scroll sync, and dispatches `vscode.markdown.updateContent` after each render so contributed scripts (mermaid) re-render on live edits.
+- `syntaxes/` holds the editor-side PlantUML TextMate grammars (vendored from
+  `jebbs/plantuml`, MIT): `plantuml.yaml-tmLanguage` is converted by
+  `scripts/build-syntax.cjs` (js-yaml, dev-only) into
+  `plantuml.tmLanguage.json` — the `.json` suffix matters, vscode-textmate
+  picks the parser by file extension — and contributed via `languages` +
+  `grammars` in `package.json`. The `codeblock.json` injection marks
+  `plantuml`/`puml`/`uml` fences inside Markdown as `meta.embedded.block.plantuml` (the original only matched `plantuml`, the preview supports all three). Editor-only: the preview's highlighting comes from `markdown.api.render`, unaffected.
 
 ## Feature deep-dives
 

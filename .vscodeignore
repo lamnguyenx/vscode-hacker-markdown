@@ -4,3 +4,4 @@ exp/**
 docs/**
 node_modules/**
 *.vsix
+syntaxes/plantuml.yaml-tmLanguage

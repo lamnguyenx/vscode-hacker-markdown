@@ -19,6 +19,39 @@
 	],
 	"main": "./out/extension.js",
 	"contributes": {
+		"languages": [
+			{
+				"id": "plantuml",
+				"extensions": [
+					".wsd",
+					".pu",
+					".puml",
+					".plantuml",
+					".iuml"
+				],
+				"aliases": [
+					"PlantUML"
+				],
+				"configuration": "./syntaxes/language-configuration.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "plantuml",
+				"scopeName": "source.wsd",
+				"path": "./syntaxes/plantuml.tmLanguage.json"
+			},
+			{
+				"scopeName": "markdown.plantuml.codeblock",
+				"path": "./syntaxes/codeblock.json",
+				"injectTo": [
+					"text.html.markdown"
+				],
+				"embeddedLanguages": {
+					"meta.embedded.block.plantuml": "plantuml"
+				}
+			}
+		],
 		"configuration": {
 			"title": "Hacker Markdown",
 			"properties": {
@@ -111,10 +144,11 @@
 		}
 	},
 	"scripts": {
+		"build:syntax": "node scripts/build-syntax.cjs",
 		"build:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2020 --outfile=build/index.js",
 		"build:webview-assets": "node scripts/copy-webview-assets.cjs",
 		"watch:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2020 --outfile=build/index.js --watch",
-		"compile": "npm run build:webview && npm run build:webview-assets && tsc -p ./ && tsc -p tsconfig.webview.json",
+		"compile": "npm run build:syntax && npm run build:webview && npm run build:webview-assets && tsc -p ./ && tsc -p tsconfig.webview.json",
 		"watch": "tsc -w -p ./",
 		"vscode:prepublish": "npm run compile"
 	},
@@ -122,6 +156,7 @@
 		"@types/node": "^26.1.2",
 		"@types/vscode": "^1.100.0",
 		"esbuild": "^0.28.1",
+		"js-yaml": "^5.2.3",
 		"typescript": "^5.5.0"
 	}
 }
