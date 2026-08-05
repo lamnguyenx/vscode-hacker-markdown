@@ -49,6 +49,21 @@ details underneath the feature list, and the product limitations.
   unchanged. If `jebbs.plantuml` is also installed, its global plugin already
   turns the fence into an `<img>` inside the engine and our pass finds nothing
   to rewrite — no double-render.
+- **PlantUML code completion in markdown fences.** `@start…`/`@end…`, diagram
+  keywords, `!include`/`!define`/… preprocessor directives, `skinparam`
+  names and colors are suggested while typing inside
+  `plantuml`/`puml`/`uml` fenced blocks. VS Code has no grammar-scoped
+  completion (microsoft/vscode#208862), so `src/completions/provider.ts`
+  registers one `CompletionItemProvider` on the whole `markdown` language and
+  self-filters: the pure `src/completions/fences.ts` scanner returns
+  `undefined` outside a puml fence (the widget never pops in prose), and the
+  pure `src/completions/words.ts` catalog (790 words, ported from jebbs's
+  `predefined.ts`, MIT) is offered inside one. The provider computes its own
+  replace range (word chars include `@ ! $ :` so `@startum`→`@startuml`),
+  reads `hackerMarkdown.completions.enabled`, and is gated behind the
+  `onLanguage:markdown` activation event, so it works without opening the
+  preview. Scoped to markdown fences only — `.puml`/`.wsd` files are
+  untouched. Keyword-only: no macros/variables.
 - **Follows the active editor.** The preview switches when you open another
   Markdown file and re-renders **on save** by default
   (`hackerMarkdown.renderOnSave`), or live (debounced) as you type when the
@@ -67,6 +82,11 @@ details underneath the feature list, and the product limitations.
 - Rendering happens through `markdown.api.render`, which cannot rewrite relative image paths, so image `src` attributes are rewritten extension-side against the document folder (same behavior as the built-in preview's resource provider).
 - PlantUML fences are rewritten from the rendered HTML fragment, so the fence source takes the HTML-escape round-trip (only `& < > "`; `&amp;` is decoded last to keep literal `&lt;` intact), and the generated `<img>` carries no `data-line` (scroll-sync granularity for that block; position-based re-render keepers are unaffected). The server must be CSP-compatible (`https`, or `http://` on `localhost`/`127.0.0.1`), same as the stock preview.
 - Contributed preview scripts and styles are loaded (mermaid, KaTeX, …), but the extension has no control over *when* other extensions activate; a script contributed by an extension that never activates simply never loads. `markdown.css` / `highlight.css` are copied from `microsoft/vscode` (MIT) to keep rendering identical to the stock preview.
+- Completions are a **static keyword list**, scoped to markdown fences. No
+  macros/variables (unlike jebbs's `.puml`-file-only completion), no jar-backed
+  full list, and the `plantuml`-language files get nothing. Typing plain
+  letters relies on the editor's `quickSuggestions`; the `@`/`!` triggers and
+  `Ctrl+Space` always work.
 
 For how these internals interact with the test pipeline, see
 [`docs/important/how-to-test.md`](how-to-test.md); for generalized tool and

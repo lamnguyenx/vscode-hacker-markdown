@@ -29,6 +29,7 @@ Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
 | `tests/test_preview.cjs` | Full 18-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
 | `tests/plantuml_check.cjs` | Pure-logic check of the PlantUML preview rendering (no dev host, no server) |
+| `tests/plantuml_completion_check.cjs` | Pure-logic check of the in-markdown PlantUML code completions: fence detection + catalog (no dev host) |
 | `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
 
 ---
@@ -387,6 +388,29 @@ tokenization works). Verify scopes, not colors:
   means the grammar files are missing from the extension folder (see Makefile
   `install`, which now copies + verifies `syntaxes/`).
 
+## 3g. PlantUML code completions (in-markdown IntelliSense)
+
+`src/completions/*` adds PlantUML keyword suggestions *while typing* inside
+`plantuml`/`puml`/`uml` markdown fences. The core (`src/completions/fences.ts`
+fence detection + `words.ts` static catalog) is pure (no `vscode` import) and
+is unit-checked against the real shipped `out/` code without a dev host:
+
+```sh
+npm run compile
+node tests/plantuml_completion_check.cjs   # fence inside/outside, closed/unclosed, tilde, casing; catalog sizes + markers
+```
+
+The vscode boundary (`provider.ts`) is a completion provider registered on the
+`markdown` language (VS Code cannot scope completions to an embedded grammar,
+see microsoft/vscode#208862); it returns `undefined` unless the cursor is
+inside a puml fence, reads `hackerMarkdown.completions.enabled`, and is
+activated via `onLanguage:markdown`. Completions live in the **extension
+host**, not the preview webview, so they are outside the OOPIF CDP harness —
+verify by hand with the dev host open on a fixture with a puml fence:
+Ctrl+Space (or type `@` / `!`) inside the fence shows the list; outside the
+fence nothing pops. Guidance on activating/relaunching the host: sections
+1–2 and 5.
+
 ## 4. Reading the VS Code Logs
 
 `exp/devhost/logs/<timestamp>/window1/exthost/exthost.log` records extension
@@ -445,6 +469,7 @@ typed text into the open buffer — `git checkout` the fixtures after a run
 | Harness (webview logic; needs ports 8377/8378) | open `http://127.0.0.1:8377/exp/scroll-anchor-test.html` (section 3c) |
 | Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs 9335` + `node exp/persist_test.cjs 9335` (section 3d) |
 | PlantUML rendering pure-logic check (no dev host) | `node tests/plantuml_check.cjs` (section 3e) |
+| PlantUML completion pure-logic check (no dev host) | `node tests/plantuml_completion_check.cjs` (section 3g) |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 
 ## Known Limits of This Setup
@@ -480,5 +505,12 @@ typed text into the open buffer — `git checkout` the fixtures after a run
 - **Key bindings inside cross-origin iframes** behave like the browser
   project: keystrokes inside a cross-origin page never reach VS Code. The
   preview chrome itself (our own webview) does forward keys.
+- **Completions are not in the smoke suite.** The in-markdown PlantUML
+  completions (section 3g) are extension-host language features, outside the
+  webview-OOPIF CDP harness; they are covered by the pure-logic
+  `plantuml_completion_check.cjs` + a manual dev-host spot-check
+  (`Ctrl+Space` / `@` / `!` inside a puml fence), not by `test_preview.cjs`.
+  An automated assertion would need `vscode.executeCompletionItemProvider`
+  from the workbench target (see quirks.md).
 - The onboarding overlay only appears on **fresh** profiles; once dismissed it
   is persisted and `open_view.cjs` becomes a no-op for steps 1.

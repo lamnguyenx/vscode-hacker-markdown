@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { PreviewManager } from './previewManager';
 import { PreviewHost } from './previewHost';
+import { registerCompletions } from './completions/provider';
 
 class MarkdownPreviewViewProvider implements vscode.WebviewViewProvider {
 
@@ -28,6 +29,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	const manager = new PreviewManager(context.extensionUri);
 	context.subscriptions.push(manager);
+
+	registerCompletions(context);
 
 	const provider = new MarkdownPreviewViewProvider(manager);
 

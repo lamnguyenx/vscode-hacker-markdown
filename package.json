@@ -15,7 +15,8 @@
 		"onView:hackerMarkdown.preview",
 		"onCommand:hackerMarkdown.open",
 		"onCommand:hackerMarkdown.openInEditor",
-		"onCommand:hackerMarkdown.refresh"
+		"onCommand:hackerMarkdown.refresh",
+		"onLanguage:markdown"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -92,6 +93,11 @@
 					"scope": "resource",
 					"default": [],
 					"description": "Additional folders to resolve `!include` / `!includesub` directives against, beyond the Markdown file's own folder."
+				},
+				"hackerMarkdown.completions.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Offer PlantUML keyword suggestions while typing inside `plantuml`/`puml`/`uml` code fences in Markdown files."
 				}
 			}
 		},

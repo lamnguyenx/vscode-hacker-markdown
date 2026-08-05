@@ -143,6 +143,41 @@ vendors the PlantUML grammars; applies to any extension):
   files exist afterward — it previously dropped the folder silently, which is
   exactly how a "works in dev host, not after install" regression starts.
 
+## Language features in embedded regions (completions in markdown fences)
+
+Knowledge for anyone adding IntelliSense (or other language features) to an
+*embedded* language region — e.g. completing keywords inside a
+`` ```plantuml `` block in Markdown:
+
+- **Completion providers are per-document-language, not per-grammar-scope.**
+  VS Code has no scope-based completion (open feature request
+  microsoft/vscode#208862); `registerCompletionItemProvider` selects whole
+  documents by language id. An *injected grammar* that scopes the region
+  (`meta.embedded.block.plantuml`) makes highlighting/bracket-color work but
+  does **not** route completion providers for the embedded language — a
+  provider registered for `plantuml` never fires inside a markdown fence
+  (this is exactly why `jebbs.plantuml`'s `.puml`-only provider misses it).
+  Workaround (this repo's `src/completions/*`): register on the host language
+  (`markdown`) and self-filter in `provideCompletionItems` — return `undefined`
+  when the cursor is not in the target region so the widget never pops in
+  prose, and compute your own replace `range` (the host word pattern, e.g.
+  markdown's, stops at `@`/`!` so a partial `@startum` would append instead
+  of replace).
+- **The completions themselves are served by the extension host, not the
+  preview webview.** They are therefore **outside the webview OOPIF CDP
+  harness** used by `tests/*.cjs` (which can only reach the browser page, not
+  the extension host). To assert suggestions programmatically you must invoke
+  the *command* `vscode.executeCompletionItemProvider` from the **workbench**
+  CDP target (the `document` page, not a `vscode-webview://` iframe) with a
+  position inside the fence — the returned `isIncomplete`/items live in the
+  extension host. This repo leaves completions to a pure-logic check
+  (`tests/plantuml_completion_check.cjs`) plus manual dev-host verification
+  (see how-to-test.md §3g).
+- **A shared cached `CompletionItem[]` cannot be returned directly.** VS Code
+  mutates `item.range` per request, so returning module-level cached items
+  leaks one request's range into the next (and across documents). Cache the
+  labels; build fresh item objects per request and assign the computed range.
+
 ## CDP input automation
 
 - **Trusted input only.** VS Code's keybinding service ignores synthetic
