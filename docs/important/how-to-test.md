@@ -354,6 +354,39 @@ empty, a puml fence becomes the `.hmk-puml-error` notice with an *Open
 Settings* button (opens the setting via `workbench.action.openSettings`),
 instead of an image.
 
+## 3f. TextMate / syntax highlighting (grammars)
+
+The extension contributes TextMate grammars (`syntaxes/*`): `source.wsd`
+for `.puml`/`.wsd`/… files plus an injected grammar that re-scopes
+`plantuml`/`puml`/`uml` markdown fences. Grammar regressions are easy to
+miss because token *colors* are theme-dependent (a monochrome eink theme
+renders every scope one color — it looks like "no highlighting" even when
+tokenization works). Verify scopes, not colors:
+
+- Run `Developer: Inspect Editor Tokens and Scopes` (hover/`Cmd+Shift+P`),
+  put the cursor on a fence-content line, and read the `textmate scopes`
+  line. A `plantuml`/`puml` fence body must show
+  `meta.embedded.block.plantuml` + `diagram.source.wsd` on top of the
+  markdown scopes. You can also read the DOM: `.view-line` children carry
+  `.mtk*` classes, but those only distinguish *colors* — they prove nothing
+  under a monochrome theme, so prefer the inspector.
+- Move the cursor deterministically with `Ctrl+G` (go to line) — clicking
+  the editor body is not precise. `monaco` virtualizes lines: only rendered
+  lines are in the DOM, so scroll first (see quirks.md for why
+  `scrollTop = scrollHeight` is a trap in backgrounded windows).
+- **Open editors cache tokens.** After changing `syntaxes/*` or
+  `package.json#contributes.grammars`, an already-open document keeps its
+  old tokenization until it is *closed and reopened* (or the extension
+  restarted) — `Reload Window` alone is not always enough. If the fixture
+  still shows no highlighting after a dev-host relaunch, close/reopen the
+  tab.
+- **Diagnose a silent "no highlighting" by grepping the logs.** A grammar
+  that fails to load logs once per extension-host session in `renderer.log`:
+  `grep "Unable to load and parse grammar" "$LOG_DIR"/window*/renderer.log`
+  → `…Unable to resolve nonexistent file '…/syntaxes/codeblock.json'`
+  means the grammar files are missing from the extension folder (see Makefile
+  `install`, which now copies + verifies `syntaxes/`).
+
 ## 4. Reading the VS Code Logs
 
 `exp/devhost/logs/<timestamp>/window1/exthost/exthost.log` records extension
@@ -378,6 +411,13 @@ node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335
 git checkout -- tests/workspace/sub.md   # the suite saves the live-edit token into the fixture
 ```
+
+After changing grammar files (`syntaxes/*`) or `package.json#contributes.*`
+(the default `open_view.cjs` fixture is `tests/workspace/test.md`) remember:
+
+- the dev-host restart re-reads `package.json`, but the **open editor keeps
+  its cached tokens** — close and reopen `test.md` (or open the sample in
+  section 3d) before asserting highlighting (see 3f);
 
 **The suite is not idempotent.** `test_preview.cjs` mutates the dev host
 state as it goes (opens files, creates panels, switches editors), so

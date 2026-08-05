@@ -154,6 +154,10 @@ This is kinda no-op since the actual upload only starts when the user click
 @endsalt
 ```
 
+```python
+def just kidding()
+```
+
 > **Note:** Playback is exclusive — starting play on a second utterance automatically stops the first. Clicking Play while playing toggles to Stop.
 
 #### 1.5.2 Multiple Done

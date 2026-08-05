@@ -1,6 +1,6 @@
 {
     "fileTypes": [],
-    "injectionSelector": "L:markup.fenced_code.block.markdown",
+    "injectionSelector": "L:text.html.markdown",
     "patterns": [
         {
             "include": "#plantuml-code-block"
@@ -8,8 +8,25 @@
     ],
     "repository": {
         "plantuml-code-block": {
-            "begin": "(?:plantuml|puml|uml)(\\s+[^`~]*)?$",
-            "end": "(^|\\G)(?=\\s*[`~]{3,}\\s*$)",
+            "begin": "(^|\\G)(\\s*)(\\`{3,}|~{3,})\\s*(?i:(plantuml|puml|uml)(\\s+[^`~]*)?$)",
+            "name": "markup.fenced_code.block.markdown",
+            "end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+            "beginCaptures": {
+                "3": {
+                    "name": "punctuation.definition.markdown"
+                },
+                "4": {
+                    "name": "fenced_code.block.language.markdown"
+                },
+                "5": {
+                    "name": "fenced_code.block.language.attributes.markdown"
+                }
+            },
+            "endCaptures": {
+                "3": {
+                    "name": "punctuation.definition.markdown"
+                }
+            },
             "patterns": [
                 {
                     "begin": "(^|\\G)(\\s*)(.*)",
@@ -24,5 +41,5 @@
             ]
         }
     },
-    "scopeName": "markdown.plantuml.codeblock"
+    "scopeName": "markdown.hackermarkdown.plantuml.codeblock"
 }

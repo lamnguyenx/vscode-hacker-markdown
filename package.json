@@ -42,7 +42,7 @@
 				"path": "./syntaxes/plantuml.tmLanguage.json"
 			},
 			{
-				"scopeName": "markdown.plantuml.codeblock",
+				"scopeName": "markdown.hackermarkdown.plantuml.codeblock",
 				"path": "./syntaxes/codeblock.json",
 				"injectTo": [
 					"text.html.markdown"

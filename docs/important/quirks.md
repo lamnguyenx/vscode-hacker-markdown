@@ -92,6 +92,56 @@ limitations, see [`docs/important/architecture.md`](architecture.md).
   most of the window (observed: an editor only ~97px tall). Click targets
   computed from `getBoundingClientRect()` of `.monaco-editor` are fine, but
   layout assumptions ("the doc fits, everything is visible") are not.
+- **`scrollTop = scrollHeight` can collapse rendering in a backgrounded
+  window.** Setting the editor scroller to its (synthetic, multi-million-px)
+  `scrollHeight` sometimes leaves the viewport rendering a single
+  `.view-line` — subsequent DOM queries for lines come back empty even though
+  the document has many. Use the keyboard (`Cmd+End` / `Ctrl+G`) or moderate
+  incremental `scrollTop` steps to reach the bottom; avoid max-scroll as a
+  "get to the end" technique.
+
+## VS Code grammar (TextMate) loading
+
+Knowledge for debugging `contributes.grammars` / `syntaxes/*` (this repo
+vendors the PlantUML grammars; applies to any extension):
+
+- **`scopeName` collisions are silent-ish and last-registration wins.** Two
+  extensions registering the *same* `scopeName` (classic case: this repo and
+  `jebbs.plantuml` both used `markdown.plantuml.codeblock` for the markdown
+  code-fence injection) — the second registration overwrites the first
+  (`TMScopeRegistry`), so the loser's grammar file is never used. The only
+  trace is a `console.warn` ("Overwriting grammar scope name to file
+  mapping…") that is easy to miss in DevTools and may not persist to
+  `renderer.log`. Symptom: "works in the dev host but not in my real window"
+  (where the other extension is installed). Fix: give injected grammars a
+  unique scopeName (this repo: `markdown.hackermarkdown.plantuml.codeblock`).
+  The other extension keeps working for its own info strings; both can inject
+  into `text.html.markdown` independently.
+- **A missing grammar file fails loudly, once per extension-host.** `Unable
+  to load and parse grammar for scope X from file://…/syntaxes/codeblock.json
+  … Unable to resolve nonexistent file` lands in `renderer.log` on every host
+  start while the file is absent — a clean `grep "Unable to load and parse
+  grammar"` is the fastest "is the grammar even present" check. The failure
+  sticks for the host's lifetime: fixing the files requires a *real* restart
+  (close/reopen the window or `Developer: Reload Window`), not just a
+  re-tokenize.
+- **Open editors cache tokenization.** After editing `syntaxes/*` or
+  `package.json#contributes.grammars`, an already-open document keeps its old
+  token colors until closed/reopened (or the extension host restarts);
+  `Reload Window` alone does not always re-tokenize open documents. When a
+  test says "still no highlighting after relaunch", close + reopen the
+  fixture tab first.
+- **Token colors are theme-dependent — inspect scopes, not colors.** A
+  monochrome/eink theme maps a whole `meta.embedded.block.*` region to one
+  foreground, so rendered spans collapse to a single `.mtk` class and it looks
+  like "no highlighting" even though tokenization is correct. Use
+  `Developer: Inspect Editor Tokens and Scopes` and read the `textmate
+  scopes` list (e.g. `meta.embedded.block.plantuml > diagram.source.wsd`) as
+  ground truth, not the rendered colors.
+- **`make install` (this repo) must ship `syntaxes/`.** The install rule
+  deliberately copies `out build syntaxes` and `test`s the three grammar
+  files exist afterward — it previously dropped the folder silently, which is
+  exactly how a "works in dev host, not after install" regression starts.
 
 ## CDP input automation
 

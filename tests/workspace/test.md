@@ -61,3 +61,12 @@ flowchart LR
     B -->|Yes| C[Great]
     B -->|No| D[Debug]
 ```
+
+## PlantUML
+
+```plantuml
+@startuml
+Alice -> Bob: hello
+Bob --> Alice: hi
+@enduml
+```
