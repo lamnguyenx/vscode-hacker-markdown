@@ -138,6 +138,23 @@ vendors the PlantUML grammars; applies to any extension):
   `Developer: Inspect Editor Tokens and Scopes` and read the `textmate
   scopes` list (e.g. `meta.embedded.block.plantuml > diagram.source.wsd`) as
   ground truth, not the rendered colors.
+- **A theme's `tokenColors` rules key on standard scope families — align the
+  grammar's scopes to the theme, don't patch the theme.** Rule scopes match by
+  dotted-prefix (`keyword` matches `keyword.control.*`), so a grammar that emits
+  only bespoke scopes (e.g. jebbs's `keyword.control.diagram.*`,
+  `support.variable.*`, `string.quoted.double.class.other.*`) lands wherever
+  the theme's generic rules leave it, and fontStyle-only design intent
+  (bold/italic per family) silently misses. Re-scoping the grammar onto the
+  families the theme styles (this repo: `variable.other.enummember` for
+  identifiers, `keyword.other` for delimiters, `entity.name.function` for member
+  signatures) is the reproducible fix. The **final** color+fontStyle is decided
+  by the active theme (+ user `editor.tokenColorCustomizations.textMateRules`)
+  against the scope — reproducing that offline before touching the dev host:
+  feed the grammar + theme through `vscode-textmate`'s own `Theme.match`
+  (see `exp/themecheck/tokenize.cjs`; decode `EncodedTokenAttributes` with the
+  real bit offsets from `_refs/vscode-textmate/src/encodedTokenAttributes.ts` —
+  `FOREGROUND_OFFSET=15`, `BACKGROUND_OFFSET=24` — *not* the stale `F=4/f=9`
+  comment in its JSDoc header, which led to garbage decodes).
 - **`make install` (this repo) must ship `syntaxes/`.** The install rule
   deliberately copies `out build syntaxes` and `test`s the three grammar
   files exist afterward — it previously dropped the folder silently, which is

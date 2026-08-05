@@ -16,7 +16,7 @@ details underneath the feature list, and the product limitations.
   `plantuml.tmLanguage.json` — the `.json` suffix matters, vscode-textmate
   picks the parser by file extension — and contributed via `languages` +
   `grammars` in `package.json`. The `codeblock.json` injection marks
-  `plantuml`/`puml`/`uml` fences inside Markdown as `meta.embedded.block.plantuml` (the original only matched `plantuml`, the preview supports all three). Editor-only: the preview's highlighting comes from `markdown.api.render`, unaffected.
+  `plantuml`/`puml`/`uml` fences inside Markdown as `meta.embedded.block.plantuml` (the original only matched `plantuml`, the preview supports all three). Editor-only: the preview's highlighting comes from `markdown.api.render`, unaffected. The emitted scopes are **re-aligned onto standard TextMate families** (`keyword.other.diagram`, `variable.other.enummember.*`, `entity.name.function.*`, …) instead of jebbs's `keyword.control.*` / `support.variable.*` / `string.quoted.double.class.other`, so color themes whose rules key on the standard families (e.g. the Eink 60Hz theme's font-style/color rules) apply to fence tokens — see `docs/plans/2026/08/05/2026-08-05-plantuml-grammar-scope-alignment.md`.
 
 ## Feature deep-dives
 

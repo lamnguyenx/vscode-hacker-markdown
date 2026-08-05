@@ -381,6 +381,18 @@ tokenization works). Verify scopes, not colors:
   restarted) — `Reload Window` alone is not always enough. If the fixture
   still shows no highlighting after a dev-host relaunch, close/reopen the
   tab.
+- **Final colors & font styles are theme-dependent — verify offline, not by
+  eye.** The inspector shows *scopes*, not the final paint: the foreground and
+  fontStyle (bold/italic/underline) a token gets come from the *active theme's*
+  `tokenColors` (+ user `editor.tokenColorCustomizations.textMateRules`) matched
+  against the scope. The model order-of-magnitude check
+  (`node exp/themecheck/tokenize.cjs` / `..._theme_only.cjs`) feeds the shipped
+  `plantuml.tmLanguage.json` through the real `vscode-textmate` with the theme
+  applied exactly as VS Code does, and prints per-token color+style. The shipped
+  grammar is deliberately re-scoped onto standard families (`keyword.other`,
+  `variable.other.enummember`, `entity.name.function`, …) so the Eink 60Hz
+  theme's rules style fence tokens; if a token looks "wrong", check its scope
+  first, then which theme rule colors it.
 - **Diagnose a silent "no highlighting" by grepping the logs.** A grammar
   that fails to load logs once per extension-host session in `renderer.log`:
   `grep "Unable to load and parse grammar" "$LOG_DIR"/window*/renderer.log`

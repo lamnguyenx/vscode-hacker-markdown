@@ -10,11 +10,11 @@ patterns:
   name: diagram.source.wsd
   begin: (?i)^\s*(@start[a-z]+)((\s+)(.+?))?\s*$
   beginCaptures:
-    '1': {name: keyword.control.diagram.source.wsd}
+    '1': {name: keyword.other.diagram.source.wsd}
     '5': {name: entity.name.function.diagram.source.wsd}
   end: (?i)^\s*(@end[a-z]+)\s*$
   endCaptures:
-    '1': {name: keyword.control.diagram.source.wsd}
+    '1': {name: keyword.other.diagram.source.wsd}
   patterns:
   - include: '#Quoted'
   - include: '#Comment'
@@ -43,7 +43,7 @@ repository:
   Quoted:
     patterns:
     - comment: quoted definitions
-      name: support.variable.definitions.source.wsd
+      name: variable.other.enummember.definitions.source.wsd
       begin: (?i)^\s*(:)
       end: (?i)(:)|[\];|<>/}]?\s*$
     - comment: double quoted
@@ -151,9 +151,9 @@ repository:
         '1': {name: keyword.other.noteof.source.wsd}
         '2': {name: constant.numeric.noteof.source.wsd}
         '3': {name: keyword.other.noteof.source.wsd}
-        '4': {name: support.variable.noteof.source.wsd}
-        '5': {name: support.variable.noteof.source.wsd}
-        '6': {name: support.variable.noteof.source.wsd}
+        '4': {name: variable.other.enummember.noteof.source.wsd}
+        '5': {name: variable.other.enummember.noteof.source.wsd}
+        '6': {name: variable.other.enummember.noteof.source.wsd}
         '7': {name: keyword.other.noteof.source.wsd}
         '8': {name: constant.numeric.noteof.source.wsd}
         '9': {name: meta.comment.noteof.source.wsd}
@@ -163,9 +163,9 @@ repository:
         '1': {name: keyword.other.noteof.source.wsd}
         '2': {name: constant.numeric.noteof.source.wsd}
         '3': {name: keyword.other.noteof.source.wsd}
-        '4': {name: support.variable.noteof.source.wsd}
-        '5': {name: support.variable.noteof.source.wsd}
-        '6': {name: support.variable.noteof.source.wsd}
+        '4': {name: variable.other.enummember.noteof.source.wsd}
+        '5': {name: variable.other.enummember.noteof.source.wsd}
+        '6': {name: variable.other.enummember.noteof.source.wsd}
         '7': {name: keyword.other.noteof.source.wsd}
         '8': {name: constant.numeric.noteof.source.wsd}
       end: (?i)^\s*(end\s*[rh]?note)
@@ -180,7 +180,7 @@ repository:
         '1': {name: keyword.other.noteas.source.wsd}
         '3': {name: keyword.other.noteas.source.wsd}
         '2': {name: meta.comment.noteas.source.wsd}
-        '4': {name: support.variable.noteas.source.wsd}
+        '4': {name: variable.other.enummember.noteas.source.wsd}
     - comment: multi-line header, legend, footer
       begin: (?i)^\s*(?:(center|left|right)\s+)?(header|legend|footer)\s*\n
       beginCaptures:
@@ -204,7 +204,7 @@ repository:
     - comment: links
       begin: (?i)((?:(?:(?:\s+[ox]|[+*])?(?:<<|<\|?|\\\\|\\|//|\}|\^|#|0|0\))?)(?=[-.~=]))[-.~=]+(\[(?:\#(?:[0-9a-f]{6}|[0-9a-f]{3}|\w+)(?:[-\\/](?:[0-9a-f]{6}|[0-9a-f]{3}|\w+))?\b)\])?(?:(left|right|up|down)(?:[-.~=]))?[-.]*(?:(?:>>|\|?>|\\\\|\\|//|\{|\^|#|0|\(0)?(?:[ox]\s+|[+*])?))
       beginCaptures:
-        '1': {name: keyword.control.note.source.wsd}
+        '1': {name: keyword.other.link.source.wsd}
         '2': {name: constant.numeric.link.color.source.wsd}
         '3': {name: constant.language.link.source.wsd}
       end: $
@@ -213,7 +213,7 @@ repository:
       - comment: actor and link message
         match: (?i):([^:]+):\s*:(.+)$
         captures:
-          '1': {name: support.variable.actor.link.source.wsd}
+          '1': {name: variable.other.enummember.actor.link.source.wsd}
           '2': {name: meta.comment.message.link.source.wsd}
       - comment: link message
         match: (?i):(.+)$
@@ -223,7 +223,7 @@ repository:
       match: (?i)#(?:[0-9a-f]{6}|[0-9a-f]{3}|\w+)
       name: constant.numeric.colors.source.wsd
     - comment: Variables
-      name: support.variable.source.wsd
+      name: variable.other.enummember.source.wsd
       match: \b[\w_]+
   Activity:
     patterns:
@@ -269,13 +269,13 @@ repository:
       match: (?i)^\s*(ref\s+over)\s+(.+?)\s*:\s*(.+)\s*$
       captures:
         '1': {name: keyword.other.sequence.ref.source.wsd}
-        '2': {name: support.variable.sequence.ref.source.wsd}
+        '2': {name: variable.other.enummember.sequence.ref.source.wsd}
         '3': {name: meta.comment.sequence.ref.source.wsd}
     - comment: multi-line ref
       begin: (?i)^\s*(ref\s+over)\s+(.+?)\s*$
       beginCaptures:
         '1': {name: keyword.other.sequence.ref.source.wsd}
-        '2': {name: support.variable.sequence.ref.source.wsd}
+        '2': {name: variable.other.enummember.sequence.ref.source.wsd}
       end: (?i)end\s+ref
       endCaptures:
         '0': {name: keyword.other.sequence.ref.source.wsd}
@@ -305,7 +305,7 @@ repository:
     - comment: add object fields
       match: (?i)^\s*([\w\d_]+)\s+:\s+s*$
       captures:
-        '1': {name: support.variable.object.addfields.source.wsd}
+        '1': {name: variable.other.enummember.object.addfields.source.wsd}
         '2': {name: meta.comment.object.addfields.source.wsd}
   Class:
     patterns:
@@ -313,10 +313,10 @@ repository:
       begin: (?i)^\s*(enum|abstract\s+class|abstract|class)\s+([\w\d_\.]+|"[^"]+")(\s*(<<.+?>>))?(\s+(as)\s+([\w\d_\.]+|"[^"]+")(\s*(<<.+?>>))?)?(\s+#(([\w\|\\\/\-]+)))?\s*\{\s*$
       beginCaptures:
         '1': {name: keyword.other.class.group.source.wsd}
-        '2': {name: support.variable.class.group.source.wsd}
+        '2': {name: variable.other.enummember.class.group.source.wsd}
         '4': {name: string.quoted.double.class.definition.source.wsd}
         '6': {name: keyword.other.class.group.source.wsd}
-        '7': {name: support.variable.class.group.source.wsd}
+        '7': {name: variable.other.enummember.class.group.source.wsd}
         '9': {name: string.quoted.double.class.definition.source.wsd}
         '10': {name: constant.numeric.class.definition.source.wsd}
       end: ^\s*(?<!\\)\}\s*$
@@ -333,8 +333,8 @@ repository:
           '1': {name: storage.modifier.class.function.source.wsd}
           '3': {name: keyword.other.class.function.source.wsd}
           '5': {name: support.type.class.function.source.wsd}
-          '7': {name: support.variable.class.function.source.wsd}
-          '9': {name: support.variable.class.function.source.wsd}
+          '7': {name: variable.other.enummember.class.function.source.wsd}
+          '9': {name: variable.other.enummember.class.function.source.wsd}
           '11': {name: support.type.class.function.source.wsd}
       - comment: fields # https://rubular.com/r/cJ15lkb8dcSGvK
         match: (?i)^\s*(\s*\{(static|abstract)\}\s*)?(\s*[~#+-]\s*)?(([\p{L}0-9_]+(\[\])?\s+)?([\p{L}0-9_]+)|([\p{L}0-9_]+)\s*:\s*(\w+)?)\s*$
@@ -342,18 +342,18 @@ repository:
           '1': {name: storage.modifier.class.fields.source.wsd}
           '3': {name: keyword.other.class.fields.source.wsd}
           '5': {name: support.type.class.fields.source.wsd}
-          '7': {name: support.variable.class.fields.source.wsd}
-          '8': {name: support.variable.class.fields.source.wsd}
+          '7': {name: variable.other.enummember.class.fields.source.wsd}
+          '8': {name: variable.other.enummember.class.fields.source.wsd}
           '9': {name: support.type.class.fields.source.wsd}
       - comment: other fields/function
         match: (?i)^\s*(\s*\{(static|abstract)\}\s*)?(\s*[~#+-]\s*)?(.+?)\s*$
         captures:
           '1': {name: storage.modifier.class.fields.source.wsd}
           '3': {name: keyword.other.class.fields.source.wsd}
-          '4': {name: string.quoted.double.class.other.source.wsd}
+          '4': {name: entity.name.function.class.other.source.wsd}
     - comment: hide & show & remove
       match: (?i)^\s*(hide|show|remove)\s+(([\w\d_\.\$]+|"[^"]+")|<<.+?>>|Stereotypes|class|interface|enum|@unlinked)(\s+(empty fields|empty attributes|empty methods|empty description|fields|attributes|methods|members|circle))?\s*$
       captures:
         '1': {name: keyword.other.class.hideshow.source.wsd}
-        '2': {name: support.variable.class.hideshow.source.wsd}
+        '2': {name: variable.other.enummember.class.hideshow.source.wsd}
         '5': {name: constant.numeric.class.hideshow.source.wsd}

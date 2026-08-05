@@ -16,7 +16,7 @@
             "begin": "(?i)^\\s*(@start[a-z]+)((\\s+)(.+?))?\\s*$",
             "beginCaptures": {
                 "1": {
-                    "name": "keyword.control.diagram.source.wsd"
+                    "name": "keyword.other.diagram.source.wsd"
                 },
                 "5": {
                     "name": "entity.name.function.diagram.source.wsd"
@@ -25,7 +25,7 @@
             "end": "(?i)^\\s*(@end[a-z]+)\\s*$",
             "endCaptures": {
                 "1": {
-                    "name": "keyword.control.diagram.source.wsd"
+                    "name": "keyword.other.diagram.source.wsd"
                 }
             },
             "patterns": [
@@ -97,7 +97,7 @@
             "patterns": [
                 {
                     "comment": "quoted definitions",
-                    "name": "support.variable.definitions.source.wsd",
+                    "name": "variable.other.enummember.definitions.source.wsd",
                     "begin": "(?i)^\\s*(:)",
                     "end": "(?i)(:)|[\\];|<>/}]?\\s*$"
                 },
@@ -331,13 +331,13 @@
                             "name": "keyword.other.noteof.source.wsd"
                         },
                         "4": {
-                            "name": "support.variable.noteof.source.wsd"
+                            "name": "variable.other.enummember.noteof.source.wsd"
                         },
                         "5": {
-                            "name": "support.variable.noteof.source.wsd"
+                            "name": "variable.other.enummember.noteof.source.wsd"
                         },
                         "6": {
-                            "name": "support.variable.noteof.source.wsd"
+                            "name": "variable.other.enummember.noteof.source.wsd"
                         },
                         "7": {
                             "name": "keyword.other.noteof.source.wsd"
@@ -364,13 +364,13 @@
                             "name": "keyword.other.noteof.source.wsd"
                         },
                         "4": {
-                            "name": "support.variable.noteof.source.wsd"
+                            "name": "variable.other.enummember.noteof.source.wsd"
                         },
                         "5": {
-                            "name": "support.variable.noteof.source.wsd"
+                            "name": "variable.other.enummember.noteof.source.wsd"
                         },
                         "6": {
-                            "name": "support.variable.noteof.source.wsd"
+                            "name": "variable.other.enummember.noteof.source.wsd"
                         },
                         "7": {
                             "name": "keyword.other.noteof.source.wsd"
@@ -406,7 +406,7 @@
                             "name": "keyword.other.noteas.source.wsd"
                         },
                         "4": {
-                            "name": "support.variable.noteas.source.wsd"
+                            "name": "variable.other.enummember.noteas.source.wsd"
                         }
                     }
                 },
@@ -459,7 +459,7 @@
                     "begin": "(?i)((?:(?:(?:\\s+[ox]|[+*])?(?:<<|<\\|?|\\\\\\\\|\\\\|//|\\}|\\^|#|0|0\\))?)(?=[-.~=]))[-.~=]+(\\[(?:\\#(?:[0-9a-f]{6}|[0-9a-f]{3}|\\w+)(?:[-\\\\/](?:[0-9a-f]{6}|[0-9a-f]{3}|\\w+))?\\b)\\])?(?:(left|right|up|down)(?:[-.~=]))?[-.]*(?:(?:>>|\\|?>|\\\\\\\\|\\\\|//|\\{|\\^|#|0|\\(0)?(?:[ox]\\s+|[+*])?))",
                     "beginCaptures": {
                         "1": {
-                            "name": "keyword.control.note.source.wsd"
+                            "name": "keyword.other.link.source.wsd"
                         },
                         "2": {
                             "name": "constant.numeric.link.color.source.wsd"
@@ -478,7 +478,7 @@
                             "match": "(?i):([^:]+):\\s*:(.+)$",
                             "captures": {
                                 "1": {
-                                    "name": "support.variable.actor.link.source.wsd"
+                                    "name": "variable.other.enummember.actor.link.source.wsd"
                                 },
                                 "2": {
                                     "name": "meta.comment.message.link.source.wsd"
@@ -503,7 +503,7 @@
                 },
                 {
                     "comment": "Variables",
-                    "name": "support.variable.source.wsd",
+                    "name": "variable.other.enummember.source.wsd",
                     "match": "\\b[\\w_]+"
                 }
             ]
@@ -612,7 +612,7 @@
                             "name": "keyword.other.sequence.ref.source.wsd"
                         },
                         "2": {
-                            "name": "support.variable.sequence.ref.source.wsd"
+                            "name": "variable.other.enummember.sequence.ref.source.wsd"
                         },
                         "3": {
                             "name": "meta.comment.sequence.ref.source.wsd"
@@ -627,7 +627,7 @@
                             "name": "keyword.other.sequence.ref.source.wsd"
                         },
                         "2": {
-                            "name": "support.variable.sequence.ref.source.wsd"
+                            "name": "variable.other.enummember.sequence.ref.source.wsd"
                         }
                     },
                     "end": "(?i)end\\s+ref",
@@ -695,7 +695,7 @@
                     "match": "(?i)^\\s*([\\w\\d_]+)\\s+:\\s+s*$",
                     "captures": {
                         "1": {
-                            "name": "support.variable.object.addfields.source.wsd"
+                            "name": "variable.other.enummember.object.addfields.source.wsd"
                         },
                         "2": {
                             "name": "meta.comment.object.addfields.source.wsd"
@@ -714,7 +714,7 @@
                             "name": "keyword.other.class.group.source.wsd"
                         },
                         "2": {
-                            "name": "support.variable.class.group.source.wsd"
+                            "name": "variable.other.enummember.class.group.source.wsd"
                         },
                         "4": {
                             "name": "string.quoted.double.class.definition.source.wsd"
@@ -723,7 +723,7 @@
                             "name": "keyword.other.class.group.source.wsd"
                         },
                         "7": {
-                            "name": "support.variable.class.group.source.wsd"
+                            "name": "variable.other.enummember.class.group.source.wsd"
                         },
                         "9": {
                             "name": "string.quoted.double.class.definition.source.wsd"
@@ -763,10 +763,10 @@
                                     "name": "support.type.class.function.source.wsd"
                                 },
                                 "7": {
-                                    "name": "support.variable.class.function.source.wsd"
+                                    "name": "variable.other.enummember.class.function.source.wsd"
                                 },
                                 "9": {
-                                    "name": "support.variable.class.function.source.wsd"
+                                    "name": "variable.other.enummember.class.function.source.wsd"
                                 },
                                 "11": {
                                     "name": "support.type.class.function.source.wsd"
@@ -787,10 +787,10 @@
                                     "name": "support.type.class.fields.source.wsd"
                                 },
                                 "7": {
-                                    "name": "support.variable.class.fields.source.wsd"
+                                    "name": "variable.other.enummember.class.fields.source.wsd"
                                 },
                                 "8": {
-                                    "name": "support.variable.class.fields.source.wsd"
+                                    "name": "variable.other.enummember.class.fields.source.wsd"
                                 },
                                 "9": {
                                     "name": "support.type.class.fields.source.wsd"
@@ -808,7 +808,7 @@
                                     "name": "keyword.other.class.fields.source.wsd"
                                 },
                                 "4": {
-                                    "name": "string.quoted.double.class.other.source.wsd"
+                                    "name": "entity.name.function.class.other.source.wsd"
                                 }
                             }
                         }
@@ -822,7 +822,7 @@
                             "name": "keyword.other.class.hideshow.source.wsd"
                         },
                         "2": {
-                            "name": "support.variable.class.hideshow.source.wsd"
+                            "name": "variable.other.enummember.class.hideshow.source.wsd"
                         },
                         "5": {
                             "name": "constant.numeric.class.hideshow.source.wsd"
