@@ -17,7 +17,7 @@ export interface FenceOptions {
  * hljs `code-line`/`data-line`/`dir` attributes on the `<pre>` (added by the
  * built-in engine's source-map plugin) are tolerated, not required.
  */
-const PUML_FENCE_REG = /<pre[^>]*>\s*<code[^>]*class="[^"]*language-(?:plantuml|puml|uml)[^"]*"[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi;
+const PUML_FENCE_REG = /<pre([^>]*)>\s*<code([^>]*class="[^"]*language-(?:plantuml|puml|uml)[^"]*"[^>]*)>([\s\S]*?)<\/code>\s*<\/pre>/gi;
 
 /**
  * Post-processes the HTML fragment returned by `markdown.api.render`: replaces
@@ -30,7 +30,7 @@ const PUML_FENCE_REG = /<pre[^>]*>\s*<code[^>]*class="[^"]*language-(?:plantuml|
  */
 export function rewritePumlFences(html: string, opts: FenceOptions): string {
 	const docUri: DiagramUri | undefined = opts.docUri && opts.docUri.scheme === 'file' ? opts.docUri : undefined;
-	return html.replace(PUML_FENCE_REG, (full, innerHtml: string) => {
+	return html.replace(PUML_FENCE_REG, (full, preAttrs: string, codeAttrs: string, innerHtml: string) => {
 		if (!opts.server) {
 			return pumlServerError(innerHtml);
 		}
@@ -38,8 +38,33 @@ export function rewritePumlFences(html: string, opts: FenceOptions): string {
 		const format = diagram.type === DiagramType.Ditaa ? 'png' : 'svg';
 		const urls = Array.from({ length: diagram.pageCount }, (_, index) =>
 			makePlantumlURL(opts.server, diagram, format, index));
-		return urls.map((url) => `\n<img style="background-color:#FFF;" src="${url}">`).join('');
+		const range = fenceSourceRange(preAttrs, codeAttrs, innerHtml);
+		return urls.map((url) => `\n<img style="background-color:#FFF;"${range} src="${url}">`).join('');
 	});
+}
+
+/**
+ * Re-attach the fence's source span to the generated `<img>` so the webview
+ * can highlight the rendered media when the cursor is inside the fence.
+ *
+ * The built-in engine sets `data-line` on the inner `<code>` (the block
+ * token's start line, i.e. the opening fence line), not the `<pre>` — so
+ * it is read from the code attributes first, falling back to the `<pre>`
+ * for other renderers that place it there. The end covers every body line
+ * plus the closing fence line (start + newline count, the same math the
+ * built-in preview uses for a code block's end line).
+ * Returns the attribute string, or '' when neither element had a `data-line`.
+ */
+function fenceSourceRange(preAttrs: string, codeAttrs: string, escapedSource: string): string {
+	const fromMatch = /data-line="(\d+)"/i.exec(codeAttrs) ?? /data-line="(\d+)"/i.exec(preAttrs);
+	if (!fromMatch) {
+		return '';
+	}
+	const from = Number(fromMatch[1]);
+	const body = unescapeHtml(escapedSource).replace(/\r\n|\r/g, '\n').replace(/\n$/, '');
+	const bodyLines = body.length === 0 ? 0 : body.split('\n').length;
+	const to = from + bodyLines + 1;
+	return ` data-hmk-from="${from}" data-hmk-to="${to}"`;
 }
 
 /**

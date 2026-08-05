@@ -213,6 +213,11 @@ body {
 .hmk-frame {
 	position: relative;
 	overflow: hidden;
+	/* Never wider than the preview column: user styles that force a media
+	 * to `width: 100vw` (a known full-bleed trick) paste the frame past the
+	 * webview edge in a narrow sidebar, clipping the diagram's sides. The
+	 * max-width clamp applies even against an !important width. */
+	max-width: 100%;
 	border: 1px solid transparent;
 	border-radius: 4px;
 	transition: border-color 0.2s ease-in-out;
@@ -231,7 +236,13 @@ body {
 .hmk-frame-content > img,
 .hmk-frame-content > svg {
 	display: block;
-	max-width: 100%;
+	/* The diagram must fit inside its zoom box: max-width caps it against
+	 * user styles forcing `width: 100vw` (which in a narrow sidebar overflows
+	 * the visible area and clips the sides), and auto sizing preserves the
+	 * aspect ratio. */
+	max-width: 100% !important;
+	width: auto !important;
+	height: auto !important;
 }
 
 .hmk-frame-controls {
@@ -276,4 +287,18 @@ body {
 .hmk-frame-controls button.active {
 	background: var(--vscode-toolbar-activeBackground);
 	color: var(--vscode-focusBorder);
+}
+
+/* Cursor sync: the blue outline box around the preview block that maps to
+ * the editor's cursor line. The box follows the pan/zoom transform for
+ * rendered diagrams (it sits on the img inside .hmk-frame-content).
+ * The color is hardcoded on purpose: themes can set --vscode-focusBorder to
+ * a transparent value (e.g. monochrome "Eink 60Hz" sets #00000000), which
+ * would render a var()-based outline invisible. A vivid blue + faint halo is
+ * visible on both black and light preview backgrounds. */
+.hmk-cursor {
+	outline: 2px solid #3b82f6;
+	outline-offset: 1px;
+	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+	border-radius: 6px;
 }

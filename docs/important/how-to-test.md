@@ -149,7 +149,7 @@ to attach to.
 node tests/test_preview.cjs 9335
 ```
 
-The 18 checks (current status: **all passing**):
+The 21 checks (current status: **all passing**):
 
 | # | Check | What it proves |
 | --- | --- | --- |
@@ -163,6 +163,7 @@ The 18 checks (current status: **all passing**):
 | 7b | Image wrapped in a pan/zoom frame (`.hmk-frame`) | Generic frames apply to block-level imgs (plantuml-style output) |
 | 7c | Mermaid is not double-framed | Frame scanning skips `.mermaid-wrapper` (the mermaid extension self-frames) |
 | 7d | Frame zoom-in / Alt+drag pan / reset work | The frame interaction model (transform on `.hmk-frame-content`) |
+| 7e | Cursor sync — exact line / containing-block / in-code-fence highlight | `.hmk-cursor` follows the cursor: exact `data-line`, blank-line → paragraph fallback, inside a fence → the `<pre>` (three checks) |
 | 8 | Link click opens `sub.md` and preview follows | Relative link resolution + follow-active-editor |
 | 9 | `sub.md` content rendered | Second document renders |
 | 10 | Re-render after save shows typed text | `hackerMarkdown.renderOnSave` (default on): a saved edit re-renders the preview |
@@ -214,6 +215,13 @@ The 18 checks (current status: **all passing**):
   the editor, so `Input.insertText` lands in it without any extra click — a
   click is not only unnecessary, it can steal focus and make the save-render
   check flaky.
+- **The cursor-sync checks drive the editor with `Ctrl+G` (Go to Line).**
+  After moving the cursor, the host broadcasts the line and the webview
+  highlights immediately (no re-render needed), so the checks poll the webview
+  for `.hmk-cursor` rather than waiting for a render. The editor must be
+  focused first (a real CDP click on `.monaco-editor`), and the go-to-line
+  input takes the **1-based** line number while the fragment's `data-line`
+  attributes are 0-based — the checks assert on `data-line`.
 
 ## 3b. Scroll-Anchor E2E (diagram re-render)
 
@@ -524,5 +532,11 @@ typed text into the open buffer — `git checkout` the fixtures after a run
   (`Ctrl+Space` / `@` / `!` inside a puml fence), not by `test_preview.cjs`.
   An automated assertion would need `vscode.executeCompletionItemProvider`
   from the workbench target (see quirks.md).
+- **Cursor-sync *media* highlighting (cursor inside a rendered puml fence) is
+  not in the smoke suite.** The `data-hmk-from`/`data-hmk-to` span emission is
+  pinned by `tests/plantuml_check.cjs` (pure logic, no dev host / no server);
+  the smoke suite only asserts the generic block/paragraph/code-fence
+  highlight (checks 7e). Highlighting a live rendered `<img>` requires a
+  configured PlantUML server on a dedicated host (section 3d/3e).
 - The onboarding overlay only appears on **fresh** profiles; once dismissed it
   is persisted and `open_view.cjs` becomes a no-op for steps 1.

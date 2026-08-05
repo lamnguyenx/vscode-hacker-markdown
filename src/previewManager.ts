@@ -33,6 +33,14 @@ export class PreviewManager implements vscode.Disposable {
 			vscode.window.onDidChangeActiveTextEditor((editor) => {
 				if (editor?.document) {
 					this.setDocument(editor.document);
+					// A doc switch does not always fire a selection-change, so
+					// push the cursor position here so the highlight shows
+					// immediately (the webview re-applies it after rendering).
+					if (isMarkdownDocument(editor.document) && this.cursorSyncEnabled()) {
+						for (const host of this.hosts) {
+							host.cursorLine(editor.selection.active.line);
+						}
+					}
 				}
 			}),
 			vscode.workspace.onDidChangeTextDocument((e) => {
@@ -299,6 +307,14 @@ export class PreviewManager implements vscode.Disposable {
 
 	private onEditorSelection(line: number): void {
 		const config = vscode.workspace.getConfiguration('hackerMarkdown');
+		// Cursor highlight is independent of scroll sync: it has no preview ->
+		// editor direction, so it needs neither the scroll setting nor the
+		// scroll-sync grace timer.
+		if (this.cursorSyncEnabled()) {
+			for (const host of this.hosts) {
+				host.cursorLine(line);
+			}
+		}
 		if (!config.get<boolean>('scrollPreviewWithEditor', true)) {
 			return;
 		}
@@ -309,6 +325,10 @@ export class PreviewManager implements vscode.Disposable {
 		for (const host of this.hosts) {
 			host.scrollToLine(line);
 		}
+	}
+
+	private cursorSyncEnabled(): boolean {
+		return vscode.workspace.getConfiguration('hackerMarkdown').get<boolean>('cursorPreviewWithEditor', true);
 	}
 
 	private onPreviewScroll(host: PreviewHost, line: number): void {

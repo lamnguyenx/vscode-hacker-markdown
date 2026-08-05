@@ -35,9 +35,10 @@ function escapeHtml(str) {
 }
 
 // Reproduces the built-in engine's fenced output (plus the source-map
-// data-line / code-line / hljs attrs the engine adds).
+// data-line / code-line / hljs attrs the engine adds). Matches the real
+// engine: `data-line` ends up on the inner <code>, NOT the <pre>.
 function fenceHtml(lang, source) {
-  return `<pre class="code-line hljs" data-line="7" dir="auto"><code class="language-${lang}">${escapeHtml(source)}</code></pre>\n`;
+  return `<pre class="code-line hljs"><code data-line="7" class="code-line language-${lang}" dir="auto">${escapeHtml(source)}</code></pre>\n`;
 }
 
 // Independent decoder: reverse of the synchro.js encode64 + inflateRaw.
@@ -86,7 +87,7 @@ run('puml', () => {
   let out;
   out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
   assert.ok(!out.includes('<pre'), 'puml block not replaced');
-  const m = out.match(/<img style="background-color:#FFF;" src="([^"]+)"\/?>/);
+  const m = out.match(/<img style="background-color:#FFF;"[^>]*src="([^"]+)"\/?>/);
   assert.ok(m, 'no img tag: ' + out);
   assert.ok(m[1].startsWith(SERVER + '/svg/'), 'wrong url: ' + m[1]);
   decodeDiagramUrl(m[1], Buffer.from(src));
@@ -227,6 +228,47 @@ run('all replaced', () => {
   const imgs = [...out.matchAll(/<img/g)];
   assert.strictEqual(imgs.length, 2, 'expected 2 imgs');
   assert.ok(out.includes('<h1>mid</h1>'), 'non-fence content lost');
+});
+
+section('cursor-sync source span (data-hmk-from/to)');
+run('single fence carries the fence source span (data-line on the code)', () => {
+  // fenceHtml puts data-line="7" on the <code> (where the real engine puts
+  // it); the source has 3 lines, so the span covers lines 7..11 (opening,
+  // 3 body lines, closing fence = 11).
+  const src = '@startuml\nAlice -> Bob\n@enduml';
+  const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+  const m = out.match(/<img[^>]*data-hmk-from="([^"]+)"[^>]*data-hmk-to="([^"]+)"[^>]*>/);
+  assert.ok(m, 'no data-hmk span on the img: ' + out);
+  assert.strictEqual(m[1], '7', 'wrong from: ' + out);
+  assert.strictEqual(m[2], '11', 'wrong to: ' + out);
+});
+run('span also read when data-line sits on the pre', () => {
+  const src = '@startuml\nA -> B\n@enduml';
+  const html = `<pre data-line="9" class="code-line hljs"><code class="language-puml">${escapeHtml(src)}</code></pre>\n`;
+  const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+  const m = out.match(/data-hmk-from="(\d+)" data-hmk-to="(\d+)"/);
+  assert.ok(m, 'no span when data-line is on the pre: ' + out);
+  assert.strictEqual(m[1], '9', 'wrong from: ' + out);
+  assert.strictEqual(m[2], '13', 'wrong to: ' + out); // 9 + 3 body + 1 closer
+});
+run('newpage imgs all carry the same span', () => {
+  const src = '@startuml\nA\nnewpage\nB\n@enduml';
+  const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+  const spans = [...out.matchAll(/data-hmk-from="(\d+)" data-hmk-to="(\d+)"/g)];
+  assert.strictEqual(spans.length, 2, 'expected 2 spanned imgs: ' + out);
+  assert.ok(spans.every((s) => s[1] === '7' && s[2] === '13'), 'spans differ: ' + out);
+});
+run('pre/code without data-line gets no span (graceful degrade)', () => {
+  const src = '@startuml\nA -> B\n@enduml';
+  const html = `<pre class="code-line"><code class="language-puml">${escapeHtml(src)}</code></pre>\n`;
+  const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+  const m = out.match(/<img[^>]*src="([^"]+)"\/?>/);
+  assert.ok(m, 'no img: ' + out);
+  assert.ok(!out.includes('data-hmk-'), 'unexpected span without data-line: ' + out);
+});
+run('non-puml fences still untouched', () => {
+  const html = fenceHtml('mermaid', 'flowchart LR\n A --> B');
+  assert.strictEqual(rewritePumlFences(html, { server: SERVER, includePaths: [] }), html);
 });
 
 console.log('\nplantuml_check: all checks passed');

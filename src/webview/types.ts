@@ -9,7 +9,8 @@ export type HostMessage =
 	| { type: 'setDoc'; name: string }
 	| { type: 'render'; html: string }
 	| { type: 'empty' }
-	| { type: 'scrollToLine'; line: number };
+	| { type: 'scrollToLine'; line: number }
+	| { type: 'cursorLine'; line: number };
 
 /** Webview -> host (see `PreviewManager.onHostMessage`). */
 export type WebviewMessage =

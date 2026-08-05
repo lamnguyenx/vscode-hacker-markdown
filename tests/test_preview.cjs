@@ -180,6 +180,52 @@ async function main() {
   })()`);
   check('frame: zoom-in / alt-drag pan / reset work', frameIx.zoomed && frameIx.panned && frameIx.reset);
 
+  // 6e) Cursor sync: the blue highlight (.hmk-cursor) follows the editor
+  // cursor. Drive the editor with trusted input: Ctrl+G (Go to Line) + the
+  // 1-based line number, then assert the highlighted preview element.
+  //   7 (0-based 6) -> exact match: the "### Level three heading" h3;
+  //   2 (0-based 1) -> blank line fallback: the h1 above it;
+  //   13 (0-based 12) -> inside the python fence: the pre[data-line=10].
+  const pageCursor = await openCdpSession((targets.find((t) => t.type === 'page')).webSocketDebuggerUrl);
+  const clickEditor = async () => {
+    const rect = await pageCursor.eval(`(() => { const e = document.querySelector('.monaco-editor'); if (!e) return null; const r = e.getBoundingClientRect(); if (r.width < 20 || r.height < 10) return null; return {x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2)}; })()`);
+    if (!rect) return false;
+    await pageCursor.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+    await pageCursor.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+    await sleep(300);
+    return true;
+  };
+  const gotoLine = async (line) => {
+    await pageCursor.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Control', code: 'ControlLeft', modifiers: 2 });
+    await pageCursor.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'g', code: 'KeyG', modifiers: 2 });
+    await pageCursor.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'g', code: 'KeyG', modifiers: 2 });
+    await pageCursor.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Control', code: 'ControlLeft', modifiers: 2 });
+    await sleep(500);
+    await pageCursor.send('Input.insertText', { text: String(line) });
+    await sleep(300);
+    await pageCursor.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
+    await pageCursor.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
+    await sleep(600);
+  };
+  if (await clickEditor()) {
+    await gotoLine(7);
+    const tExact = await evalUntil(first.session, `(() => { const el = d.querySelector('#preview .hmk-cursor'); return el && el.tagName === 'H3' && el.getAttribute('data-line') === '6' ? 'h3' : null; })()`, 8000);
+    check('cursor sync: exact line highlighted', tExact === 'h3', tExact || 'no exact highlight');
+
+    await gotoLine(2);
+    const tFallback = await evalUntil(first.session, `(() => { const el = d.querySelector('#preview .hmk-cursor'); return el && el.tagName === 'H1' ? 'h1' : null; })()`, 8000);
+    check('cursor sync: containing-block fallback (paragraph/blank line)', tFallback === 'h1', tFallback || 'no fallback');
+
+    await gotoLine(13);
+    const tFence = await evalUntil(first.session, `(() => { const el = d.querySelector('#preview .hmk-cursor'); if (!el || el.tagName !== 'PRE') return null; const code = el.querySelector('code'); return code && code.getAttribute('data-line') === '10' ? 'pre' : null; })()`, 8000);
+    check('cursor sync: inside a code fence highlights the fence', tFence === 'pre', tFence || 'no fence fallback');
+  } else {
+    check('cursor sync: exact line highlighted', false, 'editor not focusable');
+    check('cursor sync: containing-block fallback (paragraph/blank line)', false, 'editor not focusable');
+    check('cursor sync: inside a code fence highlights the fence', false, 'editor not focusable');
+  }
+  pageCursor.close();
+
   // 2) Follow active editor via link click: ./sub.md opens in the editor.
   await run(`(() => { const a = [...d.querySelectorAll('#preview a')].find(x => x.getAttribute('data-href') === './sub.md'); a.scrollIntoView({block:'center'}); return true; })()`);
   await sleep(400);
@@ -239,6 +285,18 @@ async function main() {
   }
   check('open in editor creates a second preview webview', !!panelSession);
   if (panelSession) {
+    // Opening the panel makes the WebviewPanel the active tab and
+    // `activeTextEditor` undefined, which empties every host (the documented
+    // panel race). Click back to a markdown tab first so the shared document
+    // state re-broadcasts to the new panel, then assert.
+    const tabPage = await openCdpSession((targets.find((t) => t.type === 'page')).webSocketDebuggerUrl);
+    const subTabRect = await tabPage.eval(`(() => { const t = [...document.querySelectorAll('.tab')].find(e => (e.textContent || '').trim().startsWith('sub.md')); if (!t) return null; const b = t.getBoundingClientRect(); return {x: Math.round(b.x + b.width/2), y: Math.round(b.y + b.height/2)}; })()`);
+    if (subTabRect) {
+      await tabPage.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: subTabRect.x, y: subTabRect.y, button: 'left', clickCount: 1 });
+      await tabPage.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: subTabRect.x, y: subTabRect.y, button: 'left', clickCount: 1 });
+      await sleep(1000);
+    }
+    tabPage.close();
     const pname = await evalUntil(panelSession, `d.querySelector('.toolbar .doc-name').textContent`, 8000);
     check('editor panel follows the same document', pname === 'sub.md', `name=${pname}`);
     const ptype = await ui(panelSession)(`d.querySelector('.toolbar [data-command="openInEditor"]') === null`);

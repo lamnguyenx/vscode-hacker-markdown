@@ -132,6 +132,10 @@ export class PreviewHost {
 		this.post({ type: 'scrollToLine', line });
 	}
 
+	public cursorLine(line: number): void {
+		this.post({ type: 'cursorLine', line });
+	}
+
 	public post(message: PreviewHostMessage): void {
 		void this.webview.postMessage(message);
 	}

@@ -8,6 +8,9 @@ A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open
 - **Open in Editor** — opens a second preview in the editor area, to the side.
 - **Follows the active editor** — re-renders on save by default, or live (debounced) as you type.
 - **Bidirectional scroll sync** — togglable.
+- **Cursor sync** — a blue outline box in the preview follows the editing
+  cursor (exact line, or falls back to the containing paragraph / code fence /
+  rendered diagram).
 - **Clickable links** — internal → editor, external → system browser, `#fragment` → scroll in preview.
 - **Contributed preview extensions** — `markdown.previewScripts` / `previewStyles` load, so mermaid renders and KaTeX math is styled.
 - **Pan/zoom frames for diagrams** — block-level diagram images/SVGs (plantuml, …) get pan/zoom with a toolbar, and the zoom state survives re-renders (mermaid keeps its own built-in frame — never double-framed).

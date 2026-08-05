@@ -1,6 +1,6 @@
 import { toolbar, docNameEl, previewEl, emptyEl, post } from './dom';
 import { consumeProgrammaticScroll } from './programmatic-scroll';
-import { throttle, topmostVisibleLine, elementForLine, scrollToLine, dataLineElements, reportScrollLine } from './line-sync';
+import { throttle, topmostVisibleLine, elementForLine, centerElement, revealLine, dataLineElements, reportScrollLine } from './line-sync';
 import { keepAnchor, cancelAnchorGuard, hasActiveAnchorGuard, type AnchorView } from './anchor';
 import { snapshotStaleBlocks, keepStaleBlocks } from './stale';
 import {
@@ -10,6 +10,7 @@ import {
 	disposeFrames,
 	scheduleFrameScan
 } from './frames';
+import { setCursorLine, reapplyCursorHighlight, clearCursorHighlight, cursorBoxForLine } from './cursor';
 
 // The page may load after the host already pushed its state (webview
 // creation races the page load), so ask the host to re-push on load.
@@ -43,7 +44,9 @@ function render(html: string): void {
 	// scroll so the layout it measures is already stable).
 	keepStaleBlocks(stale);
 	if (anchorLine >= 0) {
-		scrollToLine(anchorLine);
+		// Restore the reading position (minimal reveal); the anchor guard below
+		// then holds it to the pixel while async renderers settle.
+		revealLine(anchorLine);
 	}
 	// Re-frame the fragment's block-level imgs/svgs (plantuml, ...) and
 	// restore their pan/zoom state.
@@ -52,6 +55,9 @@ function render(html: string): void {
 	// The scripts render async and grow the layout after the anchor scroll
 	// above, so hold the position until they settle.
 	keepAnchor(anchorLine, oldView);
+	// The DOM swap recreated every element, so re-apply the cursor highlight
+	// from the last `cursorLine` message (renders are decoupled from it).
+	reapplyCursorHighlight();
 }
 
 function setEmpty(): void {
@@ -61,6 +67,7 @@ function setEmpty(): void {
 	previewEl.hidden = true;
 	emptyEl.hidden = false;
 	docNameEl.textContent = '';
+	clearCursorHighlight();
 }
 
 window.addEventListener('message', (event) => {
@@ -78,15 +85,27 @@ window.addEventListener('message', (event) => {
 		case 'empty':
 			setEmpty();
 			break;
-		case 'scrollToLine':
-			scrollToLine(Number(message.line) || 0);
+		case 'scrollToLine': {
+			// Center the same element the cursor highlight boxes (media span /
+			// containing block), falling back to the rough line block.
+			const line = Number(message.line) || 0;
+			const target = cursorBoxForLine(line) ?? elementForLine(line);
+			centerElement(target);
+			break;
+		}
+		case 'cursorLine':
+			setCursorLine(Number(message.line) || 0);
 			break;
 	}
 });
 
 // Contributed preview scripts replace their placeholders asynchronously
-// after each content update, so re-scan for late-rendered svgs.
-new MutationObserver(scheduleFrameScan).observe(previewEl, { childList: true, subtree: true });
+// after each content update, so re-scan for late-rendered svgs and re-apply
+// the cursor highlight (the swap may have replaced the highlighted element).
+new MutationObserver(() => {
+	scheduleFrameScan();
+	reapplyCursorHighlight();
+}).observe(previewEl, { childList: true, subtree: true });
 
 previewEl.addEventListener('click', (e) => {
 	if (e.defaultPrevented) {

@@ -74,6 +74,14 @@ limitations, see [`docs/important/architecture.md`](architecture.md).
 - `file://` pages are unique origins: a harness HTML file cannot
   `<script src>` a sibling JS file. Serve the harness over `http://` so the
   real `build/*` assets load.
+- **Theme color variables are not guaranteed visible.** `--vscode-focusBorder`
+  (and other workbench accent vars) can be **transparent** in some themes — the
+  monochrome "Eink 60Hz" theme sets `focusBorder: "#00000000"`, which silently
+  renders any `outline: var(--vscode-focusBorder)` invisible on the (black)
+  preview. A CSS `var(...)` fallback does NOT help: the var *resolves* to the
+  transparent value, so the fallback never applies. Highlight styling that must
+  always be seen (this repo's `.hmk-cursor` cursor-sync box) hardcodes its
+  color instead of trusting the theme var.
 
 ## The VS Code workbench DOM (monaco)
 

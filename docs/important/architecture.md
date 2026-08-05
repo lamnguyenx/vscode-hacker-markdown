@@ -26,7 +26,12 @@ details underneath the feature list, and the product limitations.
   Alt+wheel (or pinch) to zoom at the cursor, Alt+click to zoom in/out; an
   auto-hiding toolbar adds pan mode, zoom in/out and reset. Zoom state
   survives re-renders (the frame state is keyed by the img `src`), and mermaid
-  keeps its own frame (`.mermaid-wrapper`) — never double-framed.
+  keeps its own frame (`.mermaid-wrapper`) — never double-framed. The framed
+  media is sized to fit the frame/preview column (natural size, capped by
+  `max-width: 100%`) — the `!important` cap on `.hmk-frame-content > img/svg`
+  neutralizes user styles that force diagrams to `width: 100vw`, which in a
+  narrow sidebar overflow the visible webview and clip the diagram's side
+  edges.
 - **Rendering engine.** Output comes from the built-in `markdown-language-features`
   extension via `markdown.api.render`, so the result matches the stock
   preview — front matter, `highlight.js` code highlighting, tables, and
@@ -70,6 +75,30 @@ details underneath the feature list, and the product limitations.
   setting is disabled.
 - **Scroll sync** is bidirectional; togglable via
   `hackerMarkdown.scrollPreviewWithEditor` / `hackerMarkdown.scrollEditorWithPreview`.
+  Editor→preview scroll sync recenters: when the cursor moves, the preview
+  scrolls so the highlighted block lands at the **vertical center** of the
+  preview window (clamped to the page bounds when the content can't reach the
+  center, e.g. near the top/bottom of a short document) — implemented in
+  `src/webview/line-sync.ts#centerElement`. The render-time reading-position
+  restore uses a *minimal reveal* instead, so re-renders never recenter away
+  from the reader's place.
+- **Cursor sync (highlight).** A blue outline box (`.hmk-cursor`) in the
+  preview that follows the editing cursor
+  (`hackerMarkdown.cursorPreviewWithEditor`, default on, independent of scroll
+  sync). The host broadcasts the active selection line (`cursorLine` message)
+  on every selection change and on doc switch; the webview
+  (`src/webview/cursor.ts`) resolves it to an element in three steps:
+  (1) rendered media first — an `<img>` whose `data-hmk-from`..`data-hmk-to`
+  source span contains the line (added by the puml fence rewrite in
+  `src/plantuml/fences.ts`, which reads the fence's `data-line` — on the inner
+  `<code>`, like the built-in preview's source map — and applies the same
+  `endLine` math); (2) an exact `data-line` match; (3) the containing block —
+  the greatest `data-line` at or above the line, innermost first (a paragraph,
+  a code fence, a heading for a blank line). The highlight is re-applied after
+  every re-render (renders recreate every element) and after late async
+  renders (the frame-scan MutationObserver path). The box sits directly on the
+  block, or on the puml `<img>` inside `.hmk-frame-content` so it scales with
+  the pan/zoom transform.
 - **Clickable links.** Internal links open in the editor (and re-target the
   preview), external links open in the system browser, `#fragment` links
   scroll within the preview.
@@ -87,6 +116,13 @@ details underneath the feature list, and the product limitations.
   full list, and the `plantuml`-language files get nothing. Typing plain
   letters relies on the editor's `quickSuggestions`; the `@`/`!` triggers and
   `Ctrl+Space` always work.
+- Cursor sync is a **highlight only.** Rendered blocks from renderers we don't
+  rewrite (mermaid via contributed `markdown.previewScripts`, `jebbs.plantuml`'s
+  in-engine `<img>`) carry no `data-hmk-*` span, so a cursor *inside* such a
+  fence falls back to the containing block above the media. The highlight maps
+  against the rendered (possibly stale under `renderOnSave`) document, and
+  moving the cursor does not scroll unless `scrollPreviewWithEditor` is also
+  on.
 
 For how these internals interact with the test pipeline, see
 [`docs/important/how-to-test.md`](how-to-test.md); for generalized tool and

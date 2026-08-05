@@ -66,6 +66,11 @@
 					"default": true,
 					"description": "When the preview is scrolled, scroll the Markdown editor to the matching line."
 				},
+				"hackerMarkdown.cursorPreviewWithEditor": {
+					"type": "boolean",
+					"default": true,
+					"description": "When the cursor moves in the Markdown editor, highlight the matching line in the preview with a blue outline box."
+				},
 				"hackerMarkdown.styles": {
 					"type": "array",
 					"items": {

@@ -60,7 +60,49 @@ export function elementForLine(line: number): HTMLElement | null {
 	return target || els[els.length - 1] || null;
 }
 
-export function scrollToLine(line: number): void {
+/** The preview's scrollable element (the document). */
+function scroller(): Element {
+	return document.scrollingElement ?? document.documentElement;
+}
+
+/**
+ * Scroll so `el` is as close to the vertical center of the preview window as
+ * the page bounds allow. Near the top/bottom of the document — or when the
+ * document is shorter than the viewport — it clamps to the closest reachable
+ * position, i.e. "as centered as the content allows". Flagged programmatic
+ * so the resulting `scroll` event is not read as a user scroll (and does not
+ * cancel the anchor guard).
+ *
+ * The center is the inner window's midpoint on purpose, not the toolbar's
+ * bottom: `position: sticky` on the toolbar is not a reliable boundary inside
+ * the webview frame, and the resulting ~toolbar-height offset is negligible.
+ */
+export function centerElement(el: HTMLElement | null): void {
+	markProgrammaticScroll();
+	if (!el) {
+		return;
+	}
+	const vpHeight = window.innerHeight;
+	if (vpHeight <= 0) {
+		el.scrollIntoView({ block: 'nearest' });
+		return;
+	}
+	const rect = el.getBoundingClientRect();
+	const elCenter = rect.top + rect.height / 2;
+	const desired = window.scrollY + (elCenter - vpHeight / 2);
+	const maxScroll = Math.max(0, scroller().scrollHeight - vpHeight);
+	const next = Math.min(maxScroll, Math.max(0, desired));
+	if (Math.abs(next - window.scrollY) > 0.5) {
+		window.scrollTo(0, next);
+	}
+}
+
+/**
+ * Minimal reveal (used after a re-render to hand the exact reading position
+ * to the anchor guard, which then restores it to the pixel — centering here
+ * would steal the reader's place).
+ */
+export function revealLine(line: number): void {
 	markProgrammaticScroll();
 	const target = elementForLine(line);
 	if (target) {
