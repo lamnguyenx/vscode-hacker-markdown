@@ -69,11 +69,13 @@ async function main() {
   }
 
   // 2) Toggle the panel until its container switcher shows our tab.
+  //    Cmd+J on macOS, Ctrl+J everywhere else.
+  const panelMod = process.platform === 'darwin' ? 4 : 2;
   for (let i = 0; i < 6; i++) {
     const tabs = await session.eval(`(() => [...document.querySelectorAll('.part.panel .composite-bar .action-item a')].map(a => a.getAttribute('aria-label')))()`);
     if (tabs.includes('Hacker Markdown')) break;
-    await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'j', code: 'KeyJ', modifiers: 4 });
-    await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'j', code: 'KeyJ', modifiers: 4 });
+    await session.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'j', code: 'KeyJ', modifiers: panelMod });
+    await session.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'j', code: 'KeyJ', modifiers: panelMod });
     await sleep(1500);
   }
 
@@ -96,8 +98,9 @@ async function main() {
   }
   if (!clicked) { console.error('HACKER_MARKDOWN_TAB_NOT_FOUND'); process.exit(2); }
 
-  // 4) Wait for the preview webview OOPIF target.
-  const deadline = Date.now() + 20000;
+  // 4) Wait for the preview webview OOPIF target. Cold starts (fresh
+  // profile, built-ins activating) can take a while before the target shows.
+  const deadline = Date.now() + 60000;
   while (Date.now() < deadline) {
     const targets = await getTargets(port);
     const found = targets.find((t) => t.type === 'iframe' && (t.url || '').startsWith('vscode-webview://'));

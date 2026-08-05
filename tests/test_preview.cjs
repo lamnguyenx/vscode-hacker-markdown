@@ -51,15 +51,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * File"). A real CDP mouse click on the row is deterministic.
  */
 async function runPaletteCommand(pageSession, text) {
+  const primary = process.platform === 'darwin' ? 'Meta' : 'Control';
+  const primaryCode = process.platform === 'darwin' ? 'MetaLeft' : 'ControlLeft';
+  const primaryMod = process.platform === 'darwin' ? 4 : 2;
+  const comboMod = primaryMod | 8;
   const metaDown = async () => {
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', modifiers: 12 });
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'P', code: 'KeyP', modifiers: 12 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: primary, code: primaryCode, modifiers: primaryMod });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Shift', code: 'ShiftLeft', modifiers: comboMod });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'P', code: 'KeyP', modifiers: comboMod });
   };
   const metaUp = async () => {
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'P', code: 'KeyP', modifiers: 12 });
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', modifiers: 12 });
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'P', code: 'KeyP', modifiers: comboMod });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Shift', code: 'ShiftLeft', modifiers: comboMod });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: primary, code: primaryCode, modifiers: primaryMod });
   };
   await metaDown();
   await sleep(800);
@@ -119,10 +123,13 @@ async function main() {
     return last;
   };
 
-  // 1) Initial render: test.md is the active editor on launch.
-  const docName = await evalUntil(first.session, `d.querySelector('.toolbar .doc-name').textContent`);
+  // 1) Initial render: test.md is the active editor on launch. Cold starts
+  // (fresh profile, many extensions activating) can take a while before the
+  // first fragment lands, so poll generously.
+  const docName = await evalUntil(first.session, `d.querySelector('.toolbar .doc-name').textContent`, 60000);
   check('initial render: doc-name follows active editor', docName === 'test.md', `name=${docName}`);
 
+  await evalUntil(first.session, `!!d.querySelector('#preview h1')`, 60000);
   const state = await run(`({
     hasH1: !!d.querySelector('#preview h1'),
     hasH2: !!d.querySelector('#preview h2'),
@@ -188,12 +195,17 @@ async function main() {
   //   13 (0-based 12) -> inside the python fence: the pre[data-line=10].
   const pageCursor = await openCdpSession((targets.find((t) => t.type === 'page')).webSocketDebuggerUrl);
   const clickEditor = async () => {
-    const rect = await pageCursor.eval(`(() => { const e = document.querySelector('.monaco-editor'); if (!e) return null; const r = e.getBoundingClientRect(); if (r.width < 20 || r.height < 10) return null; return {x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2)}; })()`);
-    if (!rect) return false;
-    await pageCursor.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
-    await pageCursor.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
-    await sleep(300);
-    return true;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const rect = await pageCursor.eval(`(() => { const e = document.querySelector('.monaco-editor'); if (!e) return null; const r = e.getBoundingClientRect(); if (r.width < 20 || r.height < 10) return null; return {x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2)}; })()`);
+      if (rect) {
+        await pageCursor.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+        await pageCursor.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+        await sleep(300);
+        return true;
+      }
+      await sleep(1000);
+    }
+    return false;
   };
   const gotoLine = async (line) => {
     await pageCursor.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Control', code: 'ControlLeft', modifiers: 2 });
@@ -235,7 +247,7 @@ async function main() {
   await sleep(1200);
   const name2 = await evalUntil(first.session, `d.querySelector('.toolbar .doc-name').textContent`);
   check('link click opens sub.md and preview follows', name2 === 'sub.md', `name=${name2}`);
-  const subH1 = await run(`d.querySelector('#preview h1').textContent`);
+  const subH1 = await evalUntil(first.session, `(() => { const h = d.querySelector('#preview h1'); return h ? h.textContent : null; })()`, 30000);
   check('sub.md content rendered', subH1 === 'Sub', `h1=${subH1}`);
 
   // 3) Live update: after the link click, showTextDocument has focused the
@@ -250,10 +262,10 @@ async function main() {
     const token = `Typed live. ${Date.now()}`;
     await pageSession.send('Input.insertText', { text: `\n\n${token}` });
     await sleep(400);
-    const saved = await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 's', code: 'KeyS', modifiers: 4 });
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 's', code: 'KeyS', modifiers: 4 });
-    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Meta', code: 'MetaLeft', modifiers: 4 });
+    const saved = await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: process.platform === 'darwin' ? 'Meta' : 'Control', code: process.platform === 'darwin' ? 'MetaLeft' : 'ControlLeft', modifiers: process.platform === 'darwin' ? 4 : 2 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 's', code: 'KeyS', modifiers: process.platform === 'darwin' ? 4 : 2 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 's', code: 'KeyS', modifiers: process.platform === 'darwin' ? 4 : 2 });
+    await pageSession.send('Input.dispatchKeyEvent', { type: 'keyUp', key: process.platform === 'darwin' ? 'Meta' : 'Control', code: process.platform === 'darwin' ? 'MetaLeft' : 'ControlLeft', modifiers: process.platform === 'darwin' ? 4 : 2 });
     const live = await evalUntil(first.session, `d.querySelector('#preview').textContent.includes(${JSON.stringify(token)})`, 10000);
     check('re-render after save shows typed text', live === true);
     const mermaidSub = await evalUntil(first.session, `(() => { const s = d.querySelector('#preview .mermaid svg'); return !!s && s.children.length > 0; })()`, 20000);
