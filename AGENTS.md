@@ -24,8 +24,10 @@ node tests/test_preview.cjs 9335
 `tools/launch-devhost.sh` gracefully kills the old dev host on the port
 (`tools/kill-devhost.sh`, SIGTERM to the main process only, no "Reopen?"
 dialog), launches a fresh one (defaults: port 9335, `exp/devhost` profile,
-`tests/workspace/test.md`), waits for the CDP port, then re-activates the app
-that was active before the launch (`lsappinfo` + `open -b`, no osascript) —
-run it via `--file`, `--profile`, `--port` for other fixtures.
+`tests/workspace/test.md`, all user extensions disabled — only the dev
+extension plus VS Code built-ins load), waits for the CDP port, then
+re-activates the app/window that was active before the launch (macOS:
+`lsappinfo` + `open -b`, Linux: `xdotool`; no osascript) — run it via
+`--file`, `--profile`, `--port`, `--with-extensions` for other fixtures.
 
 See `docs/important/how-to-test.md` for the full pipeline and gotchas.

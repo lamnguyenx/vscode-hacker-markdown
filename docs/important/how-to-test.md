@@ -17,16 +17,19 @@ For the generalized "why is the tool doing this" knowledge (scroll-event
 timing, monaco virtualization, CDP keybinding flags, …), see
 [`docs/important/quirks.md`](quirks.md). For how the extension is wired up
 (source layout, rendering pipeline, pan/zoom frames, image `src` rewriting)
-see [`docs/important/architecture.md`](architecture.md).
+see [`docs/important/architecture.md`](architecture.md). If you work over
+Remote-SSH, read [`native-vs-remote-ssh-vscode.md`](native-vs-remote-ssh-vscode.md)
+first — the dev host must run the **native** desktop VS Code, not the
+remote CLI `code` on PATH.
 
 Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
 
 | Script | Purpose |
 | --- | --- |
-| `tools/launch-devhost.sh` | Launch/restart the dev host in the background; restores the previously active macOS app (section 1) |
-| `tools/kill-devhost.sh` | Gracefully shut down the dev host on a port (SIGTERM to the main process, so no "Closed … Reopen?" dialog) |
+| `tools/launch-devhost.sh` | Launch/restart the dev host in the background on macOS and Linux; restores the previously active app/window (section 1) |
+| `tools/kill-devhost.sh` | Gracefully shut down the dev host on a port (SIGTERM to the main process, so no "Closed … Reopen?" dialog; frees orphaned CDP-port fd holders on Linux) |
 | `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
-| `tests/test_preview.cjs` | Full 18-check functional smoke test |
+| `tests/test_preview.cjs` | Full 21-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
 | `tests/plantuml_check.cjs` | Pure-logic check of the PlantUML preview rendering (no dev host, no server) |
 | `tests/plantuml_completion_check.cjs` | Pure-logic check of the in-markdown PlantUML code completions: fence detection + catalog (no dev host) |
@@ -51,19 +54,25 @@ cd /Users/lamnt45/git/vscode-hacker-markdown
 tools/launch-devhost.sh          # defaults: port 9335, exp/devhost profile, tests/workspace/test.md
 ```
 
-What the script does, in order: captures the currently active macOS app
+Runs on macOS and Linux. On macOS it captures the currently active app
 (`lsappinfo front`), gracefully shuts down any previous dev host bound to the
 same CDP port (`tools/kill-devhost.sh` — SIGTERM to the main process only, so
 no "Closed … Reopen?" dialog), launches `code` under `nohup`, polls the CDP
 port until the window is up, then re-activates the captured app (`open -b` —
-no osascript, so no automation-permission prompt). It does not steal your
-keyboard focus, so you can keep working in the editor while the host starts in
-the background.
+no osascript, so no automation-permission prompt). On Linux it locates the
+**native desktop VS Code binary** (`/usr/share/code/code`, `/usr/bin/code`,
+…; the `code` on PATH is usually the Remote-SSH CLI wrapper, which cannot run
+a dev host — it rejects `--extensionDevelopmentPath` and
+`--remote-debugging-port`), finds a reachable X display, detaches the launch
+(`systemd-run --user`, else `setsid+nohup`), and restores the previously
+active X window (`xdotool`). Either way it does not steal your keyboard
+focus, so you can keep working while the host starts in the background.
+`HACKER_MD_CODE=/path/to/desktop/code` overrides the binary search on Linux.
 
 For other fixtures/profiles/ports it accepts `--file`, `--profile`, `--port`:
 
 ```sh
-tools/launch-devhost.sh --file "$PWD/exp/e2e-anchor.md"                      # scroll-anchor E2E (section 3b)
+tools/launch-devhost.sh --file "$PWD/tests/workspace/e2e-anchor.md"                    # scroll-anchor E2E (section 3b)
 tools/launch-devhost.sh --file "$PWD/tests/samples/enroll-flow-elements.puml.md"   # puml frames (section 3d)
 tools/launch-devhost.sh --port 9337 --profile "$PWD/exp/devhost-puml" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"  # isolated puml host (section 3e)
 ```
@@ -90,21 +99,51 @@ Notes:
 
 - `--user-data-dir` with a fresh profile forces a **separate instance**; without
   it, the window would join an already-running VS Code and ignore the port.
-- **No `--disable-extensions`.** The dev host loads the real user extensions,
-  which the suite depends on: check 7 (mermaid) requires
-  `bierner.markdown-mermaid`, and puml rendering requires `jebbs.plantuml`.
-  With `--disable-extensions` both silently degrade (mermaid never renders,
-  `Error: Tool "renderMermaidDiagram" was not contributed`; puml stays a plain
-  code block). The cost: ~30 extensions activate, startup is slow, and extra
-  webview targets appear (Copilot chat, other previewers) — the test helpers
-  always find the preview by probing for `.toolbar .doc-name`, never by target
-  order.
+- **`--disable-extensions` is the default: only the extension under development
+  loads, plus VS Code built-ins.** The built-in `vscode.mermaid-markdown-features`
+  (VS Code ≥ 1.90) renders `.mermaid` blocks in the preview, so check 7 (mermaid)
+  passes without `bierner.markdown-mermaid`; the suite is green and startup is
+  fast, with no extra webview targets to confuse the helpers. Pass
+  `--with-extensions` to load the real user extensions instead — needed on older
+  VS Code without the built-in mermaid renderer (mermaid then requires
+  `bierner.markdown-mermaid`), and for puml rendering, which requires
+  `jebbs.plantuml`. With `--disable-extensions`, puml stays a plain code block.
+  The test helpers always find the preview by probing for `.toolbar .doc-name`,
+  never by target order.
 - Opening `tests/workspace/test.md` as the file argument makes a Markdown editor
   active at startup, so the preview renders immediately.
 - The harmless warning `'remote-debugging-port' is not in the list of known
   options` can be ignored. (The CLI prepends its own
   `--remote-debugging-port=9333`; Chromium lets the **last** occurrence win,
   so the window still binds 9335.)
+
+### Linux-specific notes
+
+- **Native binary required.** `launch-devhost.sh` locates the native desktop
+  VS Code binary — never the `code` on PATH, which inside a Remote-SSH /
+  vscode-server session is a thin CLI wrapper that cannot run a dev host (it
+  rejects `--extensionDevelopmentPath`, `--user-data-dir` and
+  `--remote-debugging-port`). See
+  [`native-vs-remote-ssh-vscode.md`](native-vs-remote-ssh-vscode.md). The
+  search covers `/usr/share/code/code`, `/usr/local/bin/code`, `/usr/bin/code`,
+  `/opt/visual-studio-code/bin/code`, `/opt/vscode/bin/code`,
+  `/usr/bin/codium`, `/opt/vscodium/bin/codium`, `/snap/bin/code`; a candidate
+  is validated by resolving symlinks (anything under `.vscode-server` is the
+  remote CLI) and by the presence of `resources/app/product.json` next to the
+  binary. Override with `HACKER_MD_CODE=/path/to/desktop/code`.
+- **Display.** If `DISPLAY` is unset or unreachable, the script probes the
+  `/tmp/.X11-unix/X*` sockets with `xset` and picks the first responsive one.
+  A headless box needs `xvfb-run` or a real X server.
+- **Detachment.** The host is launched via `systemd-run --user` when available
+  (so it survives the launching shell), else `setsid nohup`. The log goes to
+  `exp/devhost-launch.log`.
+- **Orphaned CDP-port holders.** Chromium spawns a `dconf watch /system/proxy/`
+  helper (GLib proxy watching) that inherits the CDP listening socket fd. When
+  the dev-host main process is killed, the helper survives, keeping the port in
+  a zombie LISTEN state (connections hang, curl times out) — the next launch
+  then fails to bind. `tools/kill-devhost.sh` detects the non-serving holder
+  via `ss` and frees it; if a relaunch still hangs, kill it manually:
+  `ss -tlnp | grep :9335` → kill the listed `pid`.
 
 Verify the extension registered:
 
@@ -231,9 +270,10 @@ position survive?) has its own script. It needs the dev host launched with
 the fixture document (it edits the mermaid block on a known line):
 
 ```sh
-tools/launch-devhost.sh --file "$PWD/exp/e2e-anchor.md"
+tools/launch-devhost.sh --file "$PWD/tests/workspace/e2e-anchor.md"
 node tests/open_view.cjs 9335
 node exp/e2e-anchor.cjs 9335   # PASS: reading position held across mermaid re-render
+git checkout -- tests/workspace/e2e-anchor.md   # the run saves the inserted node into the fixture
 ```
 
 What it does: focuses the editor, jumps to the last mermaid line
@@ -300,9 +340,10 @@ measurement.
 
 The dev host renders puml only when *both* hold:
 
-1. Launched **without** `--disable-extensions` — `jebbs.plantuml` must load
-   (it contributes `markdown.markdownItPlugins: true` and `extendMarkdownIt`,
-   so the plugin runs inside `markdown.api.render`).
+1. Launched with `--with-extensions` (the default is all extensions disabled;
+   `--with-extensions` loads the real user extensions) — `jebbs.plantuml` must
+   load (it contributes `markdown.markdownItPlugins: true` and
+   `extendMarkdownIt`, so the plugin runs inside `markdown.api.render`).
 2. A PlantUML server configured in the dev host profile
    (`exp/devhost/User/settings.json`):
    ```json
@@ -316,7 +357,7 @@ The dev host renders puml only when *both* hold:
 To verify the pan/zoom frames against `tests/samples/enroll-flow-elements.puml.md`:
 
 ```sh
-tools/launch-devhost.sh --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
+tools/launch-devhost.sh --with-extensions --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
 node tests/open_view.cjs 9335
 node exp/probe_all.cjs 9335 "<expr>"   # iterate ALL iframe targets (extra webviews present)
 node exp/persist_test.cjs 9335          # zoom -> save -> zoom restored
@@ -350,7 +391,7 @@ node tests/plantuml_check.cjs   # fence rewrite, svg/png, newpage, escaping roun
 The e2e path (isolated host, a real server) is documented in the plan doc:
 
 ```sh
-# fresh profile => ONLY this extension loads ("disable all extensions");
+# fresh profile => ONLY this extension loads (all extensions disabled, which is the launch default);
 # plantuml.server = http://localhost:9274 in exp/devhost-puml settings
 tools/launch-devhost.sh --port 9337 --profile "$PWD/exp/devhost-puml" \
      --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
@@ -453,7 +494,7 @@ npm run compile                    # tsc -> out/ + esbuild -> build/ (bundle + c
 tools/launch-devhost.sh
 node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335
-git checkout -- tests/workspace/sub.md   # the suite saves the live-edit token into the fixture
+git checkout -- tests/workspace/sub.md tests/workspace/e2e-anchor.md   # the suite saves live-edit tokens into the fixtures
 ```
 
 After changing grammar files (`syntaxes/*`) or `package.json#contributes.*`
@@ -472,7 +513,18 @@ troubleshooting a failure, re-run once on a fresh host to rule out
 contamination. It also **dirties tracked fixtures by design**: the live-edit
 check types into `sub.md` and saves it, and any failed palette input leaks
 typed text into the open buffer — `git checkout` the fixtures after a run
-(`tests/workspace/sub.md`, any sample file you opened).
+(`tests/workspace/sub.md`, `tests/workspace/e2e-anchor.md`, any sample file
+you opened).
+
+**Session restore can serve a stale host.** The dev-host profile restores the
+previous session (open tabs, webview state), so a relaunch against a reused
+profile can show a stale webview whose `.toolbar .doc-name` is empty while a
+fresh one is still initializing — `test_preview.cjs` then attaches to the
+wrong target or times out. When a run misbehaves inexplicably after switching
+fixtures, wipe the profile (`rm -rf exp/devhost`; the launch script recreates
+it) or relaunch with `--profile "$PWD/exp/devhost-<name>"` for a fresh one.
+On Linux, also make sure no orphan holds the port from the previous host
+(`tools/kill-devhost.sh` handles this automatically).
 
 ---
 
@@ -480,12 +532,12 @@ typed text into the open buffer — `git checkout` the fixtures after a run
 
 | Task | Command |
 | --- | --- |
-| Start dev host (port 9335) | `tools/launch-devhost.sh` (flags: `--port`, `--profile`, `--file`) |
+| Start dev host (port 9335) | `tools/launch-devhost.sh` (flags: `--port`, `--profile`, `--file`, `--with-extensions`; default: all extensions disabled; Linux: native binary, auto DISPLAY) |
 | Stop dev host | `tools/kill-devhost.sh [port]` (graceful SIGTERM; no "Reopen?" dialog) |
 | List CDP targets | `curl -s http://127.0.0.1:9335/json/list` |
 | Prepare the view | `node tests/open_view.cjs 9335` |
 | Full functional smoke test | `node tests/test_preview.cjs 9335` |
-| Scroll-anchor E2E (start host with `exp/e2e-anchor.md`) | `node exp/e2e-anchor.cjs 9335` |
+| Scroll-anchor E2E (start host with `tests/workspace/e2e-anchor.md`) | `node exp/e2e-anchor.cjs 9335` |
 | Harness (webview logic; needs ports 8377/8378) | open `http://127.0.0.1:8377/exp/scroll-anchor-test.html` (section 3c) |
 | Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs 9335` + `node exp/persist_test.cjs 9335` (section 3d) |
 | PlantUML rendering pure-logic check (no dev host) | `node tests/plantuml_check.cjs` (section 3e) |
