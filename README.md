@@ -33,12 +33,23 @@ npm install
 npm run compile
 ```
 
-Press `F5` in VS Code (a `Run Extension` launch config is provided), or launch
-an Extension Development Host manually — see
+To load it into a normal VS Code window, install it from source:
+
+```sh
+make install        # builds (npm run compile) and copies into ~/.vscode/extensions
+```
+
+then `Cmd+Shift+P > Developer: Reload Window` — see
+[docs/important/how-to-install.md](docs/important/how-to-install.md) for the
+full install/sync/troubleshooting guide.
+
+For development, press `F5` in VS Code (a `Run Extension` launch config is
+provided), or launch an Extension Development Host manually — see
 [docs/important/how-to-test.md](docs/important/how-to-test.md#1-launch-the-extension-development-host).
 
 ## Docs
 
+- [docs/important/how-to-install.md](docs/important/how-to-install.md) — build from source and install into VS Code (`make install`)
 - [docs/important/how-to-test.md](docs/important/how-to-test.md) — end-to-end CDP test pipeline
 - [docs/important/quirks.md](docs/important/quirks.md) — generalized tool / webview behaviors
 - [docs/important/architecture.md](docs/important/architecture.md) — how it works, feature deep-dives, limitations

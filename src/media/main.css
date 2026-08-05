@@ -21,9 +21,17 @@ body {
 }
 
 /* markdown.css targets the preview body directly; the toolbar lives in the
- * same body here, so neutralize its page padding and put it on the content. */
+ * same body here, so neutralize its page padding and put it on the content.
+ * html gets the same treatment: markdown.css applies `padding: 0 26px` to
+ * both html and body, and leaving it on html insets the whole page (toolbar
+ * included) 26px from each edge on top of .markdown-body's own padding.
+ * !important is required: the built-in markdown-language-features extension
+ * also contributes its own markdown.css via `markdown.previewStyles`, which
+ * loads AFTER main.css and re-applies `html, body { padding: 0 26px }` +
+ * `body { padding-top: 1em }` — without it those rules win the cascade. */
+html,
 body {
-	padding: 0;
+	padding: 0 !important;
 }
 
 .toolbar {
