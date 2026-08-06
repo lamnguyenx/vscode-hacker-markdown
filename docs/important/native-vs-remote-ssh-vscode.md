@@ -31,6 +31,19 @@ The native binary also needs a display: it is a GUI application. On a headless
 machine it exits with `Missing X server or $DISPLAY` unless run under
 `xvfb-run` or with a real X server (`DISPLAY=:0` etc.).
 
+## Extension install directories
+
+Each host keeps its extensions in its own directory, so a Remote-SSH window
+ignores `~/.vscode/extensions` on the machine you SSH'd from:
+
+- Native desktop VS Code: `~/.vscode/extensions/`
+- code-server: `${XDG_DATA_HOME:-$HOME/.local/share}/code-server/extensions/`
+- Remote-SSH server (on the remote host): `~/.vscode-server/extensions/`
+
+`tools/install.sh` (via `make install`) installs into **every** one of these
+that exists on the machine it runs on — see `how-to-install.md` §1 for when
+that covers a remote host and when it cannot.
+
 ## How to tell which `code` you have
 
 ```sh

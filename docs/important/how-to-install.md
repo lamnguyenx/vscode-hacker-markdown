@@ -14,8 +14,24 @@ make install
 ```
 
 `make install` runs `npm run compile` (which produces `out/`, `build/`, and
-`syntaxes/plantuml.tmLanguage.json`) and then copies the extension into VS
-Code's extension folder:
+`syntaxes/plantuml.tmLanguage.json`) and then copies the extension into every
+extension folder that exists on this machine (see `tools/install.sh`):
+
+| Directory | Host |
+| --- | --- |
+| `$HOME/.vscode/extensions/` | Native desktop VS Code |
+| `${XDG_DATA_HOME:-$HOME/.local/share}/code-server/extensions/` | code-server |
+| `$HOME/.vscode-server/extensions/` | Remote-SSH server (when running on the remote host) |
+
+So `make install` run in the integrated terminal of a Remote-SSH window (or
+over `ssh <host>`) lands in the right place on the remote — no "Install in
+SSH: <host>" round-trip needed. If you run it on the native machine while a
+remote window is open, the remote only gets the copy when VS Code pushes it
+(Extensions panel → *Install in SSH: …*), because a native shell cannot reach
+the remote's `~/.vscode-server/extensions/`. A root that does not exist is
+skipped; the command fails if no supported root was found.
+
+Each install looks like this:
 
 ```
 $HOME/.vscode/extensions/<publisher>.<name>-<version>/
