@@ -7,6 +7,9 @@ exp/devhost*/
 exp/*.log
 exp/*.png
 *.vsix
+# tsc artifacts if tools/*.mts is ever compiled by a project build
+tools/*.mjs
+tools/*.mjs.map
 # Created by https://www.toptal.com/developers/gitignore/api/macos,node,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,node,python
 

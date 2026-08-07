@@ -1,7 +1,17 @@
 .vscode/**
+.vscodeignore
+.gitignore
+AGENTS.md
+Makefile
 src/**
 exp/**
 docs/**
+tests/**
+tools/**
+scripts/**
+_refs/**
 node_modules/**
+tsconfig.json
+tsconfig.webview.json
 *.vsix
 syntaxes/plantuml.yaml-tmLanguage
