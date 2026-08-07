@@ -166,6 +166,7 @@ export class PreviewHost {
 		const mainCss = this.cacheBustBuild('main.css');
 		const markdownCss = this.cacheBustBuild('markdown.css');
 		const highlightCss = this.cacheBustBuild('highlight.css');
+		const mediaCss = this.cacheBustBuild('media.css');
 		const mainJs = this.cacheBustBuild('index.js');
 
 		return /* html */ `<!DOCTYPE html>
@@ -184,13 +185,17 @@ export class PreviewHost {
 				<link rel="stylesheet" type="text/css" href="${markdownCss}">
 				<link rel="stylesheet" type="text/css" href="${highlightCss}">
 				<link rel="stylesheet" type="text/css" href="${mainCss}">
+				<link rel="stylesheet" type="text/css" href="${mediaCss}">
 				${this.getContributedStyles()}
 				${this.getUserStyles()}
 			</head>
-			<body class="vscode-body">
+			<body class="vscode-body" ${this.getMediaAttrs()}>
 				<div class="toolbar" role="toolbar">
 					<span class="doc-name" title=""></span>
 					<span class="spacer"></span>
+					<span class="toolbar-separator" role="separator"></span>
+					${this.getMediaControls()}
+					<span class="toolbar-separator" role="separator"></span>
 					<button title="Refresh" class="toolbar-button" data-command="refresh" aria-label="Refresh">${svgRefresh}</button>
 					<button title="Open Source File" class="toolbar-button" data-command="openSource" aria-label="Open Source File">${svgFile}</button>
 					${this.options.showOpenInEditor
@@ -224,7 +229,66 @@ export class PreviewHost {
 		if (typeof lineHeight === 'number' && !isNaN(lineHeight)) {
 			out.push(`--markdown-line-height: ${lineHeight};`);
 		}
+		// Reading column width: user styles read `max-width: var(--hmk-column-width)`;
+		// the webview also updates this property live while the toolbar input is
+		// typed in. Invalid values fall back to 100%.
+		out.push(`--hmk-column-width: ${this.getColumnWidth()};`);
 		return out.join(' ');
+	}
+
+	/** `hackerMarkdown.media.columnWidth` if it is a valid CSS length, else `100%`. */
+	private getColumnWidth(): string {
+		const value = vscode.workspace.getConfiguration('hackerMarkdown').get<string>('media.columnWidth', '100%');
+		return isCssLength(value) ? value : '100%';
+	}
+
+	/** The body state attributes consumed by user styles (`data-invert`/`data-tables`). */
+	private getMediaAttrs(): string {
+		const config = vscode.workspace.getConfiguration('hackerMarkdown');
+		const invert = config.get<string>('media.invert', 'auto');
+		const tables = config.get<string>('media.tables', 'pan');
+		return [
+			`data-invert="${['auto', 'dark', 'light', 'off'].includes(invert) ? invert : 'auto'}"`,
+			`data-tables="${tables === 'fit' ? 'fit' : 'pan'}"`
+		].join(' ');
+	}
+
+	/**
+	 * The media controls: an invert-mode dropdown, a table-handling dropdown
+	 * and a reading-column-width input with a reset button. The webview wires
+	 * the dropdowns/input in `src/webview/menus.ts`; the reset button posts a
+	 * `command` message handled by `previewManager.ts`.
+	 */
+	private getMediaControls(): string {
+		const config = vscode.workspace.getConfiguration('hackerMarkdown');
+		const invert = config.get<string>('media.invert', 'auto');
+		const tables = config.get<string>('media.tables', 'pan');
+		const columnWidth = this.getColumnWidth();
+		const invertItem = (value: string, label: string) =>
+			`<button class="hmk-menu-item" role="menuitemradio" aria-checked="${invert === value}" data-value="${value}">${label}</button>`;
+		const tablesItem = (value: string, label: string) =>
+			`<button class="hmk-menu-item" role="menuitemradio" aria-checked="${tables === value}" data-value="${value}">${label}</button>`;
+		return /* html */ `
+				<div class="hmk-menu" data-menu-key="invert">
+					<button class="toolbar-button" data-menu="invert" aria-haspopup="menu" aria-expanded="false" title="Media invert: ${invert}" aria-label="Media invert mode: ${invert}">${svgInvert}</button>
+					<div class="hmk-menu-panel" role="menu" aria-label="Media invert mode" hidden>
+						${invertItem('auto', 'auto')}
+						${invertItem('dark', 'dark')}
+						${invertItem('light', 'light')}
+						${invertItem('off', 'off')}
+					</div>
+				</div>
+				<div class="hmk-menu" data-menu-key="tables">
+					<button class="toolbar-button" data-menu="tables" aria-haspopup="menu" aria-expanded="false" title="Wide tables: ${tables}" aria-label="Wide table handling: ${tables}">${svgTables}</button>
+					<div class="hmk-menu-panel" role="menu" aria-label="Wide table handling" hidden>
+						${tablesItem('pan', 'pan')}
+						${tablesItem('fit', 'fit')}
+					</div>
+				</div>
+				<div class="hmk-column-control" title="Reading column width (CSS length)">
+					<input class="toolbar-input" type="text" value="${escapeAttribute(columnWidth)}" aria-label="Reading column width" spellcheck="false" autocomplete="off">
+					<button class="toolbar-button" data-command="resetColumn" title="Reset column width to 100%" aria-label="Reset column width to 100%">${svgReset}</button>
+				</div>`;
 	}
 
 	/** User styles from the built-in `markdown.styles` + `hackerMarkdown.styles`. */
@@ -404,6 +468,11 @@ function isAbsolutePath(value: string): boolean {
 	return value.startsWith('/');
 }
 
+/** True for CSS lengths like `700px`, `45vw`, `100%`, `1.5rem`; false for garbage. */
+export function isCssLength(value: string): boolean {
+	return /^\d*\.?\d+(?:px|vw|vh|%|rem|em|ch|ex|cm|mm|in|pt|pc|q)$/i.test(value);
+}
+
 function getNonce(): string {
 	let text = '';
 	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -416,3 +485,6 @@ function getNonce(): string {
 const svgRefresh = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M13.65 2.35A6.96 6.96 0 0 0 8 1A7 7 0 1 0 8 15a6.96 6.96 0 0 0 5.14-2.2l-.7-.72A5.96 5.96 0 1 1 8 2a5.96 5.96 0 0 1 4.95 2.6L10.5 7H14V3.5l-1.35 1.35a6.96 6.96 0 0 0-3.99-2.1A6.9 6.9 0 0 1 13.65 2.35z"/></svg>`;
 const svgFile = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M10.5 1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5L10.5 1zM10 2.2L12.8 5H10V2.2zM12 14H4V2h5v4h3v8z"/></svg>`;
 const svgEditor = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M4.5 1.5l-3 4L2.7 6.5l2.4-3.2 2.4 3.2 1.2-1-3-4H4.5zM11.5 1.5l3 4-1.2 1-2.4-3.2-2.4 3.2-1.2-1 3-4h1.2zM1 9h14v1H1V9zm0 3h14v1H1v-1z"/></svg>`;
+const svgInvert = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5v11a5.5 5.5 0 0 1 0-11z"/></svg>`;
+const svgTables = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 2h12v12H2V2zm1 1v4h4V3H3zm5 0v4h5V3H8zM3 8v5h4V8H3zm5 0v5h5V8H8z"/></svg>`;
+const svgReset = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" transform="rotate(180 8 8)" d="M13.65 2.35A6.96 6.96 0 0 0 8 1A7 7 0 1 0 8 15a6.96 6.96 0 0 0 5.14-2.2l-.7-.72A5.96 5.96 0 1 1 8 2a5.96 5.96 0 0 1 4.95 2.6L10.5 7H14V3.5l-1.35 1.35a6.96 6.96 0 0 0-3.99-2.1A6.9 6.9 0 0 1 13.65 2.35z"/></svg>`;

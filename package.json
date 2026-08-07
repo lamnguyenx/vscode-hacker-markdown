@@ -107,6 +107,31 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Offer PlantUML keyword suggestions while typing inside `plantuml`/`puml`/`uml` code fences in Markdown files."
+				},
+				"hackerMarkdown.media.invert": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"dark",
+						"light",
+						"off"
+					],
+					"default": "auto",
+					"description": "Invert media (images, diagrams, video) in the preview. `auto` inverts only in dark themes. Toggle from the preview toolbar."
+				},
+				"hackerMarkdown.media.columnWidth": {
+					"type": "string",
+					"default": "100%",
+					"description": "Reading column width, any CSS length (e.g. `700px`, `45vw`, `100%`). Set from the preview toolbar input; reset restores `100%`."
+				},
+				"hackerMarkdown.media.tables": {
+					"type": "string",
+					"enum": [
+						"pan",
+						"fit"
+					],
+					"default": "pan",
+					"description": "Wide table handling in the preview. `pan` makes each table scroll horizontally inside its own region; `fit` wraps to the column. Toggle from the preview toolbar."
 				}
 			}
 		},

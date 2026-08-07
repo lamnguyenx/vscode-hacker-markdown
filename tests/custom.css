@@ -1,0 +1,49 @@
+/* Reading column width — controlled by the toolbar input
+ * (hackerMarkdown.media.columnWidth, exposed as --hmk-column-width). */
+body {
+  max-width: var(--hmk-column-width, 100%) !important;
+  margin: 0 auto !important;
+}
+
+/* Media stay full-width even when the column is narrow. Block-level media
+ * are always wrapped in .hmk-frame (pan/zoom) or .mermaid-wrapper, so the
+ * 100vw trick targets those; inline images stay in flow. Overflow on the
+ * frame stays hidden so pan/zoom keeps clipping. */
+div.hmk-frame, div.mermaid-wrapper {
+  max-width: 100vw !important;
+  width: 100vw !important;
+  position: relative !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+/* Wide tables: pan = each table scrolls horizontally inside its own region;
+ * fit = normal wrapping table. Toggled from the toolbar (data-tables). */
+body[data-tables="pan"] .markdown-body table {
+  display: block !important;
+  overflow-x: auto !important;
+  width: max-content !important;
+  min-width: 100% !important;
+}
+body[data-tables="fit"] .markdown-body table {
+  display: table !important;
+  width: 100% !important;
+}
+
+/* Code blocks keep their content width (long lines pan with the page). */
+.markdown-body pre {
+  width: max-content !important;
+  min-width: 100% !important;
+}
+
+/* Media inversion — toggled from the toolbar (data-invert): dark/light force
+ * the mode, auto follows the theme (.vscode-dark is VS Code's webview body
+ * class). Scoped to .markdown-body so the toolbar's own SVGs are untouched. */
+body[data-invert="dark"] .markdown-body img,
+body[data-invert="dark"] .markdown-body svg,
+body[data-invert="dark"] .markdown-body video,
+body.vscode-dark[data-invert="auto"] .markdown-body img,
+body.vscode-dark[data-invert="auto"] .markdown-body svg,
+body.vscode-dark[data-invert="auto"] .markdown-body video {
+  filter: invert(100%) hue-rotate(180deg) !important;
+}

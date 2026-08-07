@@ -32,6 +32,31 @@ details underneath the feature list, and the product limitations.
   neutralizes user styles that force diagrams to `width: 100vw`, which in a
   narrow sidebar overflow the visible webview and clip the diagram's side
   edges.
+- **Media toolbar controls.** The pinned toolbar carries three media
+  controls whose state lives in user settings (`hackerMarkdown.media.*`,
+  `ConfigurationTarget.Global` — the toolbar is a quick control over normal
+  settings):
+  - **Invert** dropdown (`auto | dark | light | off`): the webview body gets
+    `data-invert`, and *auto* resolves in CSS via VS Code's `vscode-dark`
+    webview body class, so theme switches apply live without a rebuild.
+  - **Tables** dropdown (`pan | fit`): `data-tables` on the body; the user
+    stylesheet pans each wide table inside its own scroll region
+    (`display: block; overflow-x: auto`) or fits it (`fit`).
+  - **Column width** input (any CSS length, e.g. `700px`, `45vw`): emitted as
+    `--hmk-column-width` on the `<html>` element (same spot as the
+    `markdown.preview` font overrides); the webview applies it live while
+    typing and persists on Enter/blur via `setMedia`; the reset button
+    restores `100%`. Invalid values are ignored locally and revert on blur.
+  Host→webview `mediaState` broadcasts (on host creation, on `ready`, and on
+  config change — so editing settings.json syncs every host, docked or
+  editor panel) update the body attributes, the CSS property and the control
+  UI (checked items, trigger titles, input value) in place — no webview
+  rebuild, no scroll loss. The styling itself ships in `src/media/media.css`
+  (linked after `main.css`): column max-width from the CSS property, table
+  pan/fit and media inversion from the body attributes (auto resolves on
+  `vscode-dark` / `vscode-high-contrast`). User styles (`hackerMarkdown.styles`
+  / `markdown.styles`) load last, so they can still override or extend these
+  defaults (`tests/custom.css` is the reference override).
 - **Rendering engine.** Output comes from the built-in `markdown-language-features`
   extension via `markdown.api.render`, so the result matches the stock
   preview — front matter, `highlight.js` code highlighting, tables, and

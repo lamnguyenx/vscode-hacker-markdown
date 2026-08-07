@@ -11,10 +11,13 @@ import {
 	scheduleFrameScan
 } from './frames';
 import { setCursorLine, reapplyCursorHighlight, clearCursorHighlight, cursorBoxForLine } from './cursor';
+import { initMediaControls, applyMediaState } from './menus';
 
 // The page may load after the host already pushed its state (webview
 // creation races the page load), so ask the host to re-push on load.
 post({ type: 'ready' });
+
+initMediaControls();
 
 let lastScrollLine = -1;
 
@@ -96,6 +99,15 @@ window.addEventListener('message', (event) => {
 		case 'cursorLine':
 			setCursorLine(Number(message.line) || 0);
 			break;
+		case 'mediaState': {
+			const state = message as { invert?: string; columnWidth?: string; tables?: string };
+			applyMediaState({
+				invert: (state.invert as 'auto' | 'dark' | 'light' | 'off') ?? 'auto',
+				columnWidth: String(state.columnWidth ?? '100%'),
+				tables: state.tables === 'fit' ? 'fit' : 'pan'
+			});
+			break;
+		}
 	}
 });
 
@@ -142,7 +154,9 @@ previewEl.addEventListener('click', (e) => {
 
 toolbar.addEventListener('click', (e) => {
 	const button = (e.target as Element | null)?.closest('.toolbar-button');
-	if (!button) {
+	// Menu triggers are handled by menus.ts (they must not double-fire a
+	// command with an empty id).
+	if (!button || button.hasAttribute('data-menu')) {
 		return;
 	}
 	const id = button.getAttribute('data-command') ?? '';
