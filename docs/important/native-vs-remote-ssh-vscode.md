@@ -40,7 +40,7 @@ ignores `~/.vscode/extensions` on the machine you SSH'd from:
 - code-server: `${XDG_DATA_HOME:-$HOME/.local/share}/code-server/extensions/`
 - Remote-SSH server (on the remote host): `~/.vscode-server/extensions/`
 
-`tools/install.sh` (via `make install`) installs into **every** one of these
+`vscode-hacker-meta install .` (via `make install`) installs into **every** one of these
 that exists on the machine it runs on — see `how-to-install.md` §1 for when
 that covers a remote host and when it cannot.
 
@@ -71,6 +71,21 @@ native desktop CLI.
 
 ## Gotchas seen in practice
 
+- **A Remote-SSH window runs the extension from `~/.vscode-server/extensions/`
+  *on the remote host*** — the copy that matters is the one on the machine
+  you SSH'd into, not the machine the window displays on. `make install` in
+  the SSH window's integrated terminal (or `ssh <host> 'make -C <repo> install'`)
+  updates it. When a window looks stale after an install:
+  1. compare mtimes of the installed `out/`/`build/` against the repo's
+     (installed files keep the repo's mtimes), then
+  2. reload the window — extensions load at window start, so the running
+     window keeps the old code until `Developer: Reload Window`.
+  Observed live: the repo was fresh (new `media.css`), the dev host was green,
+  but an SSH window still ran a build installed before the fix — its webview
+  linked `main.css` with no `media.css`, and the media toggles changed state
+  with no visual effect. The local `~/.vscode/extensions/` copy had been
+  updated by `make install`; the remote `~/.vscode-server/extensions/` copy
+  had not (or predated the build).
 - A symlink named `code` can point at either binary; always resolve with
   `readlink -f` before judging.
 - The remote CLI's error message is logged, not fatal: the first broken

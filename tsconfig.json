@@ -14,6 +14,7 @@
 		"node_modules",
 		".vscode-test",
 		"_refs",
-		"src/webview"
+		"src/webview",
+		"tools"
 	]
 }
