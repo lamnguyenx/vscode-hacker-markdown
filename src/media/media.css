@@ -1,0 +1,49 @@
+/* Media toolbar controls (hackerMarkdown.media.*) — the styling half of the
+ * toolbar's invert / tables / column-width controls. The host broadcasts the
+ * state as body attributes (`data-invert`, `data-tables`) and a CSS custom
+ * property (`--hmk-column-width` on <html>); this file turns them into
+ * layout. User styles (`hackerMarkdown.styles` / `markdown.styles`) load
+ * after this file and win the cascade. */
+
+/* Reading column: any CSS length typed in the toolbar (700px, 45vw, ...),
+ * 100% (full width) by default. */
+body {
+	max-width: var(--hmk-column-width, 100%);
+	margin: 0 auto;
+}
+
+/* Full-bleed media: block-level diagrams/images stay viewport-wide even when
+ * the column is narrowed. Block media are always wrapped in .hmk-frame
+ * (pan/zoom) or .mermaid-wrapper; inline images are untouched. */
+div.hmk-frame,
+div.mermaid-wrapper {
+	width: 100vw;
+	max-width: 100vw;
+	position: relative;
+	left: 50%;
+	transform: translateX(-50%);
+}
+
+/* Wide tables: pan = each table scrolls horizontally inside its own region;
+ * fit = normal wrapping table. */
+body[data-tables="pan"] .markdown-body table {
+	display: block;
+	overflow-x: auto;
+	width: max-content;
+	min-width: 100%;
+}
+
+/* Media inversion: dark/light force the mode; auto follows the theme
+ * (VS Code's webview body classes, including high contrast). Scoped to
+ * .markdown-body so the toolbar's own SVGs are untouched. */
+body[data-invert="dark"] .markdown-body img,
+body[data-invert="dark"] .markdown-body svg,
+body[data-invert="dark"] .markdown-body video,
+body.vscode-dark[data-invert="auto"] .markdown-body img,
+body.vscode-dark[data-invert="auto"] .markdown-body svg,
+body.vscode-dark[data-invert="auto"] .markdown-body video,
+body.vscode-high-contrast[data-invert="auto"] .markdown-body img,
+body.vscode-high-contrast[data-invert="auto"] .markdown-body svg,
+body.vscode-high-contrast[data-invert="auto"] .markdown-body video {
+	filter: invert(100%) hue-rotate(180deg);
+}

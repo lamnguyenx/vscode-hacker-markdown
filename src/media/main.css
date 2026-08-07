@@ -80,6 +80,105 @@ body {
 	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
+/* Media controls: dropdown menus (invert / tables) + column-width input. */
+.hmk-menu {
+	position: relative;
+	display: flex;
+	flex: 0 0 auto;
+}
+
+.hmk-menu-panel {
+	position: absolute;
+	top: calc(100% + 4px);
+	right: 0;
+	z-index: 1000;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 120px;
+	padding: 4px;
+	background: var(--vscode-editorWidget-background, #252526);
+	border: 1px solid var(--vscode-editorWidget-border, transparent);
+	border-radius: 4px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.hmk-menu-panel[hidden] {
+	display: none;
+}
+
+.hmk-menu-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	border: none;
+	border-radius: 3px;
+	background: transparent;
+	color: var(--vscode-foreground, #cccccc);
+	font-size: 12px;
+	line-height: 1.4;
+	text-align: left;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.hmk-menu-item::before {
+	content: '';
+	display: inline-block;
+	width: 10px;
+	flex: 0 0 auto;
+}
+
+.hmk-menu-item[aria-checked='true'] {
+	color: var(--vscode-focusBorder, #4d9fff);
+}
+
+.hmk-menu-item[aria-checked='true']::before {
+	content: '✓';
+}
+
+.hmk-menu-item:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.toolbar-button[aria-expanded='true'] {
+	background: var(--vscode-toolbar-activeBackground, rgba(90, 93, 94, 0.31));
+}
+
+.hmk-column-control {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex: 0 0 auto;
+}
+
+/* Groups the media controls (invert / tables / column) apart from the
+ * toolbar's action buttons (refresh / open source / open in editor). */
+.toolbar-separator {
+	width: 1px;
+	height: 18px;
+	margin: 0 4px;
+	flex: 0 0 auto;
+	background: var(--vscode-panel-border, rgba(127, 127, 127, 0.35));
+}
+
+.toolbar-input {
+	width: 64px;
+	padding: 2px 6px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-input-background, transparent);
+	color: var(--vscode-input-foreground, var(--vscode-foreground, #cccccc));
+	font-size: 11px;
+	line-height: 1.6;
+	outline: none;
+}
+
+.toolbar-input:focus {
+	border-color: var(--vscode-focusBorder, #4d9fff);
+}
+
 .markdown-body {
 	padding: 1em 26px 26px;
 }

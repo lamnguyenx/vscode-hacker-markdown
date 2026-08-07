@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { PreviewHost } from './previewHost';
+import { PreviewHost, isCssLength } from './previewHost';
 import { rewritePumlFences } from './plantuml/renderFragment';
 
 const RENDER_DELAY_MS = 300;
@@ -69,6 +69,14 @@ export class PreviewManager implements vscode.Disposable {
 					// rendering) should be reflected immediately.
 					this.scheduleRender(0);
 				}
+				if (e.affectsConfiguration('hackerMarkdown.media')) {
+					// Media controls changed (toolbar dropdowns/input or
+					// settings.json) — broadcast the new state to every host.
+					// No rebuild: the webview applies it in place.
+					for (const host of this.hosts) {
+						host.post({ type: 'mediaState', ...this.mediaState() });
+					}
+				}
 				if (e.affectsConfiguration('hackerMarkdown.styles') || e.affectsConfiguration('markdown.styles')) {
 					for (const host of this.hosts) {
 						host.rebuild();
@@ -101,6 +109,7 @@ export class PreviewManager implements vscode.Disposable {
 			this.hosts.delete(host);
 			host.dispose();
 		});
+		host.post({ type: 'mediaState', ...this.mediaState() });
 		this.pushCurrentState(host);
 		return host;
 	}
@@ -243,6 +252,7 @@ export class PreviewManager implements vscode.Disposable {
 				// missed the state pushed at host creation). Re-capture the
 				// active document and re-render so the preview never gets
 				// stuck in the empty state.
+				host.post({ type: 'mediaState', ...this.mediaState() });
 				this.setDocument(vscode.window.activeTextEditor?.document);
 				break;
 			case 'openLink':
@@ -250,6 +260,9 @@ export class PreviewManager implements vscode.Disposable {
 				break;
 			case 'scrollLine':
 				this.onPreviewScroll(host, Number(message.line) || 0);
+				break;
+			case 'setMedia':
+				this.setMedia(String(message.key ?? ''), String(message.value ?? ''));
 				break;
 			case 'command':
 				switch (message.id) {
@@ -267,8 +280,48 @@ export class PreviewManager implements vscode.Disposable {
 					case 'openPumlSettings':
 						void vscode.commands.executeCommand('workbench.action.openSettings', 'hackerMarkdown.plantuml.server');
 						break;
+					case 'resetColumn':
+						this.setMedia('columnWidth', '100%');
+						break;
 				}
 				break;
+		}
+	}
+
+	// --- media controls -------------------------------------------------------
+
+	/** The current `hackerMarkdown.media.*` state (sanitized) broadcast to hosts. */
+	private mediaState(): { invert: 'auto' | 'dark' | 'light' | 'off'; columnWidth: string; tables: 'pan' | 'fit' } {
+		const config = vscode.workspace.getConfiguration('hackerMarkdown');
+		const invert = config.get<string>('media.invert', 'auto');
+		const tables = config.get<string>('media.tables', 'pan');
+		const columnWidth = config.get<string>('media.columnWidth', '100%');
+		return {
+			invert: invert === 'dark' || invert === 'light' || invert === 'off' ? invert : 'auto',
+			tables: tables === 'fit' ? 'fit' : 'pan',
+			columnWidth: isCssLength(columnWidth) ? columnWidth : '100%'
+		};
+	}
+
+	/**
+	 * Applies a toolbar-chosen media value by persisting it to the user's
+	 * settings (`ConfigurationTarget.Global`); the resulting config-change
+	 * event broadcasts the new state to every host.
+	 */
+	private setMedia(key: string, value: string): void {
+		const config = vscode.workspace.getConfiguration('hackerMarkdown');
+		if (key === 'invert') {
+			if (value === 'auto' || value === 'dark' || value === 'light' || value === 'off') {
+				void config.update('media.invert', value, vscode.ConfigurationTarget.Global);
+			}
+		} else if (key === 'tables') {
+			if (value === 'pan' || value === 'fit') {
+				void config.update('media.tables', value, vscode.ConfigurationTarget.Global);
+			}
+		} else if (key === 'columnWidth') {
+			if (isCssLength(value)) {
+				void config.update('media.columnWidth', value, vscode.ConfigurationTarget.Global);
+			}
 		}
 	}
 

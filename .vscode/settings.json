@@ -3,6 +3,7 @@
         "**/.git": true,
         "**/.svn": true,
         "**/.hg": true,
+        "**/.DS_Store": true,
         "**/Thumbs.db": true,
         "**/*__audio__*/**": true,
         "**/*__pycache__*/**": true,
@@ -15,7 +16,6 @@
         "exp/*.log": true,
         "exp/*.png": true,
         "**/*.vsix": true,
-        "**/.DS_Store": true,
         "**/.AppleDouble": true,
         "**/.LSOverride": true,
         "**/Icon": true,
@@ -164,7 +164,9 @@
         "**/cython_debug": true,
         "**/poetry.toml": true,
         "**/.ruff_cache": true,
-        "**/pyrightconfig.json": true
+        "**/pyrightconfig.json": true,
+        "tools/*.mjs": true,
+        "tools/*.mjs.map": true
     },
     "gitignoreToggle.hidden": true
 }
