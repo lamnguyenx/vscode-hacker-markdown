@@ -19,6 +19,8 @@ export class PreviewManager implements vscode.Disposable {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	private doc?: vscode.TextDocument;
+	/** When set, the preview is pinned to this document (editor switches don't change it). */
+	private pinnedDoc?: vscode.TextDocument;
 	private renderTimer?: NodeJS.Timeout;
 	private renderInFlight = false;
 	private renderQueued = false;
@@ -31,6 +33,11 @@ export class PreviewManager implements vscode.Disposable {
 
 		this.disposables.push(
 			vscode.window.onDidChangeActiveTextEditor((editor) => {
+				if (this.pinnedDoc) {
+					// Pinned: the preview keeps showing the pinned document no
+					// matter which editor (or non-markdown doc) is focused.
+					return;
+				}
 				if (editor?.document) {
 					this.setDocument(editor.document);
 					// A doc switch does not always fire a selection-change, so
@@ -55,7 +62,43 @@ export class PreviewManager implements vscode.Disposable {
 			}),
 			vscode.workspace.onDidCloseTextDocument((document) => {
 				if (this.doc === document) {
+					// Delayed fallback: `onDidCloseTextDocument` fires when the
+					// editor disposes the model (can be minutes after the tab
+					// closes), so the prompt release happens in the
+					// `onDidChangeTabs` handler below. This branch only runs
+					// for documents closed without a tab (e.g. by an
+					// extension calling `closeTextDocument`).
+					if (this.pinnedDoc === document) {
+						this.pinnedDoc = undefined;
+						this.pushPinState();
+					}
 					this.setDocument(undefined);
+				}
+			}),
+			vscode.window.tabGroups.onDidChangeTabs((e) => {
+				// The pinned document's last tab was closed: release the pin
+				// right away (the text document itself stays alive for a
+				// while, so `onDidCloseTextDocument` alone would be too slow).
+				if (!this.pinnedDoc) {
+					return;
+				}
+				const pinnedUri = this.pinnedDoc.uri.toString();
+				for (const tab of e.closed) {
+					const resource = tab.input instanceof vscode.TabInputText ? tab.input.uri : undefined;
+					if (!resource || resource.toString() !== pinnedUri) {
+						continue;
+					}
+					const stillOpen = vscode.window.tabGroups.all.some((group) =>
+						group.tabs.some((t) => {
+							const r = t.input instanceof vscode.TabInputText ? t.input.uri : undefined;
+							return !!r && r.toString() === pinnedUri;
+						}));
+					if (!stillOpen) {
+						this.pinnedDoc = undefined;
+						this.pushPinState();
+						this.setDocument(vscode.window.activeTextEditor?.document);
+					}
+					break;
 				}
 			}),
 			vscode.window.onDidChangeTextEditorSelection((e) => {
@@ -114,6 +157,31 @@ export class PreviewManager implements vscode.Disposable {
 		return host;
 	}
 
+	// --- pin ----------------------------------------------------------------
+
+	/**
+	 * Pins/unpins the preview to the currently rendered document. While
+	 * pinned, editor switches don't change the preview; the pin is released
+	 * automatically if the pinned document is closed.
+	 */
+	private togglePin(): void {
+		if (!this.doc) {
+			return;
+		}
+		this.pinnedDoc = this.pinnedDoc ? undefined : this.doc;
+		this.pushPinState();
+		if (!this.pinnedDoc) {
+			// Unpinned: follow the active editor immediately.
+			this.setDocument(vscode.window.activeTextEditor?.document);
+		}
+	}
+
+	private pushPinState(): void {
+		for (const host of this.hosts) {
+			host.post({ type: 'pinState', pinned: !!this.pinnedDoc });
+		}
+	}
+
 	public refresh(): void {
 		if (this.hasUserStyles()) {
 			// Rebuild the webviews so stylesheet links are regenerated (and
@@ -169,6 +237,7 @@ export class PreviewManager implements vscode.Disposable {
 		} else {
 			host.empty();
 		}
+		host.post({ type: 'pinState', pinned: !!this.pinnedDoc });
 	}
 
 	// --- rendering ----------------------------------------------------------
@@ -249,11 +318,14 @@ export class PreviewManager implements vscode.Disposable {
 		switch (message.type) {
 			case 'ready':
 				// The webview page signals it finished loading (it may have
-				// missed the state pushed at host creation). Re-capture the
-				// active document and re-render so the preview never gets
-				// stuck in the empty state.
+				// missed the state pushed at host creation). Re-push the
+				// current state and re-render so the preview never gets
+				// stuck in the empty state. `this.doc` is used rather than
+				// the active editor so a pinned preview re-pushes the pinned
+				// document, not whatever editor is focused.
 				host.post({ type: 'mediaState', ...this.mediaState() });
-				this.setDocument(vscode.window.activeTextEditor?.document);
+				host.post({ type: 'pinState', pinned: !!this.pinnedDoc });
+				this.setDocument(this.doc);
 				break;
 			case 'openLink':
 				this.openLink(host, String(message.href ?? ''));
@@ -282,6 +354,9 @@ export class PreviewManager implements vscode.Disposable {
 						break;
 					case 'resetColumn':
 						this.setMedia('columnWidth', '100%');
+						break;
+					case 'togglePin':
+						this.togglePin();
 						break;
 				}
 				break;

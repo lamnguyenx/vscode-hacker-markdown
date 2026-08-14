@@ -21,6 +21,7 @@ export type HostMessage =
 	| { type: 'empty' }
 	| { type: 'scrollToLine'; line: number }
 	| { type: 'cursorLine'; line: number }
+	| { type: 'pinState'; pinned: boolean }
 	| ({ type: 'mediaState' } & MediaState);
 
 /** Webview -> host (see `PreviewManager.onHostMessage`). */

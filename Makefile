@@ -12,10 +12,10 @@ build:
 # supported extension directory that exists on this machine (native VS Code,
 # code-server, Remote-SSH server). Delegates to the published vscode-hacker-meta
 # CLI with the VSIX path and the verification script registered explicitly.
-install: vsix
+install: build
 	npx --yes vscode-hacker-meta install "build/$(EXT_ID).vsix" --post-install-script tools/post_install.sh
 
 # Packs the extension into a VSIX placed in build/. vsce runs the compile via
 # the vscode:prepublish script.
-vsix:
-	vsce pack -o build/$(EXT_ID).vsix
+build:
+	npx --yes @vscode/vsce pack -o build/$(EXT_ID).vsix

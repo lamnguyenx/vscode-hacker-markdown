@@ -57,6 +57,15 @@ body {
 	user-select: none;
 }
 
+.doc-name::after {
+	content: ' — pinned';
+	opacity: 0.8;
+}
+
+body:not(.hmk-pinned) .doc-name::after {
+	content: '';
+}
+
 .spacer {
 	flex: 0 0 auto;
 }
@@ -144,6 +153,11 @@ body {
 
 .toolbar-button[aria-expanded='true'] {
 	background: var(--vscode-toolbar-activeBackground, rgba(90, 93, 94, 0.31));
+}
+
+.toolbar-button[aria-pressed='true'] {
+	background: var(--vscode-toolbar-activeBackground, rgba(90, 93, 94, 0.31));
+	color: var(--vscode-focusBorder, #4d9fff);
 }
 
 .hmk-column-control {
