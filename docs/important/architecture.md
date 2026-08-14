@@ -98,6 +98,19 @@ details underneath the feature list, and the product limitations.
   Markdown file and re-renders **on save** by default
   (`hackerMarkdown.renderOnSave`), or live (debounced) as you type when the
   setting is disabled.
+- **Pin (lock) the preview to a document.** The toolbar pin button
+  (`togglePin` command message) freezes the preview on the current document:
+  editor switches no longer change it, while edits to the pinned document
+  still re-render live and cursor/scroll sync keeps working as long as the
+  editor shows the pinned document (the sync handlers are keyed on document
+  identity, so cross-document sync stops automatically while pinned). The
+  pin is per-preview-manager (all hosts share it) and in-memory only; it is
+  released automatically when the pinned document's **last tab closes**
+  (detected via `vscode.window.tabGroups.onDidChangeTabs` — see quirks.md on
+  why `onDidCloseTextDocument` is too slow to rely on), then the preview
+  resumes following the active editor. The webview mirrors the state on the
+  button (pin/unpin glyph swap via `pinState` messages) and exposes a
+  `hmk-pinned` body class for user styles.
 - **Scroll sync** is bidirectional; togglable via
   `hackerMarkdown.scrollPreviewWithEditor` / `hackerMarkdown.scrollEditorWithPreview`.
   Editor→preview scroll sync recenters: when the cursor moves, the preview

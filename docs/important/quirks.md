@@ -82,6 +82,16 @@ limitations, see [`docs/important/architecture.md`](architecture.md).
   transparent value, so the fallback never applies. Highlight styling that must
   always be seen (this repo's `.hmk-cursor` cursor-sync box) hardcodes its
   color instead of trusting the theme var.
+- **`--vscode-contrastActiveBorder` can be just as transparent — and is a
+  trap for outline chains.** When a theme does not define it, it falls back
+  to `--vscode-focusBorder` (transparent in eink), so
+  `outline: 1px solid var(--vscode-contrastActiveBorder, …)` renders
+  invisible too. The reliable signal is `--vscode-contrastBorder` (eink sets
+  it to `#FFFFFF`; default themes define it as well) — chain
+  `var(--vscode-contrastBorder, var(--vscode-focusBorder, …))` and skip
+  `contrastActiveBorder`. This repo's toolbar active state (the pinned
+  preview button) uses that chain for its outline, and keeps the icon color
+  on `--vscode-foreground` instead of an accent var.
 
 ## The VS Code workbench DOM (monaco)
 
@@ -208,6 +218,26 @@ Knowledge for anyone adding IntelliSense (or other language features) to an
 - **Trusted input only.** VS Code's keybinding service ignores synthetic
   DOM events; use `Input.dispatchKeyEvent` / `Input.dispatchMouseEvent` /
   `Input.insertText` (see `test_preview.cjs`).
+- **`Input.insertText` dies on `editor.editContext` (Chromium EditContext).**
+  VS Code ≥ 1.13x routes editor input through Chromium's `EditContext` API
+  (`div.native-edit-context` + a 1×1 readonly `textarea.ime-text-area`) when
+  `editor.editContext` is enabled (default `true` in 1.131). `insertText` and
+  even `char` key events with `text` then go nowhere — no `beforeinput`, no
+  model change — while the command palette's plain `<input>` still works
+  (this asymmetry is the tell). Two escapes:
+  - set `"editor.editContext": false` in the dev-host profile
+    (`exp/devhost/User/settings.json`) → the editor falls back to the classic
+    `textarea.inputarea` and CDP input works again (the harness profile in
+    this repo carries this setting);
+  - or drive IME events (`Input.imeSetComposition` + …), which feed
+    EditContext (the full commit command is not implemented in all CDP
+    versions — `Input.imeCommitText` does not exist on 1.131's protocol).
+- **"Did the text land?" — read the rendered lines, not the textarea.**
+  Monaco clears the input element after every event by design, so the
+  textarea's `.value` is *always* `""` — it is not evidence about input.
+  And in 1.131 the editor DOM no longer exposes the model via `_modelData`
+  (older harness tips are stale). Ground truth from outside: the rendered
+  `.view-line` text inside the editor element, or the preview re-render.
 - **Modifiers are flags, not key presses.** `Meta+Shift+P` works only if the
   final key event carries `modifiers: 12`. Pressing `Meta`, then `Shift`,
   then `P` as three plain key events does *nothing* to VS Code's keybindings.
@@ -296,6 +326,17 @@ integrates with:
 
 ## Dev host lifecycle
 
+- **`onDidCloseTextDocument` fires *minutes* after the tab closes — or never
+  while the doc stays alive.** The editor decides when to dispose a model
+  (ref-counting, a timeout, memory pressure), and `document !== editor !==
+  tab`: closing the last tab of a document does not dispose it promptly (the
+  closed document stays in `vscode.workspace.textDocuments`; observed on
+  1.131, reported behavior since ~1.85, see microsoft/vscode#97522 /
+  #15178). Any "release state when the user closes the doc" logic must key
+  on the **tabs API**: `vscode.window.tabGroups.onDidChangeTabs` →
+  `tab.input instanceof vscode.TabInputText` + no remaining tab for the URI.
+  Keep the `onDidCloseTextDocument` branch only as a fallback for
+  non-tab closes (an extension calling `closeTextDocument`).
 - **The dev host must run WITHOUT `--disable-extensions`.** The smoke
   suite's mermaid check needs `bierner.markdown-mermaid` and puml needs
   `jebbs.plantuml`; with the flag both silently degrade (mermaid: `Error:

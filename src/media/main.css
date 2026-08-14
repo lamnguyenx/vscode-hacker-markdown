@@ -140,7 +140,8 @@ body:not(.hmk-pinned) .doc-name::after {
 }
 
 .hmk-menu-item[aria-checked='true'] {
-	color: var(--vscode-focusBorder, #4d9fff);
+	color: var(--vscode-foreground, #cccccc);
+	background: var(--vscode-toolbar-activeBackground, rgba(90, 93, 94, 0.31));
 }
 
 .hmk-menu-item[aria-checked='true']::before {
@@ -157,7 +158,11 @@ body:not(.hmk-pinned) .doc-name::after {
 
 .toolbar-button[aria-pressed='true'] {
 	background: var(--vscode-toolbar-activeBackground, rgba(90, 93, 94, 0.31));
-	color: var(--vscode-focusBorder, #4d9fff);
+	color: var(--vscode-foreground, #cccccc);
+	/* contrastActiveBorder is skipped: when undefined it falls back to
+	   focusBorder, which themes like eink deliberately make transparent. */
+	outline: 1px solid var(--vscode-contrastBorder, var(--vscode-focusBorder, #4d9fff));
+	outline-offset: -1px;
 }
 
 .hmk-column-control {

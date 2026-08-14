@@ -106,12 +106,32 @@ Notes:
   fast, with no extra webview targets to confuse the helpers. Pass
   `--with-extensions` to load the real user extensions instead — needed on older
   VS Code without the built-in mermaid renderer (mermaid then requires
-  `bierner.markdown-mermaid`), and for puml rendering, which requires
-  `jebbs.plantuml`. With `--disable-extensions`, puml stays a plain code block.
+  `bierner.markdown-mermaid`), for puml rendering, which requires
+  `jebbs.plantuml`, and whenever you want *your installed user extensions* in
+  the host (themes, keymaps, …). With `--disable-extensions`, puml stays a
+  plain code block and an installed theme (e.g. `lamnguyenx.vscode-eink-60hz`)
+  never appears in the dev host's theme picker — that is expected, not a
+  broken install. Two related traps:
+  - an extension installed **while a dev host is already running** is picked
+    up mid-session by the shared process ("Extensions added from another
+    source" in `sharedprocess.log`), but the freshly launched host can also
+    skip a folder whose install was in flight during its startup scan —
+    after installing anything, relaunch the dev host once before debugging
+    "the host doesn't see it";
+  - the dev-host profile is reused across launches, so *applied* state (the
+    current color theme, open tabs) persists — a theme applied in the dev
+    host once stays applied on later relaunches.
   The test helpers always find the preview by probing for `.toolbar .doc-name`,
   never by target order.
 - Opening `tests/workspace/test.md` as the file argument makes a Markdown editor
   active at startup, so the preview renders immediately.
+- **The dev-host profile carries `"editor.editContext": false`.**
+  VS Code 1.13x defaults `editor.editContext` to on (Chromium EditContext
+  input), which makes the editor ignore `Input.insertText` (see quirks.md §
+  CDP input automation). The scratch profile
+  (`exp/devhost/User/settings.json`) disables it so the suite's
+  type-and-save checks work; if you recreate the profile from scratch, add
+  it back or expect the live-edit checks to fail.
 - The harmless warning `'remote-debugging-port' is not in the list of known
   options` can be ignored. (The CLI prepends its own
   `--remote-debugging-port=9333`; Chromium lets the **last** occurrence win,
@@ -515,6 +535,15 @@ check types into `sub.md` and saves it, and any failed palette input leaks
 typed text into the open buffer — `git checkout` the fixtures after a run
 (`tests/workspace/sub.md`, `tests/workspace/e2e-anchor.md`, any sample file
 you opened).
+
+**The suite is load-sensitive.** Several checks have short windows (cursor
+sync: 8s; save-triggered re-render: 10–20s), and under machine pressure
+(other VS Code instances, competing build/install jobs, RAM exhaustion)
+they fail even on a pristine checkout — the failure set is characteristic
+(checks 7e + 10 + 11 together, with the typed token landing late or never).
+Before treating a failure as a regression: re-run on a fresh host on a quiet
+machine, or A/B against `git stash`; a `git log`-clean A/B that both pass on
+retry means it was load, not code.
 
 **Session restore can serve a stale host.** The dev-host profile restores the
 previous session (open tabs, webview state), so a relaunch against a reused
