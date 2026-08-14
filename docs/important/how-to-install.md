@@ -130,6 +130,31 @@ edits to appear. Extension-host edits (`src/*.ts`) always need the reload.
 
 ## Troubleshooting
 
+- **`make build` dies inside `vsce` with `MODULE_NOT_FOUND`.** The npx cache
+  entry for `@vscode/vsce` can end up partially installed (observed:
+  `typed-rest-client/Util.js` failing to resolve a dependency). The failure
+  stack is a plain `require` error inside `~/.npm/_npx/<hash>/node_modules/
+  @vscode/vsce`. Fix: delete that exact cache dir (`rm -rf ~/.npm/_npx/<hash>`)
+  and re-run — npx re-installs vsce fresh. Do not `npm cache clean` the whole
+  store.
+- **`make install` fails only on the code-server target with
+  `ERR_MODULE_NOT_FOUND: Cannot find package 'yauzl'`.** code-server's
+  bundled VS Code (`…/code-server/lib/vscode`) has **no `node_modules`**:
+  code-server populates it via its own `postinstall.sh` (`npm install` inside
+  `lib/vscode`), and package managers that skip dependency lifecycle scripts
+  (bun, pnpm `ignore-scripts` defaults) never run it — `yauzl` (VSIX
+  extraction) is then missing while every other install target works.
+  Repair (mirrors what the postinstall would have done):
+  ```sh
+  cd ~/.bun/install/global/node_modules/code-server/lib/vscode
+  npm install --omit=dev --ignore-scripts --no-audit --no-fund   # JS deps incl. yauzl
+  cd node_modules/node-pty && npm run install                     # prebuilt binaries (terminal)
+  ```
+  `--ignore-scripts` is needed because `kerberos` (a native dep) cannot
+  compile on this box — it requires the system Kerberos headers
+  (`gssapi/gssapi.h`, e.g. `libkrb5-dev`), and node ≥ 24 is not code-server's
+  supported node 22 anyway. Kerberos only matters for Kerberos-based remote
+  auth; the extension installer (yauzl) works without it.
 - **Extension not loaded at all.** Check the extension folder contents
   (`make install` prints the final path) and that it's a real copy, not a
   stale one. Grep the extension-host log for the activation line:

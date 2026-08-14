@@ -108,6 +108,15 @@ window.addEventListener('message', (event) => {
 				pinButton.setAttribute('aria-pressed', String(pinned));
 				pinButton.title = pinned ? 'Unpin Preview' : 'Pin Preview';
 				pinButton.classList.toggle('hmk-pinned', pinned);
+				// Swap the icon: a pinned preview shows the (un)pin glyph.
+				const pinIcon = pinButton.querySelector<HTMLElement>('.hmk-pin-icon');
+				const unpinIcon = pinButton.querySelector<HTMLElement>('.hmk-unpin-icon');
+				if (pinIcon) {
+					pinIcon.hidden = pinned;
+				}
+				if (unpinIcon) {
+					unpinIcon.hidden = !pinned;
+				}
 			}
 			document.body.classList.toggle('hmk-pinned', pinned);
 			break;
