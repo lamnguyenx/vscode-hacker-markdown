@@ -99,6 +99,19 @@ window.addEventListener('message', (event) => {
 		case 'cursorLine':
 			setCursorLine(Number(message.line) || 0);
 			break;
+		case 'pinState': {
+			// Mirror the host-side pin on the toolbar button and expose it to
+			// user styles via a body class.
+			const pinned = !!message.pinned;
+			const pinButton = toolbar.querySelector<HTMLElement>('[data-command="togglePin"]');
+			if (pinButton) {
+				pinButton.setAttribute('aria-pressed', String(pinned));
+				pinButton.title = pinned ? 'Unpin Preview' : 'Pin Preview';
+				pinButton.classList.toggle('hmk-pinned', pinned);
+			}
+			document.body.classList.toggle('hmk-pinned', pinned);
+			break;
+		}
 		case 'mediaState': {
 			const state = message as { invert?: string; columnWidth?: string; tables?: string };
 			applyMediaState({
