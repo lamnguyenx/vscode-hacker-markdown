@@ -32,6 +32,7 @@ Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
 | `tests/test_preview.cjs` | Full 21-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
 | `tests/plantuml_check.cjs` | Pure-logic check of the PlantUML preview rendering (no dev host, no server) |
+| `tests/mermaid_check.cjs` | Pure-logic check of the mermaid source-span rewrite (no dev host) |
 | `tests/plantuml_completion_check.cjs` | Pure-logic check of the in-markdown PlantUML code completions: fence detection + catalog (no dev host) |
 | `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
 
@@ -223,6 +224,8 @@ The 21 checks (current status: **all passing**):
 | 7c | Mermaid is not double-framed | Frame scanning skips `.mermaid-wrapper` (the mermaid extension self-frames) |
 | 7d | Frame zoom-in / Alt+drag pan / reset work | The frame interaction model (transform on `.hmk-frame-content`) |
 | 7e | Cursor sync — exact line / containing-block / in-code-fence highlight | `.hmk-cursor` follows the cursor: exact `data-line`, blank-line → paragraph fallback, inside a fence → the `<pre>` (three checks) |
+| 7f | Click-to-source — preview click moves the editor cursor | Clicking a rendered block in the preview re-highlights it (the host moves the editor selection and the echo cursor-sync brings the box back) |
+| 7g | Click-to-source — mermaid diagram click jumps to the fence | Clicking the rendered `.mermaid-wrapper` re-highlights it (`.mermaid` carries `data-hmk-from`; the host's document scan supplies the span) |
 | 8 | Link click opens `sub.md` and preview follows | Relative link resolution + follow-active-editor |
 | 9 | `sub.md` content rendered | Second document renders |
 | 10 | Re-render after save shows typed text | `hackerMarkdown.renderOnSave` (default on): a saved edit re-renders the preview |
@@ -281,6 +284,18 @@ The 21 checks (current status: **all passing**):
   focused first (a real CDP click on `.monaco-editor`), and the go-to-line
   input takes the **1-based** line number while the fragment's `data-line`
   attributes are 0-based — the checks assert on `data-line`.
+- **The click-to-source checks (7f/7g) assert the echo, not the editor DOM.**
+  They start from the 7e state (editor on the python fence), CDP-click a block
+  inside the preview OOPIF (the `h3[data-line="6"]` and then the rendered
+  `.mermaid-wrapper`), then assert `.hmk-cursor` lands on that block. The
+  highlight only moves because the host moved the editor selection (which fired
+  `onDidChangeTextEditorSelection`, echoing the line back) — so the echo *is*
+  the end-to-end proof of the whole chain (click → `editorLine` message →
+  editor selection → echo highlight), without needing monaco introspection.
+  Real trusted clicks only (synthetic `.click()` would skip the coordinate
+  resolution in `sourceLineForClick`). Note: click the visible
+  `.mermaid-wrapper`, not the `.mermaid` `<pre>` — it is `display: unset`
+  (inline), so its own rect is a sliver.
 
 ## 3b. Scroll-Anchor E2E (diagram re-render)
 
@@ -615,9 +630,10 @@ On Linux, also make sure no orphan holds the port from the previous host
   from the workbench target (see quirks.md).
 - **Cursor-sync *media* highlighting (cursor inside a rendered puml fence) is
   not in the smoke suite.** The `data-hmk-from`/`data-hmk-to` span emission is
-  pinned by `tests/plantuml_check.cjs` (pure logic, no dev host / no server);
-  the smoke suite only asserts the generic block/paragraph/code-fence
-  highlight (checks 7e). Highlighting a live rendered `<img>` requires a
+  pinned by `tests/plantuml_check.cjs` and `tests/mermaid_check.cjs` (pure
+  logic, no dev host / no server); the smoke suite asserts the generic
+  block/paragraph/code-fence highlight (checks 7e) plus the mermaid click-to-
+  source echo (7g). Highlighting a live rendered puml `<img>` requires a
   configured PlantUML server on a dedicated host (section 3d/3e).
 - The onboarding overlay only appears on **fresh** profiles; once dismissed it
   is persisted and `open_view.cjs` becomes a no-op for steps 1.

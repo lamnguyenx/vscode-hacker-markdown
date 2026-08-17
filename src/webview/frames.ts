@@ -204,6 +204,11 @@ function setupFrameEvents(frame: HTMLElement): void {
 
 	frame.addEventListener('click', (e) => {
 		if (!e.altKey || s.dragged) {
+			// A pan/zoom drag-release fires a click on the frame: stop it here
+			// so it never reaches the preview click handler (click-to-source).
+			if (s.dragged) {
+				e.stopPropagation();
+			}
 			return;
 		}
 		e.preventDefault();

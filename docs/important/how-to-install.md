@@ -110,7 +110,7 @@ NOT be excluded, or the webview would 404).
   this repository (`--extensionDevelopmentPath="$PWD"`) — it does **not** read
   the installed copy.
 - **A normal VS Code window** runs the **installed** copy under
-  `~/.vscode/extensions/lamnt45.vscode-hacker-markdown-0.0.1/`. If you're
+  `~/.vscode/extensions/lamnt45.vscode-hacker-markdown-2026.08.17-1/`. If you're
   watching a normal window (not a dev host) while editing, changes in the repo
   are invisible until you re-run `make install` and reload.
 
@@ -164,7 +164,7 @@ edits to appear. Extension-host edits (`src/*.ts`) always need the reload.
   aggressively; confirm the served asset URL carries a new `?v=` mtime
   (check the running page's `main.css?v=…`) and that the file on disk was
   actually refreshed (compare `stat` on
-  `~/.vscode/extensions/lamnt45.vscode-hacker-markdown-0.0.1/build/main.css`).
+  `~/.vscode/extensions/lamnt45.vscode-hacker-markdown-2026.08.17-1/build/main.css`).
 - **"Works in the dev host, but a normal window looks stale."** The dev host
   runs straight from the repo (`--extensionDevelopmentPath="$PWD"`), so it
   always shows the latest build; a normal window runs the *installed* copy,

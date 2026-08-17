@@ -11,6 +11,7 @@ import {
 	scheduleFrameScan
 } from './frames';
 import { setCursorLine, reapplyCursorHighlight, clearCursorHighlight, cursorBoxForLine } from './cursor';
+import { sourceLineForClick } from './source';
 import { initMediaControls, applyMediaState } from './menus';
 
 // The page may load after the host already pushed its state (webview
@@ -141,6 +142,16 @@ new MutationObserver(() => {
 	reapplyCursorHighlight();
 }).observe(previewEl, { childList: true, subtree: true });
 
+// The last mouse-down position, used to skip drag-releases in the
+// click-to-source handler (a pan/zoom drag ends in a click event; mermaid's
+// own wrapper does not stop it from bubbling).
+let lastDownX = 0;
+let lastDownY = 0;
+document.addEventListener('mousedown', (e) => {
+	lastDownX = e.clientX;
+	lastDownY = e.clientY;
+}, { passive: true });
+
 previewEl.addEventListener('click', (e) => {
 	if (e.defaultPrevented) {
 		return;
@@ -156,21 +167,36 @@ previewEl.addEventListener('click', (e) => {
 		return;
 	}
 	const anchor = target?.closest('a[href]');
-	if (!anchor) {
-		return;
-	}
-	const href = anchor.getAttribute('data-href') || anchor.getAttribute('href') || '';
-	if (href.startsWith('#')) {
-		const fragmentTarget = document.getElementById(href.slice(1));
-		if (fragmentTarget) {
+	if (anchor) {
+		const href = anchor.getAttribute('data-href') || anchor.getAttribute('href') || '';
+		if (href.startsWith('#')) {
+			const fragmentTarget = document.getElementById(href.slice(1));
+			if (fragmentTarget) {
+				e.preventDefault();
+				fragmentTarget.scrollIntoView({ block: 'start' });
+			}
+			return;
+		}
+		if (href) {
 			e.preventDefault();
-			fragmentTarget.scrollIntoView({ block: 'start' });
+			post({ type: 'openLink', href });
+			return;
 		}
 		return;
 	}
-	if (href) {
-		e.preventDefault();
-		post({ type: 'openLink', href });
+	// Click-to-source: a plain click on a rendered block moves the editor
+	// cursor to the matching source line. Modifier-clicks are excluded — Alt
+	// drives the frame/mermaid pan/zoom gestures — and a click whose mouse
+	// moved since mousedown is a drag-release (pan/zoom), not a click.
+	if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
+		return;
+	}
+	if (Math.abs(e.clientX - lastDownX) > 4 || Math.abs(e.clientY - lastDownY) > 4) {
+		return;
+	}
+	const line = sourceLineForClick(target, e.clientY);
+	if (line !== undefined) {
+		post({ type: 'editorLine', line });
 	}
 });
 
