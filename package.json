@@ -2,7 +2,7 @@
 	"name": "vscode-hacker-markdown",
 	"displayName": "Hacker Markdown",
 	"description": "A Markdown preview you can dock in the Panel or Primary Sidebar, or open in the Editor.",
-	"version": "0.0.1",
+	"version": "2026.08.17-1",
 	"publisher": "lamnt45",
 	"license": "MIT",
 	"repository": {
@@ -74,6 +74,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "When the cursor moves in the Markdown editor, highlight the matching line in the preview with a blue outline box."
+				},
+				"hackerMarkdown.clickToSource": {
+					"type": "boolean",
+					"default": true,
+					"description": "When a block is clicked in the preview, move the editor cursor to the matching source line."
 				},
 				"hackerMarkdown.styles": {
 					"type": "array",

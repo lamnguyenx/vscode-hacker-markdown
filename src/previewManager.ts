@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { PreviewHost, isCssLength } from './previewHost';
 import { rewritePumlFences } from './plantuml/renderFragment';
+import { rewriteMermaidFences } from './mermaid/renderFragment';
 
 const RENDER_DELAY_MS = 300;
 const SCROLL_SYNC_GRACE_MS = 1500;
@@ -271,6 +272,10 @@ export class PreviewManager implements vscode.Disposable {
 			// for this preview only (the stock preview is untouched — we
 			// rewrite our own copy of the fragment, not the shared engine).
 			fragment = rewritePumlFences(fragment, doc);
+			// The mermaid plugin drops the engine's `data-line` source map, so
+			// attach the fence/container spans from the document instead
+			// (cursor highlight + click-to-source for rendered diagrams).
+			fragment = rewriteMermaidFences(fragment, doc);
 			// Only broadcast if the document didn't change while rendering.
 			if (this.doc === doc) {
 				for (const host of this.hosts) {
@@ -332,6 +337,9 @@ export class PreviewManager implements vscode.Disposable {
 				break;
 			case 'scrollLine':
 				this.onPreviewScroll(host, Number(message.line) || 0);
+				break;
+			case 'editorLine':
+				this.revealEditorLine(Number(message.line) || 0);
 				break;
 			case 'setMedia':
 				this.setMedia(String(message.key ?? ''), String(message.value ?? ''));
@@ -475,6 +483,30 @@ export class PreviewManager implements vscode.Disposable {
 		const target = Math.min(line, editor.document.lineCount - 1);
 		const range = new vscode.Range(target, 0, target, 0);
 		editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+	}
+
+	// --- click-to-source (preview -> editor) --------------------------------
+
+	/**
+	 * A block was clicked in a preview: move the editor cursor to the matching
+	 * source line. The selection change fires `onDidChangeTextEditorSelection`,
+	 * which re-highlights the same block in the preview (harmless echo) and
+	 * would recenter it — the `lastPreviewScrollAt` stamp below makes the
+	 * scroll-sync grace timer swallow that echo, so the clicked block stays put.
+	 * Focus stays in the preview (`preserveFocus`) so you can keep clicking.
+	 */
+	private revealEditorLine(line: number): void {
+		if (!this.doc) {
+			return;
+		}
+		if (!vscode.workspace.getConfiguration('hackerMarkdown').get<boolean>('clickToSource', true)) {
+			return;
+		}
+		const doc = this.doc;
+		this.lastPreviewScrollAt = Date.now();
+		const target = Math.min(Math.max(0, line), doc.lineCount - 1);
+		const range = new vscode.Range(target, 0, target, 0);
+		void vscode.window.showTextDocument(doc, { preserveFocus: true, selection: range });
 	}
 
 	// --- editor area ---------------------------------------------------------

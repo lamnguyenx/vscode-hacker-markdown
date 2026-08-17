@@ -30,4 +30,5 @@ export type WebviewMessage =
 	| { type: 'openLink'; href: string }
 	| { type: 'scrollLine'; line: number }
 	| { type: 'command'; id: string }
+	| { type: 'editorLine'; line: number }
 	| { type: 'setMedia'; key: 'invert' | 'columnWidth' | 'tables'; value: string };

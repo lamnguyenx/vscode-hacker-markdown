@@ -120,8 +120,8 @@ details underneath the feature list, and the product limitations.
   `src/webview/line-sync.ts#centerElement`. The render-time reading-position
   restore uses a *minimal reveal* instead, so re-renders never recenter away
   from the reader's place.
-- **Cursor sync (highlight).** A blue outline box (`.hmk-cursor`) in the
-  preview that follows the editing cursor
+- **Cursor sync (highlight) + click-to-source.** A blue outline box
+  (`.hmk-cursor`) in the preview that follows the editing cursor
   (`hackerMarkdown.cursorPreviewWithEditor`, default on, independent of scroll
   sync). The host broadcasts the active selection line (`cursorLine` message)
   on every selection change and on doc switch; the webview
@@ -130,13 +130,19 @@ details underneath the feature list, and the product limitations.
   source span contains the line (added by the puml fence rewrite in
   `src/plantuml/fences.ts`, which reads the fence's `data-line` — on the inner
   `<code>`, like the built-in preview's source map — and applies the same
-  `endLine` math); (2) an exact `data-line` match; (3) the containing block —
+  `endLine` math; mermaid blocks get the same span from
+  `src/mermaid/fences.ts`, which scans the document because the mermaid
+  plugin's custom renderer drops `data-line`); (2) an exact `data-line` match;
+  (3) the containing block —
   the greatest `data-line` at or above the line, innermost first (a paragraph,
   a code fence, a heading for a blank line). The highlight is re-applied after
   every re-render (renders recreate every element) and after late async
   renders (the frame-scan MutationObserver path). The box sits directly on the
   block, or on the puml `<img>` inside `.hmk-frame-content` so it scales with
-  the pan/zoom transform.
+  the pan/zoom transform. The **reverse** direction is click-to-source
+  (`hackerMarkdown.clickToSource`, default on): clicking a rendered block in
+  the preview moves the editor cursor to the matching source line (see
+  `docs/important/editor-preview-sync.md`).
 - **Clickable links.** Internal links open in the editor (and re-target the
   preview), external links open in the system browser, `#fragment` links
   scroll within the preview.
@@ -155,9 +161,12 @@ details underneath the feature list, and the product limitations.
   letters relies on the editor's `quickSuggestions`; the `@`/`!` triggers and
   `Ctrl+Space` always work.
 - Cursor sync is a **highlight only.** Rendered blocks from renderers we don't
-  rewrite (mermaid via contributed `markdown.previewScripts`, `jebbs.plantuml`'s
-  in-engine `<img>`) carry no `data-hmk-*` span, so a cursor *inside* such a
-  fence falls back to the containing block above the media. The highlight maps
+  rewrite (e.g. `jebbs.plantuml`'s
+  in-engine `<img>`, KaTeX output) carry no `data-hmk-*` span, so a cursor
+  *inside* such a block falls back to the containing block above the media (and
+  a click on it jumps to that block). Puml and mermaid rendered by our
+  rewrites always get the range (mermaid's span is scanned from the document
+  because its plugin drops the engine's `data-line`). The highlight maps
   against the rendered (possibly stale under `renderOnSave`) document, and
   moving the cursor does not scroll unless `scrollPreviewWithEditor` is also
   on.

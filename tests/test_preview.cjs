@@ -231,10 +231,48 @@ async function main() {
     await gotoLine(13);
     const tFence = await evalUntil(first.session, `(() => { const el = d.querySelector('#preview .hmk-cursor'); if (!el || el.tagName !== 'PRE') return null; const code = el.querySelector('code'); return code && code.getAttribute('data-line') === '10' ? 'pre' : null; })()`, 8000);
     check('cursor sync: inside a code fence highlights the fence', tFence === 'pre', tFence || 'no fence fallback');
+
+    // 7f) Click-to-source: clicking a rendered block in the preview moves the
+    // editor cursor there. Drive with trusted CDP clicks (a synthetic
+    // .click() would skip the coordinate resolution in sourceLineForClick).
+    // The editor cursor is on the python fence (line 13) — clicking the
+    // h3[data-line="6"] should move it there, and the echo cursor-sync brings
+    // the box back to the h3 (the end-to-end proof of the whole chain: click
+    // -> editorLine message -> editor selection -> echo highlight).
+    await run(`(() => { const h = d.querySelector('#preview h3[data-line="6"]'); if (!h) return false; h.scrollIntoView({ block: 'center' }); return true; })()`);
+    await sleep(400);
+    const h3Rect = await run(`(() => { const h = d.querySelector('#preview h3[data-line="6"]'); if (!h) return null; const r = h.getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
+    if (h3Rect) {
+      await first.session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: h3Rect.x, y: h3Rect.y, button: 'left', clickCount: 1 });
+      await first.session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: h3Rect.x, y: h3Rect.y, button: 'left', clickCount: 1 });
+      const tClick = await evalUntil(first.session, `(() => { const el = d.querySelector('#preview .hmk-cursor'); return el && el.tagName === 'H3' && el.getAttribute('data-line') === '6' ? 'h3' : null; })()`, 8000);
+      check('click-to-source: preview click moves the editor cursor (echo highlight)', tClick === 'h3', tClick || 'no highlight move');
+
+      // 7g) Click-to-source on a rendered mermaid diagram: the host attaches
+      // data-hmk-from/to to the .mermaid block (the plugin drops the engine's
+      // data-line), so clicking the visible diagram jumps to the fence. The
+      // editor cursor is on the h3 (line 6) here; clicking the diagram should
+      // move it to the mermaid fence (line 57).
+      await run(`(() => { const w = d.querySelector('#preview .mermaid-wrapper'); if (!w) return false; w.scrollIntoView({ block: 'center' }); return true; })()`);
+      await sleep(400);
+      const mermaidRect = await run(`(() => { const w = d.querySelector('#preview .mermaid-wrapper'); if (!w) return null; const r = w.getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }; })()`);
+      if (mermaidRect) {
+        await first.session.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: mermaidRect.x, y: mermaidRect.y, button: 'left', clickCount: 1 });
+        await first.session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: mermaidRect.x, y: mermaidRect.y, button: 'left', clickCount: 1 });
+        const tMermaid = await evalUntil(first.session, `(() => { const el = d.querySelector('#preview .hmk-cursor'); if (!el) return null; const m = el.closest('.mermaid-wrapper'); return m && m.querySelector('[data-hmk-from="57"]') ? 'mermaid' : null; })()`, 8000);
+        check('click-to-source: mermaid diagram click jumps to the fence', tMermaid === 'mermaid', tMermaid || 'no mermaid highlight');
+      } else {
+        check('click-to-source: mermaid diagram click jumps to the fence', false, 'mermaid-wrapper not found');
+      }
+    } else {
+      check('click-to-source: preview click moves the editor cursor (echo highlight)', false, 'h3 not found');
+    }
   } else {
     check('cursor sync: exact line highlighted', false, 'editor not focusable');
     check('cursor sync: containing-block fallback (paragraph/blank line)', false, 'editor not focusable');
     check('cursor sync: inside a code fence highlights the fence', false, 'editor not focusable');
+    check('click-to-source: preview click moves the editor cursor (echo highlight)', false, 'editor not focusable');
+    check('click-to-source: mermaid diagram click jumps to the fence', false, 'editor not focusable');
   }
   pageCursor.close();
 

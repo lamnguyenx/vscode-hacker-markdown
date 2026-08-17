@@ -78,6 +78,12 @@ function blockTarget(el: HTMLElement): HTMLElement {
 	if (frame) {
 		return frame;
 	}
+	// Mermaid's `.mermaid` pre is `display: unset` (inline), so its own box is
+	// a sliver; box the whole `.mermaid-wrapper` (the visible diagram) instead.
+	const mermaid = el.closest<HTMLElement>('.mermaid-wrapper');
+	if (mermaid) {
+		return mermaid;
+	}
 	return el;
 }
 
