@@ -70,7 +70,9 @@ details underneath the feature list, and the product limitations.
   `fences.ts`): escaped fence source → deflate+encode64 (synchro.js) →
   `<img src="<server>/<svg|png>/<…>">`, one per `newpage`. Config lives in
   `hackerMarkdown.plantuml.server` / `.includepaths`; `!include` resolves
-  relative to the Markdown file's folder. No server configured → each puml
+  relative to the Markdown file's folder. The server defaults to
+  `http://localhost:9274` (the `plantuml/docker-compose.yml` stack); an
+  explicitly empty value → each puml
   fence becomes an in-preview error notice ("PlantUML server is not set", with
   an *Open Settings* button that opens the setting via
   `workbench.action.openSettings`, and the source kept behind a `<details>`;

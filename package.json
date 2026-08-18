@@ -98,8 +98,8 @@
 				"hackerMarkdown.plantuml.server": {
 					"type": "string",
 					"scope": "machine-overridable",
-					"default": "",
-					"description": "PlantUML server used to render `puml`/`plantuml`/`uml` fences in the preview as SVG images (e.g. http://localhost:8080). When empty, those fences stay as ordinary code blocks."
+					"default": "http://localhost:9274",
+					"description": "PlantUML server used to render `puml`/`plantuml`/`uml` fences in the preview as SVG images. Defaults to http://localhost:9274 (the `plantuml/docker-compose.yml` stack). Set another URL to use a different server; set empty to disable diagram rendering."
 				},
 				"hackerMarkdown.plantuml.includepaths": {
 					"type": "array",
