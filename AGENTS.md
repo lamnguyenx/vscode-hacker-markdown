@@ -10,6 +10,7 @@
 - `./tools` contains dev-host tooling (`launch-devhost.sh`, `kill-devhost.sh`).
 - `_refs/`: references, read-only
   - `_refs/vscode` : source code of vscode for refrence only
+  - `_refs/code-server` : source code of code-server for refrence only
 
 ## Testing
 

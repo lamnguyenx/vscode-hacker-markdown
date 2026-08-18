@@ -82,10 +82,26 @@ export function keepStaleBlocks(stale: StaleBlock[]): void {
 		}
 		if (isImg) {
 			keepStaleImg(s.el as HTMLImageElement, target.el as HTMLImageElement);
+		} else if (carriesRenderedContent(target.el)) {
+			// The new block already carries its final rendered content (an
+			// inlined PlantUML `<svg>`, or a raw `<img>` from a renderer that
+			// emits the tag directly). There is no placeholder to hold for —
+			// the old block's height is already replaced by the new one, so a
+			// holder would linger for its whole 8s fallback and block the
+			// pan/zoom frame (`isFrameable` excludes `.hmk-stale-holder`).
+			// Keep the old block's role in flow through the swap, but without
+			// a wrapper: the container-hold path below is only for renderers
+			// that empty their placeholder and fill it asynchronously
+			// (mermaid/KaTeX), which never applies to already-rendered media.
 		} else {
 			holdPlaceholderHeight(s.el, target.el, s.height ?? 0);
 		}
 	}
+}
+
+/** True when `el` is (or contains) a rendered `img`/`svg` — i.e. no placeholder. */
+function carriesRenderedContent(el: Element): boolean {
+	return el.matches('svg, img') || !!el.querySelector('svg, img');
 }
 
 function keepStaleImg(oldImg: HTMLImageElement, newImg: HTMLImageElement): void {
@@ -125,8 +141,16 @@ function holdPlaceholderHeight(oldEl: Element, newEl: Element, height: number): 
 		// render's snapshot.
 		holder.replaceWith(...holder.childNodes);
 	};
+	const filled = () => !!holder.querySelector('svg, img');
+	if (filled()) {
+		// Already-rendered content (e.g. an inlined PlantUML SVG): there is no
+		// placeholder to wait for — unwrap after a short badge delay instead of
+		// the 8s fallback (the observer below would otherwise never fire).
+		setTimeout(finish, 120);
+		return;
+	}
 	const observer = new MutationObserver(() => {
-		if (holder.querySelector('svg, img')) {
+		if (filled()) {
 			observer.disconnect();
 			// Keep the badge visible briefly even for fast renders, so the
 			// re-rendering state is perceivable (and the height hold does
