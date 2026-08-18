@@ -35,7 +35,7 @@ export function snapshotStaleBlocks(): StaleBlock[] {
 		if (child.hasAttribute('data-line')) {
 			lineCount++;
 			gapOrder = 0;
-		} else if (child.tagName === 'IMG' || child.querySelector('svg, img')) {
+		} else if (child.tagName === 'IMG' || child.tagName.toUpperCase() === 'SVG' || child.querySelector('svg, img')) {
 			// rect height (not offsetHeight): renderer placeholders are
 			// often inline (e.g. mermaid's pre has style="all: unset").
 			const height = child.getBoundingClientRect().height;

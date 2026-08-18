@@ -2,7 +2,7 @@
 	"name": "vscode-hacker-markdown",
 	"displayName": "Hacker Markdown",
 	"description": "A Markdown preview you can dock in the Panel or Primary Sidebar, or open in the Editor.",
-	"version": "2026.08.17-1",
+	"version": "2026.8.18-3",
 	"publisher": "lamnt45",
 	"license": "MIT",
 	"repository": {
@@ -19,7 +19,9 @@
 		"onView:hackerMarkdown.preview",
 		"onCommand:hackerMarkdown.open",
 		"onCommand:hackerMarkdown.openInEditor",
+		"onCommand:hackerMarkdown.togglePreview",
 		"onCommand:hackerMarkdown.refresh",
+		"onWebviewPanel:hackerMarkdown.panel",
 		"onLanguage:markdown"
 	],
 	"main": "./out/extension.js",
@@ -137,6 +139,11 @@
 					],
 					"default": "pan",
 					"description": "Wide table handling in the preview. `pan` makes each table scroll horizontally inside its own region; `fit` wraps to the column. Toggle from the preview toolbar."
+				},
+				"hackerMarkdown.overridePreviewShortcut": {
+					"type": "boolean",
+					"default": true,
+					"description": "Override the built-in preview shortcut (Ctrl/Cmd+Shift+V) so it opens the Hacker Markdown preview instead of the built-in one. When disabled, the shortcut runs the built-in preview command."
 				}
 			}
 		},
@@ -170,8 +177,25 @@
 				"title": "Hacker Markdown: Open Preview in Editor"
 			},
 			{
+				"command": "hackerMarkdown.togglePreview",
+				"title": "Hacker Markdown: Toggle Preview"
+			},
+			{
 				"command": "hackerMarkdown.refresh",
 				"title": "Hacker Markdown: Refresh Preview"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "hackerMarkdown.open",
+				"key": "ctrl+alt+shift+h",
+				"when": "editorFocus && !terminalFocus"
+			},
+			{
+				"command": "hackerMarkdown.togglePreview",
+				"key": "shift+ctrl+v",
+				"mac": "shift+cmd+v",
+				"when": "!terminalFocus && ((editorFocus && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused) || activeCustomEditorId == 'vscode.markdown.preview.editor')"
 			}
 		],
 		"menus": {
@@ -181,6 +205,9 @@
 				},
 				{
 					"command": "hackerMarkdown.openInEditor"
+				},
+				{
+					"command": "hackerMarkdown.togglePreview"
 				},
 				{
 					"command": "hackerMarkdown.refresh"

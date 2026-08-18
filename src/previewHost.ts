@@ -93,8 +93,12 @@ export class PreviewHost {
 	}
 
 	public setDocument(uri: vscode.Uri): void {
+		this.docUri = uri;
 		this.docName = uri.path.split('/').pop() || 'Preview';
-		this.post({ type: 'setDoc', name: this.docName });
+		// The webview persists the uri via `setState` so a serialized editor
+		// panel (window reload / move to another window) can be restored to
+		// the same document.
+		this.post({ type: 'setDoc', name: this.docName, uri: uri.toString() });
 	}
 
 	public render(fragment: string): void {

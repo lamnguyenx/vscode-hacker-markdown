@@ -213,6 +213,38 @@ Knowledge for anyone adding IntelliSense (or other language features) to an
   leaks one request's range into the next (and across documents). Cache the
   labels; build fresh item objects per request and assign the computed range.
 
+## Same-key extension keybindings: last registered candidate wins
+
+- **The resolver picks the *last* registered candidate whose `when` matches**
+  (`_findCommand` in `keybindingResolver.ts`) — not "the most specific", not
+  "the built-in". An extension that wants to take over a key must end up as
+  the last matching binding on that key.
+- **Registration order = weight, then command id.** The merged keybindings
+  sort by `weight1 = (BuiltinExtension(300) | ExternalExtension(400)) + idx`,
+  where `idx` is the 1-based index of the keybinding inside that extension's
+  `contributes.keybindings`; ties sort by command id. So a user extension's
+  FIRST contributed keybinding has weight 401, and against a competitor also
+  at 401 the command-id tiebreak decides — `hackerMarkdown.*` sorts *before*
+  `markdown*`/`markdownViewer*`, so those win. The built-in `markdown.togglePreview`
+  is weight ~302, below all external bindings.
+- **Bump the weight to win.** Making the target binding the 2nd contributed
+  keybinding raises it to 402, after every 401 competitor (this repo: a
+  harmless `ctrl+alt+shift+h` → `hackerMarkdown.open` binding comes first, so
+  `hackerMarkdown.togglePreview` on `ctrl+shift+v` wins). The `when` then
+  only needs to *match* in the intended context (scoped to markdown-family
+  here, so HTML/Python keep their own `ctrl+shift+v` bindings).
+- **Verify empirically, don't trust the model.** `Developer: Toggle Keyboard
+  Shortcuts Troubleshooting` logs each press in the renderer console:
+  `From N keybinding entries, matched <command>` + `Invoking command <id>`.
+  Use it to confirm which command actually fired.
+- **Stale-window trap.** The manifest is read at window startup; after editing
+  `contributes.keybindings`, a window that did not actually restart shows the
+  *old* `when` in the Keyboard Shortcuts table. Confirm the main process
+  really restarted (port freed, then a new pid) before concluding the manifest
+  is wrong. Killing "the first `pgrep -f remote-debugging-port` match" can
+  kill a **renderer** and leave the window alive — kill the `ss`-reported main
+  pid instead.
+
 ## CDP input automation
 
 - **Trusted input only.** VS Code's keybinding service ignores synthetic
@@ -395,3 +427,17 @@ integrates with:
   launching, and treat any new log dir under
   `exp/devhost/logs/<timestamp>` as the proof a fresh window actually
   started.
+- **A moved editor-area preview leaves a second window that session restore
+  keeps.** Moving the preview panel to a new window (`View: Move Editor into
+  New Window`) creates a real second window; after closing it, relaunching
+  session-restores *both* windows (two `page` targets on the CDP port) until
+  the extra one is closed for good. Don't debug "why two windows?" — close
+  the extra tab/window. Related: an editor-area preview that was moved out of
+  a window leaves that window without the panel; `hackerMarkdown.open` /
+  `Ctrl+Shift+V` re-opens it (or re-creates it, since the serializer restores
+  the moved panel in the target window).
+- **`make install` skips an unchanged version.** The install delegates to
+  `vscode-hacker-meta`, which leaves an already-installed version in place
+  when `package.json#version` is unchanged, and it can forward to a **running**
+  instance instead of installing locally. After editing `package.json`, bump
+  the version or overwrite the extension dir in place, then reload.

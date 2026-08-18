@@ -21,6 +21,7 @@ const path = require('path');
 
 const { rewritePumlFences } = require('../out/plantuml/fences.js');
 const { getDiagramURIComponent } = require('../out/plantuml/plantumlURL.js');
+const { saltInvocationLines } = require('../out/plantuml/invocations.js');
 
 const SERVER = 'http://localhost:9274';
 
@@ -264,11 +265,97 @@ run('pre/code without data-line gets no span (graceful degrade)', () => {
   const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
   const m = out.match(/<img[^>]*src="([^"]+)"\/?>/);
   assert.ok(m, 'no img: ' + out);
-  assert.ok(!out.includes('data-hmk-'), 'unexpected span without data-line: ' + out);
+  assert.ok(!/data-hmk-(?:from|to)=/.test(out), 'unexpected span without data-line: ' + out);
+  assert.ok(out.includes('data-hmk-puml'), 'marker attr missing: ' + out);
 });
 run('non-puml fences still untouched', () => {
   const html = fenceHtml('mermaid', 'flowchart LR\n A --> B');
   assert.strictEqual(rewritePumlFences(html, { server: SERVER, includePaths: [] }), html);
+});
+
+section('!pragma sourceFile injection (salt data-source-code support)');
+run('injected when a file docUri is present', () => {
+  const src = '@startuml\nAlice -> Bob\n@enduml';
+  const out = rewritePumlFences(fenceHtml('puml', src), {
+    server: SERVER,
+    includePaths: [],
+    docUri: { scheme: 'file', fsPath: '/abs/doc.md' },
+  });
+  const m = out.match(/src="([^"]+)"/);
+  const body = zlib.inflateRawSync(decode64(m[1].split('/').pop())).toString('utf8');
+  assert.ok(body.includes('!pragma sourceFile /abs/doc.md'), 'pragma missing: ' + body);
+  assert.ok(body.startsWith('@startuml\n!pragma'), 'pragma not right after @start: ' + body);
+});
+run('not injected without a file docUri', () => {
+  const src = '@startuml\nAlice -> Bob\n@enduml';
+  const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+  const m = out.match(/src="([^"]+)"/);
+  const body = zlib.inflateRawSync(decode64(m[1].split('/').pop())).toString('utf8');
+  assert.ok(!body.includes('sourceFile'), 'unexpected pragma: ' + body);
+});
+run('user-supplied pragma is not duplicated', () => {
+  const src = '@startuml\n!pragma sourceFile /mine.puml\nAlice -> Bob\n@enduml';
+  const out = rewritePumlFences(fenceHtml('puml', src), {
+    server: SERVER,
+    includePaths: [],
+    docUri: { scheme: 'file', fsPath: '/abs/doc.md' },
+  });
+  const m = out.match(/src="([^"]+)"/);
+  const body = zlib.inflateRawSync(decode64(m[1].split('/').pop())).toString('utf8');
+  const count = (body.match(/sourceFile/g) || []).length;
+  assert.strictEqual(count, 1, 'pragma duplicated: ' + body);
+});
+
+section('SALT invocation scan (procedure-rendered mockup click-to-source)');
+run('first occurrence per distinct target, in order', () => {
+  const doc = [
+    'not a fence',
+    '```plantuml',
+    '@startuml',
+    '(*) --> SALT(form_empty)',
+    'form_empty --> SALT(sample_row_empty)',
+    'sample_row_empty --> SALT(sample_recording)',
+    'sample_recording --> SALT(sample_done)',
+    'sample_done --> SALT(sample_recording)', // repeat: same target as line 5
+    '```',
+    '',
+  ].join('\n');
+  const map = saltInvocationLines(doc);
+  assert.strictEqual(map.size, 1, 'expected one fence');
+  assert.deepStrictEqual([...map.values()][0], [3, 4, 5, 6], 'wrong lines: ' + JSON.stringify([...map.values()]));
+});
+run('macro definition and comments do not count', () => {
+  const doc = [
+    '```plantuml',
+    '!unquoted procedure SALT($x)',
+    '"{{salt',
+    '%invoke_procedure("_"+$x)',
+    '}}" as $x',
+    '!endprocedure',
+    "' (*) --> SALT(commented_out)",
+    '(*) --> SALT(real)',
+    '```',
+  ].join('\n');
+  const map = saltInvocationLines(doc);
+  assert.deepStrictEqual([...map.values()][0], [7], 'definition/comments leaked: ' + JSON.stringify([...map.values()]));
+});
+run('per-fence lists, keyed by fence opening line', () => {
+  const doc = [
+    '```plantuml',
+    '(*) --> SALT(a)',
+    '```',
+    '',
+    '```puml',
+    '(*) --> SALT(b)',
+    '(*) --> SALT(c)',
+    '```',
+  ].join('\n');
+  const map = saltInvocationLines(doc);
+  assert.deepStrictEqual([...map.entries()].map(([k, v]) => [k, v]), [[0, [1]], [4, [5, 6]]]);
+});
+run('non-puml fences ignored', () => {
+  const doc = ['```python', 'x = SALT(not_a_diagram)', '```'].join('\n');
+  assert.strictEqual(saltInvocationLines(doc).size, 0);
 });
 
 console.log('\nplantuml_check: all checks passed');

@@ -428,3 +428,17 @@ body:not(.hmk-pinned) .doc-name::after {
 	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
 	border-radius: 6px;
 }
+
+/* Cursor box on a SALT mockup inside an inlined PlantUML SVG: server-tagged
+ * notes (`<g data-source-code>`) and procedure-rendered activity mockups
+ * (`<image data-hmk-from>` added by the webview). Outline renders on SVG
+ * content in Chromium; box-shadow does not, so the salt box drops the shadow
+ * and glows via drop-shadow (the mockup is a flat image, so the shadow
+ * follows its rectangle). The box is inside the pan/zoom transform, so it
+ * scales with the diagram. */
+.markdown-body g[data-source-code].hmk-cursor,
+.markdown-body svg image[data-hmk-from].hmk-cursor {
+	box-shadow: none;
+	border-radius: 0;
+	filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.9)) drop-shadow(0 0 6px rgba(59, 130, 246, 0.45));
+}

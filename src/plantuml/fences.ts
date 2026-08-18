@@ -34,13 +34,33 @@ export function rewritePumlFences(html: string, opts: FenceOptions): string {
 		if (!opts.server) {
 			return pumlServerError(innerHtml);
 		}
-		const diagram = new Diagram(unescapeHtml(innerHtml), docUri, opts.includePaths);
+		const source = unescapeHtml(innerHtml);
+		const range = fenceSourceRange(preAttrs, codeAttrs, innerHtml);
+		// The salt-capable PlantUML server only emits per-SALT `data-source-code`
+		// ranges when the source file is known (`!pragma sourceFile`). The
+		// server only knows the fence content as a string, so inject the
+		// current markdown file's path here — the webview then translates the
+		// 1-based, diagram-relative ranges back with the fence's `data-hmk-from`.
+		// The pragma is inert on servers that do not know it.
+		const diagram = new Diagram(withSourceFilePragma(source, docUri), docUri, opts.includePaths);
 		const format = diagram.type === DiagramType.Ditaa ? 'png' : 'svg';
 		const urls = Array.from({ length: diagram.pageCount }, (_, index) =>
 			makePlantumlURL(opts.server, diagram, format, index));
-		const range = fenceSourceRange(preAttrs, codeAttrs, innerHtml);
-		return urls.map((url) => `\n<img style="background-color:#FFF;"${range} src="${url}">`).join('');
+		return urls.map((url) => `\n<img style="background-color:#FFF;"${range} data-hmk-puml src="${url}">`).join('');
 	});
+}
+
+/**
+ * Adds `!pragma sourceFile <path>` right after the diagram's opening
+ * `@start…` line so the server can emit `data-source-code` salt ranges (see
+ * `docs/important/plantuml-server-salt-source-code.md`). A diagram that
+ * already carries the pragma is left as-is (the user's value wins).
+ */
+function withSourceFilePragma(source: string, docUri: DiagramUri | undefined): string {
+	if (!docUri || /^\s*!pragma\s+sourceFile\b/im.test(source)) {
+		return source;
+	}
+	return source.replace(/^@start\w+\b/im, (match) => `${match}\n!pragma sourceFile ${docUri.fsPath}`);
 }
 
 /**

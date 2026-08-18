@@ -16,7 +16,8 @@ export interface MediaState {
 
 /** Host -> webview (see `PreviewHost.post`). */
 export type HostMessage =
-	| { type: 'setDoc'; name: string }
+	/** `uri` is the document the preview shows — the webview persists it via `setState` so a serialized editor panel can be restored. */
+	| { type: 'setDoc'; name: string; uri?: string }
 	| { type: 'render'; html: string }
 	| { type: 'empty' }
 	| { type: 'scrollToLine'; line: number }
@@ -30,5 +31,6 @@ export type WebviewMessage =
 	| { type: 'openLink'; href: string }
 	| { type: 'scrollLine'; line: number }
 	| { type: 'command'; id: string }
-	| { type: 'editorLine'; line: number }
+	/** `from`/`to` are set when the click maps to a whole source range (a SALT block). */
+	| { type: 'editorLine'; line: number; from?: number; to?: number }
 	| { type: 'setMedia'; key: 'invert' | 'columnWidth' | 'tables'; value: string };

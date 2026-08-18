@@ -31,7 +31,8 @@ Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
 | `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
 | `tests/test_preview.cjs` | Full 21-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
-| `tests/plantuml_check.cjs` | Pure-logic check of the PlantUML preview rendering (no dev host, no server) |
+| `tests/plantuml_check.cjs` | Pure-logic check of the PlantUML preview rendering (fence rewrite, `!pragma sourceFile` injection, svg/png, newpage, escaping, `!include` — no dev host, no server) |
+| `tests/plantuml_inline_check.cjs` | Pure-logic check of the PlantUML SVG inlining (img→svg replacement, span copy, graceful failure — stubbed fetcher, no dev host, no server) |
 | `tests/mermaid_check.cjs` | Pure-logic check of the mermaid source-span rewrite (no dev host) |
 | `tests/plantuml_completion_check.cjs` | Pure-logic check of the in-markdown PlantUML code completions: fence detection + catalog (no dev host) |
 | `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
@@ -439,6 +440,20 @@ empty, a puml fence becomes the `.hmk-puml-error` notice with an *Open
 Settings* button (opens the setting via `workbench.action.openSettings`),
 instead of an image.
 
+The diagrams are **inlined SVGs**, not `<img>`s: after the fence rewrite the
+extension fetches each SVG (host-side, no CORS) and splices it into the
+fragment (`src/plantuml/inlineSvg.ts`). This is what lets the webview read the
+salt-capable server's `data-source-code` ranges for cursor highlight and
+click-to-source, and what keeps the canvas clamped (the SVG is wrapped in the
+usual `.hmk-frame` pan/zoom frame — `max-width: 100%`). The pure logic is
+pinned by `tests/plantuml_inline_check.cjs` (stubbed fetcher) and the SALT
+invocation scan by `tests/plantuml_check.cjs`. For the full salt-sync e2e
+(cursor over a mockup → the mockup gets the box; clicking it selects the exact
+source lines), run the dev host against `tests/samples/enroll-flow.puml.md`
+with the locally-built server on 9274: note-on-link mockups jump to their
+`{{salt` block, and procedure-rendered activity mockups (one per distinct
+`SALT(x)` alias) jump to the first invocation line.
+
 ## 3f. TextMate / syntax highlighting (grammars)
 
 The extension contributes TextMate grammars (`syntaxes/*`): `source.wsd`
@@ -507,6 +522,37 @@ Ctrl+Space (or type `@` / `!`) inside the fence shows the list; outside the
 fence nothing pops. Guidance on activating/relaunching the host: sections
 1–2 and 5.
 
+## 3h. Ctrl/Cmd+Shift+V override & cross-window placement
+
+Two placement/shortcut features worth an explicit check:
+
+- **Keybinding override.** The extension takes over `Ctrl+Shift+V`
+  (`Cmd+Shift+V` on mac) from the built-in preview (and from third-party
+  preview extensions that bind the same key) — it wins the same-key conflict
+  because its binding is the 2nd contributed keybinding (weight 402, above the
+  401-weight competitors; see the plan doc and `quirks.md`). To verify:
+  1. Focus a markdown editor.
+  2. Press `Ctrl+Shift+V` (trusted input). With
+     `hackerMarkdown.overridePreviewShortcut: true` (default) our preview
+     opens; with it `false` the built-in preview opens instead.
+  3. For a deterministic assertion, run `Developer: Toggle Keyboard
+     Shortcuts Troubleshooting` first — each press logs `From N keybinding
+     entries, matched hackerMarkdown.togglePreview` (+ `Invoking command`) in
+     the renderer console.
+- **Serialized editor panel / move to another window.** The editor-area
+  preview (`hackerMarkdown.panel`) survives `Reload Window` and can be moved
+  to a new window (`View: Move Editor into New Window` with the panel tab
+  active): VS Code serializes the panel, and the target window's extension
+  host re-creates it via the `WebviewPanelSerializer` (`onWebviewPanel:`
+  activation; the webview persisted the shown document via
+  `acquireVsCodeApi().setState`). After the move there are two windows on the
+  CDP port; close the extra one when done (session restore will keep reopening
+  both until you do).
+- **`hackerMarkdown.open` fallback.** Reveals the docked view when it has
+  been resolved once; otherwise it opens (and reuses) the editor panel, so
+  the command and the shortcut always show a preview — even in a fresh window
+  where the panel view was never opened.
+
 ## 4. Reading the VS Code Logs
 
 `exp/devhost/logs/<timestamp>/window1/exthost/exthost.log` records extension
@@ -570,6 +616,17 @@ it) or relaunch with `--profile "$PWD/exp/devhost-<name>"` for a fresh one.
 On Linux, also make sure no orphan holds the port from the previous host
 (`tools/kill-devhost.sh` handles this automatically).
 
+**`make install` skips an unchanged version — bump it to reinstall.** The
+install delegates to `vscode-hacker-meta`, which leaves an already-installed
+version in place when `package.json#version` is unchanged. After changing
+`package.json` (commands, keybindings, settings), bump the version (e.g.
+`2026.8.18-3` → `-4`) or overwrite the extension dir in place
+(`unzip -o` the vsix `extension/*` into
+`~/.vscode/extensions/lamnt45.vscode-hacker-markdown-<version>`), then
+`Developer: Reload Window`. Also note the `make install`/`make build` CLI can
+forward to a **running** VS Code instance instead of installing locally — the
+running window gets a live install that still needs a reload to activate.
+
 ---
 
 ## Quick Reference
@@ -586,6 +643,7 @@ On Linux, also make sure no orphan holds the port from the previous host
 | Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs 9335` + `node exp/persist_test.cjs 9335` (section 3d) |
 | PlantUML rendering pure-logic check (no dev host) | `node tests/plantuml_check.cjs` (section 3e) |
 | PlantUML completion pure-logic check (no dev host) | `node tests/plantuml_completion_check.cjs` (section 3g) |
+| Keybinding override / serializer / cross-window move | section 3h (`Developer: Toggle Keyboard Shortcuts Troubleshooting` + `Move Editor into New Window`) |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 
 ## Known Limits of This Setup

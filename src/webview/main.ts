@@ -1,4 +1,4 @@
-import { toolbar, docNameEl, previewEl, emptyEl, post } from './dom';
+import { toolbar, docNameEl, previewEl, emptyEl, vscode, post } from './dom';
 import { consumeProgrammaticScroll } from './programmatic-scroll';
 import { throttle, topmostVisibleLine, elementForLine, centerElement, revealLine, dataLineElements, reportScrollLine } from './line-sync';
 import { keepAnchor, cancelAnchorGuard, hasActiveAnchorGuard, type AnchorView } from './anchor';
@@ -12,6 +12,7 @@ import {
 } from './frames';
 import { setCursorLine, reapplyCursorHighlight, clearCursorHighlight, cursorBoxForLine } from './cursor';
 import { sourceLineForClick } from './source';
+import { attachMockupRanges } from './source-code';
 import { initMediaControls, applyMediaState } from './menus';
 
 // The page may load after the host already pushed its state (webview
@@ -55,6 +56,10 @@ function render(html: string): void {
 	// Re-frame the fragment's block-level imgs/svgs (plantuml, ...) and
 	// restore their pan/zoom state.
 	scanFrames();
+	// Zip the host's SALT invocation lines onto the procedure-rendered mockup
+	// groups (runs before the updateContent event so late renders of other
+	// renderers don't interfere with the mapping).
+	attachMockupRanges(previewEl);
 	window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 	// The scripts render async and grow the layout after the anchor scroll
 	// above, so hold the position until they settle.
@@ -82,6 +87,11 @@ window.addEventListener('message', (event) => {
 	switch (message.type) {
 		case 'setDoc':
 			docNameEl.textContent = String(message.name ?? '');
+			// Persist the shown document so a serialized editor panel (window
+			// reload / moved to another window) restores to the same file.
+			if (typeof message.uri === 'string') {
+				vscode.setState({ uri: message.uri });
+			}
 			break;
 		case 'render':
 			render(String(message.html ?? ''));
@@ -194,9 +204,9 @@ previewEl.addEventListener('click', (e) => {
 	if (Math.abs(e.clientX - lastDownX) > 4 || Math.abs(e.clientY - lastDownY) > 4) {
 		return;
 	}
-	const line = sourceLineForClick(target, e.clientY);
-	if (line !== undefined) {
-		post({ type: 'editorLine', line });
+	const hit = sourceLineForClick(target, e.clientY);
+	if (hit) {
+		post({ type: 'editorLine', line: hit.line, from: hit.from, to: hit.to });
 	}
 });
 
