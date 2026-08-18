@@ -1,5 +1,6 @@
 import { previewEl } from './dom';
 import { dataLineElements } from './line-sync';
+import { isSaltMockup, mockupRange } from './source-code';
 
 /**
  * Cursor sync: when the editing cursor moves in the Markdown editor, the host
@@ -7,14 +8,17 @@ import { dataLineElements } from './line-sync';
  * block with a blue outline box (.hmk-cursor).
  *
  * Resolution order (the fallback chain):
- *   1. rendered media — an element whose `data-hmk-from`..`data-hmk-to` source
+ *   1. a SALT block inside an inlined PlantUML SVG — an element whose
+ *      `data-source-code` span (translated via the enclosing fence) contains
+ *      the line;
+ *   2. rendered media — an element whose `data-hmk-from`..`data-hmk-to` source
  *      span contains the line (a plantuml/puml/uml fence rendered to an
  *      `<img>` by `src/plantuml/fences.ts`);
- *   2. exact line — a block element with `data-line === line`;
- *   3. containing block — the element with the greatest `data-line <= line`
+ *   3. exact line — a block element with `data-line === line`;
+ *   4. containing block — the element with the greatest `data-line <= line`
  *      (the paragraph / code fence / heading the cursor is in, innermost
  *      first);
- *   4. nothing in range -> no highlight.
+ *   5. nothing in range -> no highlight.
  */
 
 let lastCursorLine = -1;
@@ -68,9 +72,14 @@ function applyCursorHighlight(line: number): void {
  * wraps the whole `<pre>` block. Rendered media inside a pan/zoom frame
  * (plantuml/…) is boxed at the *frame* (`.hmk-frame`), not the inner img/svg,
  * so the box outlines the whole zoomable diagram, matching the frame's own
- * border box.
+ * border box. A SALT block inside an inlined SVG is boxed at its own `<g>`
+ * (the outline follows the pan/zoom transform of the diagram), not hoisted to
+ * the frame — hoisting would outline the whole diagram instead of the mockup.
  */
 function blockTarget(el: HTMLElement): HTMLElement {
+	if (isSaltMockup(el)) {
+		return el;
+	}
 	if (el.tagName === 'CODE' && el.parentElement && el.parentElement.tagName === 'PRE') {
 		return el.parentElement;
 	}
@@ -99,8 +108,40 @@ function mediaForLine(line: number): HTMLElement | null {
 	return null;
 }
 
+/**
+ * The SALT mockup inside an inlined PlantUML SVG whose source span contains
+ * `line` — server-tagged notes (`data-source-code`) and procedure-rendered
+ * activity mockups (`data-hmk-from`/`data-hmk-to`, attached by
+ * `attachMockupRanges`), most specific first (largest `from`). Runs before
+ * the media check: the enclosing `<svg>` carries the whole-fence
+ * `data-hmk-from`/`data-hmk-to`, which would otherwise always shadow the
+ * exact mockup.
+ */
+function saltForLine(line: number): HTMLElement | null {
+	let best: HTMLElement | null = null;
+	let bestFrom = -Infinity;
+	for (const el of Array.from(previewEl.querySelectorAll<HTMLElement>('[data-source-code], svg [data-hmk-from][data-hmk-to]'))) {
+		const range = mockupRange(el);
+		if (!range) {
+			continue;
+		}
+		if (line >= range.from && line <= range.to && range.from >= bestFrom) {
+			bestFrom = range.from;
+			best = el;
+		}
+	}
+	return best;
+}
+
 function resolveCursorTarget(line: number): HTMLElement | null {
-	// 1. Rendered media. Must run before the containing-block fallback: inside
+	// 1. SALT blocks inside inlined SVGs — the exact mockup, before the
+	// whole-diagram media span below.
+	const salt = saltForLine(line);
+	if (salt) {
+		return salt;
+	}
+
+	// 2. Rendered media. Must run before the containing-block fallback: inside
 	// a puml fence there is no `data-line` element, so the fallback alone would
 	// highlight the sibling above the diagram instead.
 	const media = mediaForLine(line);
@@ -108,7 +149,7 @@ function resolveCursorTarget(line: number): HTMLElement | null {
 		return media;
 	}
 
-	// 2./3. Exact line, falling back to the greatest `data-line <= line`.
+	// 3./4. Exact line, falling back to the greatest `data-line <= line`.
 	// Iterating keeps the innermost element (last in document order) for
 	// equal line values, so nested blocks (li inside ol, p inside blockquote)
 	// resolve to the most specific one.

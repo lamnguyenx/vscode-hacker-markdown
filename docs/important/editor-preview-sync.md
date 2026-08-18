@@ -51,6 +51,14 @@ preview so you can keep clicking around. Gated behind
 The webview resolves the click to a line in `src/webview/source.ts`
 (`sourceLineForClick`), the reverse of the `cursor.ts` chain:
 
+0. **SALT mockup inside an inlined PlantUML SVG** — the click is inside a
+   mockup: `[data-source-code]` (a note mockup's exact source span, translated
+   via the enclosing fence) or `svg [data-hmk-from][data-hmk-to]` (a
+   procedure-rendered activity mockup's first-occurrence invocation line,
+   attached by `attachMockupRanges`) → the whole range, so the host selects
+   the exact lines that produced the mockup (`editorLine` carries `from`/`to`;
+   `revealEditorRange`). Both are resolved through `mockupRange`
+   (`src/webview/source-code.ts`).
 1. **Rendered media** — the click is inside `[data-hmk-from]` or inside a
    `.hmk-frame` / `.mermaid-wrapper` wrapping one → the media's source span.
    Puml fences get the span from the fragment's `data-line`
@@ -73,36 +81,48 @@ the frame/mermaid pan/zoom gesture modifier) and a click whose mouse moved
 since mousedown is treated as a drag-release (pan/zoom), not a click, so a
 dragged diagram never jumps.
 
-The webview posts `{ type: 'editorLine', line }`; the host handler
-`revealEditorLine` (`previewManager.ts`) checks the setting, stamps
-`lastPreviewScrollAt` (so the scroll-sync grace timer swallows the echo
-recenter), clamps the line to the document, and calls
-`showTextDocument(doc, { preserveFocus: true, selection: range })` — the
-selection change re-highlights the same block in the preview (harmless
+The webview posts `{ type: 'editorLine', line }` — with `from`/`to` for a salt
+mockup; the host handler `revealEditorLine` / `revealEditorRange`
+(`previewManager.ts`) checks the setting, stamps `lastPreviewScrollAt` (so the
+scroll-sync grace timer swallows the echo recenter), clamps to the document,
+and calls `showTextDocument(doc, { preserveFocus: true, selection: range })` —
+the selection change re-highlights the same block in the preview (harmless
 echo), but the preview does not move. The editor's cursor-line highlight is
 the visual "you are here".
 
 ## Cursor highlight: the resolution chain
 
-`src/webview/cursor.ts` resolves a source line to a rendered element in three
+`src/webview/cursor.ts` resolves a source line to a rendered element in four
 steps, first match wins:
 
+0. **SALT mockup inside an inlined PlantUML SVG** — an element whose source
+   range contains the line, resolved by `mockupRange`
+   (`src/webview/source-code.ts`): note mockups via `data-source-code` (the
+   1-based, diagram-relative range the server embeds, translated via the
+   enclosing fence's `data-hmk-from`); activity mockups via the
+   `data-hmk-from`/`data-hmk-to` the webview attached from the host's
+   `data-hmk-salts` (first-occurrence invocation lines). Must run before the
+   media step: the `<svg>`'s whole-fence span would otherwise always shadow
+   the exact mockup. The box lands on the mockup itself — the `<g>` for
+   notes, the `<image>` for activity mockups (outline + drop-shadow glow;
+   both sit inside the pan/zoom transform, so they scale with the diagram).
 1. **Rendered media** — an element whose `data-hmk-from`..`data-hmk-to`
    source span contains the line. These are emitted only by our puml fence
    rewrite (`src/plantuml/fences.ts:58-68`): it reads the fence's `data-line`
    (which the built-in engine puts on the inner `<code>`, falling back to the
    `<pre>`) and applies the same end-line math the stock preview uses
-   (`to = from + bodyLineCount + 1`). The box lands on the `<img>` inside
-   `.hmk-frame-content`, so it scales with the pan/zoom transform.
+   (`to = from + bodyLineCount + 1`). The box lands on the `<img>`/`<svg>`
+   inside `.hmk-frame-content`, so it scales with the pan/zoom transform.
 2. **Exact line** — an element with `data-line === line`.
 3. **Containing block** — the element with the greatest `data-line <= line`,
    innermost/last in document order (a paragraph, a code fence, a heading for
    a blank line).
 
-The target is hoisted before the box is drawn (`blockTarget`, `cursor.ts:73`):
+The target is hoisted before the box is drawn (`blockTarget`, `cursor.ts`):
 a fenced block's `data-line` sits on the inner `<code>`, so the outline wraps
 the whole `<pre>`; rendered media inside a pan/zoom frame is boxed at the
-*frame*, not the inner img/svg.
+*frame*, not the inner img/svg; a salt mockup (`<g>` or `<image>`) is boxed
+at itself.
 
 `cursorBoxForLine(line)` (`cursor.ts:37`) resolves the *same* element scroll
 sync centers on, so the highlight box and the recentering always agree.
@@ -170,6 +190,20 @@ the pinned document** — the sync handlers are keyed on document identity, so
 cross-document sync stops automatically while pinned. See the pin section in
 `architecture.md`.
 
+## Sync across windows & placement
+
+The preview can live in the Panel, either Sidebar, the editor area, or in a
+**different window** (drag the editor tab / `View: Move Editor into New
+Window`). Sync is **per window**: each window runs its own extension host, so
+the moved panel is re-created there by the `WebviewPanelSerializer`
+(`onWebviewPanel:hackerMarkdown.panel`; the webview persisted the shown
+document with `acquireVsCodeApi().setState`, the serializer re-opens it) and
+follows *that* window's active editor like any other host — cursor highlight,
+click-to-source and scroll sync all keep working in the new window. The
+`hackerMarkdown.open` command and the `hackerMarkdown.togglePreview` shortcut
+reveal the docked view once it has been resolved, and otherwise fall back to
+(reusing) the editor panel, so a preview always appears.
+
 ## Limitations
 
 - **Rendered blocks we don't rewrite carry no span.** Renderers beyond our
@@ -177,6 +211,16 @@ cross-document sync stops automatically while pinned. See the pin section in
   output) have no `data-hmk-*`, so a cursor *inside* such a block falls back
   to the containing block above it, and a click on it jumps to that containing
   block. Puml and mermaid rendered by our rewrites always get the range.
+- **Salt granularity depends on the server + a positional zip.** Within an
+  inlined puml SVG, note-on-link mockups carry the server's exact
+  `data-source-code` range; procedure-rendered activity mockups (`SALT(x)`)
+  get the first-occurrence invocation line — the server renders one mockup per
+  distinct alias, so `src/plantuml/invocations.ts` scans the document, the
+  host embeds the lines (`data-hmk-salts`), and the webview
+  (`attachMockupRanges`) zips them onto the rangeless `<image>`s in SVG order.
+  The zip is positional: a diagram whose mockup order diverges from
+  first-invocation order maps wrong; excess mockups keep the whole-fence
+  fallback.
 - **Highlight is cursor-only.** Moving the cursor does not scroll unless
   `scrollPreviewWithEditor` is also on.
 - **Click-to-source maps the rendered (possibly stale) document.** Under
@@ -193,11 +237,16 @@ cross-document sync stops automatically while pinned. See the pin section in
   `how-to-test.md` (§7e): they drive the editor with `Ctrl+G` (Go to Line),
   which takes a **1-based** line number while the fragment's `data-line`
   attributes are **0-based**.
-- Highlighting a live rendered puml `<img>` is *not* in the default smoke
-  suite: the `data-hmk-from`/`data-hmk-to` span emission is pinned by
-  `tests/plantuml_check.cjs` (pure logic), and verifying the box on a real
-  `<img>` needs a dev host with `hackerMarkdown.plantuml.server` set and the
-  local server running (sections 3d/3e in `how-to-test.md`).
+- Highlighting a live rendered puml diagram is *not* in the default smoke
+  suite: the `data-hmk-from`/`data-hmk-to` span emission, the `!pragma
+  sourceFile` injection and the SALT invocation scan are pinned by
+  `tests/plantuml_check.cjs`, and the SVG inlining by
+  `tests/plantuml_inline_check.cjs` (pure logic, no server). Verifying the
+  box and the click-jump on a real diagram needs a dev host (or a real
+  window) with `hackerMarkdown.plantuml.server` set and the locally-built
+  server running (sections 3d/3e in `how-to-test.md`); the salt mockup
+  mappings were verified live on the user's window (see the plan doc
+  `docs/plans/2026/08/18/2026-08-18-plantuml-salt-cursor-sync.md`).
 - For scroll-event timing traps when testing this, see the "Chromium scroll
   behavior" section in `quirks.md`.
 

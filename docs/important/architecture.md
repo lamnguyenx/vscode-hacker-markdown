@@ -79,6 +79,20 @@ details underneath the feature list, and the product limitations.
   unchanged. If `jebbs.plantuml` is also installed, its global plugin already
   turns the fence into an `<img>` inside the engine and our pass finds nothing
   to rewrite — no double-render.
+- **PlantUML SVGs are inlined, not served as `<img>`.** After the fence
+  rewrite, `inlinePlantumlSvgs` (`src/plantuml/inlineSvg.ts`) fetches each
+  diagram's SVG and splices it into the fragment, copying the fence-level
+  `data-hmk-from`/`data-hmk-to` onto the `<svg>` root. This makes the SVG DOM
+  reachable in the webview so the salt-capable server's per-mockup
+  `data-source-code` ranges can drive cursor highlight and click-to-source
+  (see below). The extension injects `!pragma sourceFile <markdown-path>`
+  into the diagram source before encoding the URL, because the server only
+  emits those ranges when it knows the source file — inert on servers that do
+  not know the pragma, and never duplicated if the user already set it. A
+  failed fetch keeps the `<img>` (graceful degradation). The SVG's own
+  embedded interactive `<script>` bundles never run inside the preview
+  (`innerHTML` insertion + the preview CSP); the extension's own
+  cursor/click features replace them there.
 - **PlantUML code completion in markdown fences.** `@start…`/`@end…`, diagram
   keywords, `!include`/`!define`/… preprocessor directives, `skinparam`
   names and colors are suggested while typing inside
@@ -98,6 +112,28 @@ details underneath the feature list, and the product limitations.
   Markdown file and re-renders **on save** by default
   (`hackerMarkdown.renderOnSave`), or live (debounced) as you type when the
   setting is disabled.
+- **Placement anywhere.** The preview can live in the Panel or either Sidebar
+  (drag the docked view's header between containers), as an editor tab
+  (`Hacker Markdown: Open Preview in Editor` or the toolbar's *Open in
+  Editor* button), and in **another window**: the editor tab can be dragged
+  to a new window / `Move Editor to New Window`, or survive a window reload —
+  the extension registers a `WebviewPanelSerializer`
+  (`hackerMarkdown.panel`, `onWebviewPanel:` activation) and the webview
+  persists the shown document with `acquireVsCodeApi().setState`, so VS Code
+  re-creates the panel in the target window and the serializer re-opens that
+  document. (The docked *view* itself is window-bound — VS Code cannot move
+  `WebviewView`s across windows; open it in the editor first.)
+- **Ctrl/Cmd+Shift+V override.** The built-in markdown preview binds
+  `Ctrl/Cmd+Shift+V` to `markdown.togglePreview` (and third-party preview
+  extensions fight over the same key). This extension contributes its own
+  `hackerMarkdown.togglePreview` binding on that key with a markdown-scoped
+  `when`, and — because the resolver picks the *last* registered candidate —
+  bumps its weight (it is the 2nd contributed keybinding, weight 402, beating
+  the 401-weight competitors) so it wins in markdown contexts. The
+  `hackerMarkdown.overridePreviewShortcut` setting (default `true`) decides
+  what the command does: open this preview, or delegate to the built-in
+  `markdown.togglePreview`. (The companion `ctrl+alt+shift+h` →
+  `hackerMarkdown.open` binding exists to raise the weight.)
 - **Pin (lock) the preview to a document.** The toolbar pin button
   (`togglePin` command message) freezes the preview on the current document:
   editor switches no longer change it, while edits to the pinned document
@@ -125,23 +161,27 @@ details underneath the feature list, and the product limitations.
   (`hackerMarkdown.cursorPreviewWithEditor`, default on, independent of scroll
   sync). The host broadcasts the active selection line (`cursorLine` message)
   on every selection change and on doc switch; the webview
-  (`src/webview/cursor.ts`) resolves it to an element in three steps:
-  (1) rendered media first — an `<img>` whose `data-hmk-from`..`data-hmk-to`
-  source span contains the line (added by the puml fence rewrite in
-  `src/plantuml/fences.ts`, which reads the fence's `data-line` — on the inner
-  `<code>`, like the built-in preview's source map — and applies the same
-  `endLine` math; mermaid blocks get the same span from
-  `src/mermaid/fences.ts`, which scans the document because the mermaid
-  plugin's custom renderer drops `data-line`); (2) an exact `data-line` match;
-  (3) the containing block —
+  (`src/webview/cursor.ts`) resolves it to an element in four steps:
+  (0) a SALT mockup inside an inlined PlantUML SVG — an element whose
+  `data-source-code` range (translated via the enclosing fence, see
+  `src/webview/source-code.ts`) contains the line; (1) rendered media — an
+  `<img>`/`<svg>` whose `data-hmk-from`..`data-hmk-to` source span contains
+  the line (added by the puml fence rewrite in `src/plantuml/fences.ts`, which
+  reads the fence's `data-line` — on the inner `<code>`, like the built-in
+  preview's source map — and applies the same `endLine` math; mermaid blocks
+  get the same span from `src/mermaid/fences.ts`, which scans the document
+  because the mermaid plugin's custom renderer drops `data-line`); (2) an
+  exact `data-line` match; (3) the containing block —
   the greatest `data-line` at or above the line, innermost first (a paragraph,
   a code fence, a heading for a blank line). The highlight is re-applied after
   every re-render (renders recreate every element) and after late async
   renders (the frame-scan MutationObserver path). The box sits directly on the
-  block, or on the puml `<img>` inside `.hmk-frame-content` so it scales with
-  the pan/zoom transform. The **reverse** direction is click-to-source
+  block, on the puml `<img>`/`<svg>` inside `.hmk-frame-content` (scaling with
+  the pan/zoom transform), or on the salt `<g>` itself (outline + drop-shadow
+  glow, see the CSS in `main.css`). The **reverse** direction is click-to-source
   (`hackerMarkdown.clickToSource`, default on): clicking a rendered block in
-  the preview moves the editor cursor to the matching source line (see
+  the preview moves the editor cursor to the matching source line — a salt
+  mockup selects the exact source range that produced it (see
   `docs/important/editor-preview-sync.md`).
 - **Clickable links.** Internal links open in the editor (and re-target the
   preview), external links open in the system browser, `#fragment` links
@@ -151,9 +191,9 @@ details underneath the feature list, and the product limitations.
 
 ## Limitations
 
-- The editor-area preview is a separate `WebviewPanel` instance (views cannot move into the editor area; see `viewsExtensionPoint.ts` — a view id can only be registered in one container).
+- The editor-area preview is a separate `WebviewPanel` instance (views cannot move into the editor area; see `viewsExtensionPoint.ts` — a view id can only be registered in one container). It is serializable (`WebviewPanelSerializer`), so it survives window reloads and moves to other windows.
 - Rendering happens through `markdown.api.render`, which cannot rewrite relative image paths, so image `src` attributes are rewritten extension-side against the document folder (same behavior as the built-in preview's resource provider).
-- PlantUML fences are rewritten from the rendered HTML fragment, so the fence source takes the HTML-escape round-trip (only `& < > "`; `&amp;` is decoded last to keep literal `&lt;` intact), and the generated `<img>` carries no `data-line` (scroll-sync granularity for that block; position-based re-render keepers are unaffected). The server must be CSP-compatible (`https`, or `http://` on `localhost`/`127.0.0.1`), same as the stock preview.
+- PlantUML fences are rewritten from the rendered HTML fragment, so the fence source takes the HTML-escape round-trip (only `& < > "`; `&amp;` is decoded last to keep literal `&lt;` intact). The rendered diagram (inlined `<svg>`) carries no `data-line`, but the rewrite adds a fence-level `data-hmk-from`/`data-hmk-to` span for cursor sync and click-to-source. The server must be CSP-compatible (`https`, or `http://` on `localhost`/`127.0.0.1`), same as the stock preview, and the extension host fetches the SVG directly (no CORS involved).
 - Contributed preview scripts and styles are loaded (mermaid, KaTeX, …), but the extension has no control over *when* other extensions activate; a script contributed by an extension that never activates simply never loads. `markdown.css` / `highlight.css` are copied from `microsoft/vscode` (MIT) to keep rendering identical to the stock preview.
 - Completions are a **static keyword list**, scoped to markdown fences. No
   macros/variables (unlike jebbs's `.puml`-file-only completion), no jar-backed
@@ -166,10 +206,15 @@ details underneath the feature list, and the product limitations.
   *inside* such a block falls back to the containing block above the media (and
   a click on it jumps to that block). Puml and mermaid rendered by our
   rewrites always get the range (mermaid's span is scanned from the document
-  because its plugin drops the engine's `data-line`). The highlight maps
-  against the rendered (possibly stale under `renderOnSave`) document, and
-  moving the cursor does not scroll unless `scrollPreviewWithEditor` is also
-  on.
+  because its plugin drops the engine's `data-line`). Within an inlined puml
+  SVG, salt mockups resolve individually: note-on-link mockups carry the
+  server's exact `data-source-code` range, and procedure-rendered activity
+  mockups get the first-occurrence `SALT(x)` invocation line (the server emits
+  one mockup per distinct alias — `src/plantuml/invocations.ts` scans the
+  document, the host embeds `data-hmk-salts`, the webview zips the lines onto
+  the rangeless `<image>`s in SVG order). The highlight maps against the
+  rendered (possibly stale under `renderOnSave`) document, and moving the
+  cursor does not scroll unless `scrollPreviewWithEditor` is also on.
 
 For how these internals interact with the test pipeline, see
 [`docs/important/how-to-test.md`](how-to-test.md); for generalized tool and

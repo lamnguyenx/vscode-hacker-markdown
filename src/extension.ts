@@ -23,6 +23,11 @@ class MarkdownPreviewViewProvider implements vscode.WebviewViewProvider {
 	public show(): void {
 		this._view?.show(true);
 	}
+
+	/** True once the docked view has been resolved at least once (so `show()` can reveal it). */
+	public isReady(): boolean {
+		return !!this._view;
+	}
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -42,21 +47,35 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
+	// The editor-area preview survives window reloads and can be moved to
+	// another window (drag the tab, or "Move Editor to New Window") — VS Code
+	// restores it here via the state the webview saved with `setState`.
+	context.subscriptions.push(
+		vscode.window.registerWebviewPanelSerializer(PreviewManager.panelViewType, manager)
+	);
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand('hackerMarkdown.open', async () => {
-			provider.show();
-			if (!manager.hasMarkdownDocument()) {
-				const picked = await pickMarkdownFile();
-				if (picked) {
-					await vscode.window.showTextDocument(picked);
-				}
-			}
+			await openPreview(provider, manager);
 		})
 	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('hackerMarkdown.openInEditor', () => {
 			manager.openInEditor();
+		})
+	);
+
+	// Bound to Ctrl/Cmd+Shift+V (see the `hackerMarkdown.togglePreview`
+	// keybinding). The keybinding shadows the built-in preview's — the
+	// `hackerMarkdown.overridePreviewShortcut` setting decides what it runs.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('hackerMarkdown.togglePreview', async () => {
+			if (vscode.workspace.getConfiguration('hackerMarkdown').get<boolean>('overridePreviewShortcut', true)) {
+				await openPreview(provider, manager);
+			} else {
+				await vscode.commands.executeCommand('markdown.togglePreview');
+			}
 		})
 	);
 
@@ -69,6 +88,23 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
 	// noop
+}
+
+async function openPreview(provider: MarkdownPreviewViewProvider, manager: PreviewManager): Promise<void> {
+	// The docked view can only be revealed once it has been resolved (the user
+	// opened the panel at least once); until then fall back to an editor panel
+	// so the shortcut/command always shows a preview.
+	if (provider.isReady()) {
+		provider.show();
+	} else {
+		manager.openInEditor();
+	}
+	if (!manager.hasMarkdownDocument()) {
+		const picked = await pickMarkdownFile();
+		if (picked) {
+			await vscode.window.showTextDocument(picked);
+		}
+	}
 }
 
 async function pickMarkdownFile(): Promise<vscode.Uri | undefined> {

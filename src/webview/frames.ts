@@ -68,10 +68,11 @@ function hashString(value: string): string {
 }
 
 function frameKey(el: HTMLElement): string | null {
-	if (el.tagName === 'IMG') {
+	const tag = el.tagName.toUpperCase();
+	if (tag === 'IMG') {
 		return 'img:' + (el.getAttribute('src') || '');
 	}
-	if (el.tagName === 'SVG') {
+	if (tag === 'SVG') {
 		return 'svg:' + hashString(el.outerHTML || '');
 	}
 	return null;
@@ -90,7 +91,10 @@ const PHRASING_TAGS = new Set([
  * stale-render keeper, and not inline prose.
  */
 function isFrameable(el: HTMLElement): boolean {
-	if (el.tagName !== 'IMG' && el.tagName !== 'SVG') {
+	// SVG elements report their tag name lowercase (`'svg'`), HTML elements
+	// uppercase — normalize so the inlined PlantUML `<svg>` is framed too.
+	const tag = el.tagName.toUpperCase();
+	if (tag !== 'IMG' && tag !== 'SVG') {
 		return false;
 	}
 	if (el.closest('.hmk-frame, .mermaid-wrapper, .hmk-stale, .hmk-stale-holder, a')) {
