@@ -127,6 +127,46 @@ at itself.
 `cursorBoxForLine(line)` (`cursor.ts:37`) resolves the *same* element scroll
 sync centers on, so the highlight box and the recentering always agree.
 
+### Procedure-rendered activity mockups: the `SALT` idiom
+
+Activity mockups in a puml fence are procedures: `!procedure _form_empty() …
+!endprocedure` renders a `form_empty` mockup wherever `SALT(form_empty)`
+appears in the diagram. The mapping that makes cursor-sync work is easy to
+trip over, so the rules:
+
+- **The underscore is only on the definition.** `_form_empty` is invoked as
+  `SALT(form_empty)` — *no* leading underscore — because the canonical
+  `!unquoted procedure SALT($x)` macro expands to
+  `%invoke_procedure("_" + $x)`. Writing `SALT(_form_empty)` would look for
+  `__form_empty` (a procedure that doesn't exist) and render nothing or a
+  broken mockup. `invocations.ts` derives the match key by stripping the
+  underscore (`aliasFromProc`: `_form_empty` → `form_empty`) and pairs it with
+  the `SALT(form_empty)` target, so the two must stay in sync: definition
+  `_x`, call `SALT(x)`.
+- **Repeating `SALT(form_empty)` is fine — it renders one node.** A procedure
+  invoked at many transitions (`A --> SALT(x)`, `B --> SALT(x)`, …) still
+  renders **one** mockup node in the SVG: the server collapses every reference
+  to a distinct alias into a single activity node (verified against the
+  current server: 16 distinct aliases → 16 activity mockup `<image>`s, despite
+  22 invocations). So the cursor-in-body highlight boxes that one node — and
+  since it is the single visual representation of all the `SALT(x)`
+  references, one box *is* "all occurrences". The webview finds it by alias
+  (`image[data-hmk-alias="x"]`), so there is nothing else to enumerate.
+- **Only direct calls map.** The pairing covers `SALT(x)` → `_x`. If a
+  procedure body transitively invokes another (`%invoke_procedure("_y")` inside
+  `_x`), the `y` content renders *inside* the `x` mockup, and a cursor in
+  `_y`'s body does **not** highlight the `x` mockup — the mockup is keyed to
+  its own alias, not to transitively-invoked procedures. That "shared
+  component" case (one procedure's content appearing in many boxes) is not
+  handled by either the single-box or a range-based multi-box design; it would
+  need a procedure call graph in `invocations.ts` (parse `%invoke_procedure`,
+  compute each mockup's transitive procedure set). Deliberately out of scope.
+
+A cursor inside the `!procedure … !endprocedure` body itself highlights the
+matching mockup (step 0b of `saltForLine` in `cursor.ts`): the host embeds the
+body range as `data-hmk-procs` on the `<svg>` root, and the webview looks up
+the mockup whose alias matches the procedure name.
+
 ### Re-application
 
 Renders recreate every element (wiping the class), so:
@@ -220,7 +260,9 @@ reveal the docked view once it has been resolved, and otherwise fall back to
   (`attachMockupRanges`) zips them onto the rangeless `<image>`s in SVG order.
   The zip is positional: a diagram whose mockup order diverges from
   first-invocation order maps wrong; excess mockups keep the whole-fence
-  fallback.
+  fallback. See the "`SALT` idiom" subsection above for what "one mockup per
+  distinct alias" means in practice (repeated invocations, the underscore
+  rule, and the direct-call-only limit).
 - **Highlight is cursor-only.** Moving the cursor does not scroll unless
   `scrollPreviewWithEditor` is also on.
 - **Click-to-source maps the rendered (possibly stale) document.** Under
