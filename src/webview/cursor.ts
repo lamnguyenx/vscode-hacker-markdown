@@ -130,7 +130,33 @@ function saltForLine(line: number): HTMLElement | null {
 			best = el;
 		}
 	}
-	return best;
+	if (best) {
+		return best;
+	}
+
+	// 0b. Procedure body range: if the line falls inside any !procedure / !endprocedure
+	// block, highlight the mockup whose alias matches.
+	for (const svg of Array.from(previewEl.querySelectorAll<SVGSVGElement>('svg[data-hmk-procs]'))) {
+		let procs: { from: number; to: number; alias: string }[] | undefined;
+		try {
+			procs = JSON.parse(svg.getAttribute('data-hmk-procs') ?? '') as typeof procs;
+		} catch {
+			continue;
+		}
+		if (!procs || !procs.length) {
+			continue;
+		}
+		for (const proc of procs) {
+			if (line >= proc.from && line <= proc.to) {
+				const image = svg.querySelector(`image[data-hmk-alias="${proc.alias}"]`) as HTMLElement | null;
+				if (image && isSaltMockup(image)) {
+					return image;
+				}
+			}
+		}
+	}
+
+	return null;
 }
 
 function resolveCursorTarget(line: number): HTMLElement | null {

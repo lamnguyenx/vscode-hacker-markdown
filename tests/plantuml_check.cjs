@@ -320,9 +320,13 @@ run('first occurrence per distinct target, in order', () => {
     '```',
     '',
   ].join('\n');
-  const map = saltInvocationLines(doc);
-  assert.strictEqual(map.size, 1, 'expected one fence');
-  assert.deepStrictEqual([...map.values()][0], [3, 4, 5, 6], 'wrong lines: ' + JSON.stringify([...map.values()]));
+  const result = saltInvocationLines(doc);
+  const inv = result.invocations;
+  assert.strictEqual(inv.size, 1, 'expected one fence');
+  const entries = [...inv.values()][0];
+  assert.strictEqual(entries.length, 4, 'expected 4 unique entries');
+  assert.deepStrictEqual(entries.map(e => e.line), [3, 4, 5, 6], 'wrong lines: ' + JSON.stringify(entries));
+  assert.deepStrictEqual(entries.map(e => e.alias), ['form_empty', 'sample_row_empty', 'sample_recording', 'sample_done'], 'wrong aliases: ' + JSON.stringify(entries));
 });
 run('macro definition and comments do not count', () => {
   const doc = [
@@ -336,8 +340,8 @@ run('macro definition and comments do not count', () => {
     '(*) --> SALT(real)',
     '```',
   ].join('\n');
-  const map = saltInvocationLines(doc);
-  assert.deepStrictEqual([...map.values()][0], [7], 'definition/comments leaked: ' + JSON.stringify([...map.values()]));
+  const result = saltInvocationLines(doc);
+  assert.deepStrictEqual([...result.invocations.values()][0].map(e => e.line), [7], 'definition/comments leaked: ' + JSON.stringify(result.invocations));
 });
 run('per-fence lists, keyed by fence opening line', () => {
   const doc = [
@@ -350,12 +354,76 @@ run('per-fence lists, keyed by fence opening line', () => {
     '(*) --> SALT(c)',
     '```',
   ].join('\n');
-  const map = saltInvocationLines(doc);
-  assert.deepStrictEqual([...map.entries()].map(([k, v]) => [k, v]), [[0, [1]], [4, [5, 6]]]);
+  const result = saltInvocationLines(doc);
+  assert.deepStrictEqual([...result.invocations.entries()].map(([k, v]) => [k, v.map(e => e.line)]), [[0, [1]], [4, [5, 6]]]);
 });
 run('non-puml fences ignored', () => {
   const doc = ['```python', 'x = SALT(not_a_diagram)', '```'].join('\n');
-  assert.strictEqual(saltInvocationLines(doc).size, 0);
+  assert.strictEqual(saltInvocationLines(doc).invocations.size, 0);
+});
+
+section('!procedure body ranges (cursor on proc definition highlights mockup)');
+run('procedure body captured, alias derived from leading underscore', () => {
+  const doc = [
+    '```plantuml',
+    '!procedure _form_empty()',
+    '{+',
+    '  Some salt mockup content',
+    '}',
+    '!endprocedure',
+    '',
+    '(*) --> SALT(form_empty)',
+    '(*) --> SALT(sample_row_empty)',
+    '```',
+  ].join('\n');
+  const result = saltInvocationLines(doc);
+  assert.strictEqual(result.invocations.size, 1);
+  assert.strictEqual(result.procRanges.size, 1);
+  const procs = [...result.procRanges.values()][0];
+  assert.strictEqual(procs.length, 1);
+  assert.strictEqual(procs[0].alias, 'form_empty');
+  assert.strictEqual(procs[0].from, 1);
+  assert.strictEqual(procs[0].to, 5);
+});
+run('multiple procedures in one fence', () => {
+  const doc = [
+    '```plantuml',
+    '!procedure _form_empty()',
+    '{+}',
+    '!endprocedure',
+    '!procedure _sample_row_empty()',
+    '{+}',
+    '!endprocedure',
+    '',
+    '(*) --> SALT(form_empty)',
+    '(*) --> SALT(sample_row_empty)',
+    '```',
+  ].join('\n');
+  const result = saltInvocationLines(doc);
+  const procs = [...result.procRanges.values()][0];
+  assert.strictEqual(procs.length, 2);
+  assert.deepStrictEqual(procs.map(p => p.alias), ['form_empty', 'sample_row_empty']);
+  assert.deepStrictEqual(procs.map(p => p.from), [1, 4]);
+  assert.deepStrictEqual(procs.map(p => p.to), [3, 6]);
+});
+run('!endprocedure closes the current proc; unclosed at fence end closes on last line', () => {
+  const doc = [
+    '```plantuml',
+    '!procedure _open()',
+    '{+}',
+    '```',
+  ].join('\n');
+  const result = saltInvocationLines(doc);
+  const procs = [...result.procRanges.values()][0];
+  assert.strictEqual(procs.length, 1);
+  assert.strictEqual(procs[0].alias, 'open');
+  assert.strictEqual(procs[0].from, 1);
+  assert.strictEqual(procs[0].to, 2);
+});
+run('no proc ranges without !procedure', () => {
+  const doc = ['```plantuml', '@startuml', '(*) --> SALT(x)', '@enduml', '```'].join('\n');
+  const result = saltInvocationLines(doc);
+  assert.strictEqual([...result.procRanges.values()][0].length, 0);
 });
 
 console.log('\nplantuml_check: all checks passed');

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { PreviewHost, isCssLength } from './previewHost';
 import { rewritePumlFences } from './plantuml/renderFragment';
 import { inlinePlantumlSvgs } from './plantuml/inlineSvg';
-import { saltInvocationLines } from './plantuml/invocations';
+import { saltInvocationLines, type ProcRange } from './plantuml/invocations';
 import { rewriteMermaidFences } from './mermaid/renderFragment';
 
 const RENDER_DELAY_MS = 300;
@@ -283,7 +283,8 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 			// `data-source-code` from the server, so embed the first-occurrence
 			// invocation lines per fence (`data-hmk-salts`); the webview zips
 			// them onto the SVG's rangeless mockup groups in order.
-			fragment = attachSaltInvocationLines(fragment, saltInvocationLines(doc.getText()));
+			const saltResult = saltInvocationLines(doc.getText());
+			fragment = attachSaltInvocationLines(fragment, saltResult);
 			// The mermaid plugin drops the engine's `data-line` source map, so
 			// attach the fence/container spans from the document instead
 			// (cursor highlight + click-to-source for rendered diagrams).
@@ -630,20 +631,27 @@ function isMarkdownDocument(document: vscode.TextDocument): boolean {
 }
 
 /**
- * Adds `data-hmk-salts="L1 L2 …"` (0-based absolute invocation lines) to each
- * inlined PlantUML `<svg>` root, keyed by the fence's `data-hmk-from` — the
- * attribute the inline pass copied onto the root. Fences with no SALT
- * invocations get no attribute.
+ * Adds `data-hmk-salts` (comma-separated `line:alias` pairs, 0-based absolute
+ * invocation lines) and `data-hmk-procs` (semicolon-separated `from:to:alias`
+ * triples, 0-based absolute procedure body ranges) to each inlined PlantUML
+ * `<svg>` root, keyed by the fence's `data-hmk-from`. Fences with no SALT
+ * invocations get neither attribute.
  */
-function attachSaltInvocationLines(fragment: string, invocations: Map<number, number[]>): string {
-	if (!invocations.size) {
+function attachSaltInvocationLines(fragment: string, result: { invocations: Map<number, { line: number; alias: string }[]>; procRanges: Map<number, ProcRange[]> }): string {
+	if (!result.invocations.size) {
 		return fragment;
 	}
 	return fragment.replace(/<svg\b([^>]*\bdata-hmk-from="(\d+)"[^>]*)>/gi, (full, attrs: string, from: string) => {
-		const lines = invocations.get(Number(from));
-		if (!lines || !lines.length) {
+		const entries = result.invocations.get(Number(from));
+		if (!entries || !entries.length) {
 			return full;
 		}
-		return `<svg ${attrs.trim()} data-hmk-salts="${lines.join(' ')}">`;
+		const salts = entries.map((e) => `${e.line}:${e.alias}`).join(',');
+		let resultAttr = ` data-hmk-salts="${salts}"`;
+		const procs = result.procRanges.get(Number(from));
+		if (procs && procs.length) {
+			resultAttr += ` data-hmk-procs="${procs.map((p) => `${p.from}:${p.to}:${p.alias}`).join(';')}"`;
+		}
+		return `<svg ${attrs.trim()}${resultAttr}>`;
 	});
 }

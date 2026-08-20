@@ -71,33 +71,56 @@ export function mockupRange(el: Element): SourceRange | undefined {
 }
 
 /**
- * Zips the host-provided `data-hmk-salts` lines (first-occurrence `SALT(x)`
- * invocation lines per fence) onto the SVG's rangeless mockup `<image>`s, in
- * SVG document order — one mockup per distinct alias, in first-invocation
- * order (see `src/plantuml/invocations.ts`). Server-tagged note mockups are
- * untouched. Attaching to the `<image>` (not a wrapper: the activity mockups
- * sit directly in the root layout group) keeps the element's own box for the
- * cursor outline and click resolution. Called after every render (renders
- * recreate the elements).
+ * Zips the host-provided `data-hmk-salts` entries (first-occurrence `SALT(x)`
+ * invocation lines per fence, encoded as `line:alias` pairs) onto the SVG's
+ * rangeless mockup `<image>`s, in SVG document order — one mockup per distinct
+ * alias, in first-invocation order (see `src/plantuml/invocations.ts`). Each
+ * image gets `data-hmk-from`/`data-hmk-to` for the invocation line and
+ * `data-hmk-alias` for the alias name. Also attaches procedure body ranges from
+ * `data-hmk-procs` (`from:to:alias` triples) as `data-hmk-proc` arrays on the
+ * svg root. Server-tagged note mockups are untouched.
  */
 export function attachMockupRanges(root: HTMLElement): void {
 	for (const svg of Array.from(root.querySelectorAll<SVGSVGElement>('svg[data-hmk-salts]'))) {
-		const lines = (svg.getAttribute('data-hmk-salts') ?? '')
-			.split(/\s+/)
-			.map((v) => Number(v))
-			.filter((n) => isFinite(n));
-		if (!lines.length) {
+		const entries = (svg.getAttribute('data-hmk-salts') ?? '')
+			.split(',')
+			.map((part) => {
+				const colon = part.indexOf(':');
+				if (colon < 0) return null;
+				const line = Number(part.slice(0, colon));
+				const alias = part.slice(colon + 1);
+				return isFinite(line) && alias ? { line, alias } : null;
+			})
+			.filter((e): e is { line: number; alias: string } => e !== null);
+		if (!entries.length) {
 			continue;
 		}
 		const mockups = Array.from(svg.querySelectorAll<SVGImageElement>('image'))
 			.filter((img) => !img.closest('[data-source-code]'));
 		mockups.forEach((img, index) => {
-			const line = lines[index];
-			if (line === undefined) {
+			const entry = entries[index];
+			if (!entry) {
 				return;
 			}
-			img.setAttribute('data-hmk-from', String(line));
-			img.setAttribute('data-hmk-to', String(line));
+			img.setAttribute('data-hmk-from', String(entry.line));
+			img.setAttribute('data-hmk-to', String(entry.line));
+			img.setAttribute('data-hmk-alias', entry.alias);
 		});
+
+		// Parse procedure body ranges and store on the svg root.
+		const procsRaw = svg.getAttribute('data-hmk-procs') ?? '';
+		if (procsRaw) {
+			const ranges = procsRaw.split(';').map((part) => {
+				const segments = part.split(':');
+				if (segments.length < 3) return null;
+				const from = Number(segments[0]);
+				const to = Number(segments[1]);
+				const alias = segments.slice(2).join(':');
+				return isFinite(from) && isFinite(to) && from >= 0 && to >= from && alias ? { from, to, alias } : null;
+			}).filter((r): r is { from: number; to: number; alias: string } => r !== null);
+			if (ranges.length) {
+				svg.setAttribute('data-hmk-procs', JSON.stringify(ranges));
+			}
+		}
 	}
 }
