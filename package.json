@@ -2,12 +2,12 @@
 	"name": "vscode-hacker-markdown",
 	"displayName": "Hacker Markdown",
 	"description": "A Markdown preview you can dock in the Panel or Primary Sidebar, or open in the Editor.",
-	"version": "2026.8.18-3",
+	"version": "2026.8.20-1",
 	"publisher": "lamnt45",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/lamnguyenx/vscode-hacker-markdown.git"
+		"url": "git+https://github.com/lamnguyenx/vscode-hacker-markdown.git"
 	},
 	"engines": {
 		"vscode": "^1.100.0"
@@ -230,5 +230,20 @@
 		"esbuild": "^0.28.1",
 		"js-yaml": "^5.2.3",
 		"typescript": "^5.5.0"
-	}
+	},
+	"directories": {
+		"doc": "docs",
+		"test": "tests"
+	},
+	"dependencies": {
+		"argparse": "^2.0.1",
+		"undici-types": "^8.3.0"
+	},
+	"keywords": [],
+	"author": "",
+	"type": "commonjs",
+	"bugs": {
+		"url": "https://github.com/lamnguyenx/vscode-hacker-markdown/issues"
+	},
+	"homepage": "https://github.com/lamnguyenx/vscode-hacker-markdown#readme"
 }

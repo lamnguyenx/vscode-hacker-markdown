@@ -35,6 +35,7 @@ Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
 | `tests/plantuml_inline_check.cjs` | Pure-logic check of the PlantUML SVG inlining (img→svg replacement, span copy, graceful failure — stubbed fetcher, no dev host, no server) |
 | `tests/mermaid_check.cjs` | Pure-logic check of the mermaid source-span rewrite (no dev host) |
 | `tests/plantuml_completion_check.cjs` | Pure-logic check of the in-markdown PlantUML code completions: fence detection + catalog (no dev host) |
+| `tests/plantuml_note_highlight_check.cjs` | Live CDP check of `note on link`/`-->` keyword tokenization after `end note` (`vue.volar` corrupts `{{salt }}` SALT blocks; section 3f) |
 | `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
 
 ---
@@ -498,8 +499,125 @@ tokenization works). Verify scopes, not colors:
   → `…Unable to resolve nonexistent file '…/syntaxes/codeblock.json'`
   means the grammar files are missing from the extension folder (see Makefile
   `install`, which now copies + verifies `syntaxes/`).
+- **`vue.volar` corrupts `{{salt }}` SALT mockups.** Volar's
+  `vue.interpolations` injection grammar (`injectionSelector:
+  L:text.html.markdown -comment.block`, `begin: {{ / end: }}`) matches the
+  PlantUML SALT `{{salt …}}` syntax on the *markdown* scope and swallows the
+  scan inside ` ```plantuml ` fences — after the first `note on link … end
+  note` block, EVERY subsequent line in that fence collapses to a single
+  flat `mtk*` span (the `>` of `-->` is also flagged
+  `unexpected-closing-bracket`). This is reproducible on the dev host with
+  `--with-extensions` but NOT with `--disable-extensions` or
+  `--disable-extension vue.volar`. Catch it with
+  `node tests/plantuml_note_highlight_check.cjs 9334`. See §3i for the full
+  injection-conflict debugging workflow.
+  Full write-up:
+  `docs/issues/bugs/2026/08/21/2026-08-21-note-on-link-highlight-lost-after-end-note.md`.
 
-## 3g. PlantUML code completions (in-markdown IntelliSense)
+## 3g. Injection-grammar conflicts (extension A/B workflow)
+
+Grammar debugging often looks like "everything tokenizes correctly in
+standalone `vscode-textmate`" but falls apart in the real window. The reason
+is almost always an **injection grammar from another extension** that matches
+syntax inside our fences. This section documents the A/B technique for
+isolating and fixing such conflicts.
+
+### The workflow (in 60 seconds)
+
+```sh
+# 1. Compile (skip full build if only grammar files changed)
+npm run build:syntax       # plantuml.yaml-tmLanguage → plantuml.tmLanguage.json
+
+# 2. Launch with the suspect fixture (Volar enabled = the "broken" side)
+tools/kill-devhost.sh 9334
+tools/launch-devhost.sh --port 9334 --with-extensions \
+  --profile "$PWD/exp/devhost-withext" \
+  --file "$PWD/tests/samples/enroll-flow.puml.md"
+
+# 3. Close & reopen the fixture tab (grammar changes are never hot-reloaded
+#    on already-open tabs; close Cmd+W, reopen Ctrl+P → Enter)
+#    Then probe with the regression test:
+node tests/plantuml_note_highlight_check.cjs 9334
+
+# 4. Isolate the culprit with the "Volar-off" control:
+tools/kill-devhost.sh 9334
+setsid nohup /usr/share/code/code \
+  --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-withext" \
+  --remote-debugging-port=9334 --with-extensions --disable-extension vue.volar \
+  --new-window "$PWD/tests/samples/enroll-flow.puml.md" \
+  > exp/devhost-launch.log 2>&1 < /dev/null &
+node tests/plantuml_note_highlight_check.cjs 9334     # should PASS
+```
+
+### Three controls, one conclusion
+
+| Control | Command | Result says |
+| --- | --- | --- |
+| **A — Extensions off** | `tools/launch-devhost.sh` (default `--disable-extensions`) | "our grammar works in isolation" |
+| **B — All extensions** | `--with-extensions` | "some user extension collides" |
+| **C — All extensions – suspect** | `--with-extensions --disable-extension vue.volar` (call `code` directly — no launch script passthrough) | "this extension IS the trigger" |
+
+### Scope-stack forensics
+
+Mtk classes (`mtk5`, `mtk10`, …) only tell you *colors*, not *who* assigned
+them. When a token looks wrong, use `Developer: Inspect Editor Tokens and
+Scopes` (Cmd+Shift+P → type it) to see the FULL scope stack:
+
+```
+source.ts.embedded.html.vue          ← Volar owns this
+expression.embedded.vue              ← Volar pushed this at {{salt
+diagram.source.wsd                   ← our plantuml scope (underneath)
+meta.embedded.block.plantuml
+markup.fenced_code.block.markdown
+text.html.markdown
+```
+
+If an injection grammar's scope appears **above** `diagram.source.wsd`, it has
+hijacked the scan. The typical way to fix:
+
+1. Read the offending extension's `injectionSelector` (e.g.
+   `L:text.html.markdown -comment.block` for Volar).
+2. Notice the `-comment.block` exclusion — it's a scope selector: the
+   injection skips scans inside `comment.block.*`.
+3. Opt your fence content into that exclusion by adding the scope to your
+   `contentName`:
+   ```diff
+   -"contentName": "meta.embedded.block.plantuml",
+   +"contentName": "meta.embedded.block.plantuml comment.block.plantuml",
+   ```
+4. Reload, close & reopen, re-test.
+
+### Smoking-gun symbols
+
+- `unexpected-closing-bracket` on ordinary `>` or `]` → an injection grammar
+  opened a scope inside your fence and left it unbalanced.
+- `bracket-highlighting-0` through `-5` in a file with only one level of
+  `[]` nesting → bracket counters are being summed across your fence and
+  an injection grammar.
+- `source.ts.embedded.html.vue` or `source.ts` inside a PlantUML fence → a
+  `{{ }}` interpolation grammar (Vue, Nunjucks, …) matched your SALT braces.
+
+### Regression harness
+
+`tests/plantuml_note_highlight_check.cjs` is a standalone CDP test that opens
+the fixture, scrolls to the multi-line notes, and asserts every
+`note on link` / `-->` line keeps >1 token span. It exits 0 (PASS) or 1
+(FAIL). Use it as a gate before committing grammar changes:
+
+```sh
+# baseline (extensions off)
+tools/launch-devhost.sh --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.md"
+node tests/plantuml_note_highlight_check.cjs 9334 && echo PASS
+
+# real-world (with extensions)
+tools/kill-devhost.sh 9334
+tools/launch-devhost.sh --port 9334 --with-extensions \
+  --profile "$PWD/exp/devhost-withext" \
+  --file "$PWD/tests/samples/enroll-flow.puml.md"
+node tests/plantuml_note_highlight_check.cjs 9334 && echo PASS
+```
+
+## 3i. PlantUML code completions (in-markdown IntelliSense)
 
 `src/completions/*` adds PlantUML keyword suggestions *while typing* inside
 `plantuml`/`puml`/`uml` markdown fences. The core (`src/completions/fences.ts`
@@ -522,7 +640,7 @@ Ctrl+Space (or type `@` / `!`) inside the fence shows the list; outside the
 fence nothing pops. Guidance on activating/relaunching the host: sections
 1–2 and 5.
 
-## 3h. Ctrl/Cmd+Shift+V override & cross-window placement
+## 3j. Ctrl/Cmd+Shift+V override & cross-window placement
 
 Two placement/shortcut features worth an explicit check:
 
@@ -576,6 +694,35 @@ tools/launch-devhost.sh
 node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335
 git checkout -- tests/workspace/sub.md tests/workspace/e2e-anchor.md   # the suite saves live-edit tokens into the fixtures
+```
+
+### Grammar-only fast loop
+
+When only `syntaxes/*` files change (no `.ts` / `src/` / `build/` changes),
+skip the full `npm run compile` and use the abbreviated loop:
+
+```sh
+npm run build:syntax              # plantuml.yaml-tmLanguage → .tmLanguage.json
+# (If codeblock.json changed, skip — that file is already .json)
+
+# Relaunch the dev host (or just reload the window & close/reopen the tab)
+tools/launch-devhost.sh --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.md"
+
+# Close the fixture tab (Cmd+W), reopen (Ctrl+P → Enter) — THIS IS REQUIRED.
+# Grammar changes are never hot-reloaded on already-open tabs (see §3f).
+# Reload Window alone is not always enough.
+
+# Probe:
+node tests/plantuml_note_highlight_check.cjs 9334
+
+# A/B against Volar (see §3g for the full workflow):
+tools/kill-devhost.sh 9334
+setsid nohup /usr/share/code/code \
+  --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-withext" \
+  --remote-debugging-port=9334 --with-extensions --disable-extension vue.volar \
+  --new-window "$PWD/tests/samples/enroll-flow.puml.md" \
+  > exp/devhost-launch.log 2>&1 < /dev/null &
+node tests/plantuml_note_highlight_check.cjs 9334
 ```
 
 After changing grammar files (`syntaxes/*`) or `package.json#contributes.*`
@@ -645,6 +792,10 @@ running window gets a live install that still needs a reload to activate.
 | PlantUML completion pure-logic check (no dev host) | `node tests/plantuml_completion_check.cjs` (section 3g) |
 | Keybinding override / serializer / cross-window move | section 3h (`Developer: Toggle Keyboard Shortcuts Troubleshooting` + `Move Editor into New Window`) |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
+| PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/plantuml_note_highlight_check.cjs 9334` (also works on `--with-extensions` hosts) |
+| Inspect editor tokens & scopes | `Ctrl+Shift+P` → `Developer: Inspect Editor Tokens and Scopes` (section 3f) |
+| Build only the grammar (skip full `npm run compile`) | `npm run build:syntax` (section 5) |
+| Launch with a single extension excluded (A/B test) | `tools/kill-devhost.sh 9334` then call `code` directly with `--disable-extension vue.volar` (section 1) |
 
 ## Known Limits of This Setup
 

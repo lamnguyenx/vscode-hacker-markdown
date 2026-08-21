@@ -40,6 +40,31 @@ patterns:
 - include: '#General'
 
 repository:
+  SaltBlock:
+    patterns:
+    - comment: |
+        SALT wireframe block. PlantUML SALT mockups open with `{{salt` and
+        close with `}}`. This pattern must consume the block before any
+        injection grammar does — notably `vue.volar`'s `vue.interpolations`
+        (`injectionSelector: L:text.html.markdown`, `begin: \{\{`), which
+        would otherwise swallow the scan inside a `plantuml` markdown fence
+        and corrupt tokenization for the rest of the fence after the first
+        `end note`. We win on length: `\{\{salt…` matches more chars than
+        Volar's bare `\{\{`, so oniguruma picks ours.
+      begin: (?i)\{\{(salt|qa|tree|fish|indentation)\b
+      beginCaptures:
+        '0': {name: keyword.other.salt.source.wsd}
+      end: (?i)\}\}
+      endCaptures:
+        '0': {name: keyword.other.salt.source.wsd}
+      contentName: meta.embedded.salt.source.wsd
+      patterns:
+      - comment: SALT brace/border/widget forms
+        match: '[\[\]{}()+*]'
+        name: keyword.operator.salt.source.wsd
+      - comment: SALT widget label text
+        match: "[^\\s\\[\\]{}()+*]+"
+        name: string.unquoted.salt.source.wsd
   Quoted:
     patterns:
     - comment: quoted definitions
@@ -49,7 +74,10 @@ repository:
     - comment: double quoted
       name: string.quoted.double.source.wsd
       begin: '"'
-      end: '"'
+      # End at the closing quote, or at end of line when there is none, so a
+      # lone `"` (e.g. SALT's `{^"` radio/select label) never swallows the
+      # rest of the document as one unterminated string.
+      end: '(?:"|$)'
   Comment:
     patterns:
     - comment: comment line
@@ -99,6 +127,7 @@ repository:
       match: (?i)\b(as|{(static|abstract)\})\b
   General:
     patterns:
+    - include: '#SaltBlock'
     - comment: multi-line title, enables ctrl+r jump list.
       begin: (?i)^\s*(title)\s*$
       beginCaptures:
@@ -172,6 +201,7 @@ repository:
       endCaptures:
         '1': {name: keyword.other.multline.noteof.source.wsd}
       patterns:
+      - include: '#SaltBlock'
       - name: meta.comment.multline.noteof.source.wsd
         match: .+?
     - comment: float note, note as
@@ -210,6 +240,15 @@ repository:
       end: $
       patterns:
       - include: '#General'
+      - comment: actor and link message
+        match: (?i):([^:]+):\s*:(.+)$
+        captures:
+          '1': {name: variable.other.enummember.actor.link.source.wsd}
+          '2': {name: meta.comment.message.link.source.wsd}
+      - comment: link message
+        match: (?i):(.+)$
+        captures:
+          '1': {name: meta.comment.message.link.source.wsd}
       - comment: actor and link message
         match: (?i):([^:]+):\s*:(.+)$
         captures:
