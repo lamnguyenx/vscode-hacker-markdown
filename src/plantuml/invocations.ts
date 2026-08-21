@@ -173,3 +173,49 @@ export function saltInvocationLines(text: string): SaltScanResult {
 
 	return { invocations, procRanges };
 }
+
+/**
+ * Returns a map of alias → definition line (0-based, absolute) for every
+ * `!procedure _<name>()` block in the puml fence that opens at
+ * `fenceStartLine`. The alias is the underscore-stripped name
+ * (`_form_empty` → `form_empty`). If an alias is defined twice in the
+ * same fence, the first declaration wins.
+ */
+export function aliasDefinitions(text: string, fenceStartLine: number): Map<string, number> {
+	const { procRanges } = saltInvocationLines(text);
+	const ranges = procRanges.get(fenceStartLine);
+	if (!ranges || !ranges.length) {
+		return new Map();
+	}
+	const out = new Map<string, number>();
+	for (const r of ranges) {
+		if (!out.has(r.alias)) {
+			out.set(r.alias, r.from);
+		}
+	}
+	return out;
+}
+
+/**
+ * Finds every `SALT(<alias>)` invocation inside the fence spanning lines
+ * `[fenceStart, fenceEnd)` — the `SALT(...)` calls that reference a procedure.
+ * Unlike `saltInvocationLines` (which deduplicates by alias), this returns
+ * **all** occurrences, including repeats of the same alias. Lines are 0-based,
+ * absolute document lines.
+ */
+export function invocationReferences(text: string, fenceStart: number, fenceEnd: number | undefined, alias: string): number[] {
+	const lines = text.replace(/\r\n|\r/g, '\n').split('\n');
+	const out: number[] = [];
+	const end = fenceEnd ?? lines.length - 1;
+	for (let i = fenceStart + 1; i < end; i++) {
+		const lineText = lines[i]!;
+		// Skip !-directives and comments to avoid false positives in proc definitions
+		if (lineText.trim().startsWith('!') || lineText.trim().startsWith("'")) {
+			continue;
+		}
+		if (lineText.includes(`SALT(${alias})`)) {
+			out.push(i);
+		}
+	}
+	return out;
+}
