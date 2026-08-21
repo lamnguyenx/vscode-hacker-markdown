@@ -31,7 +31,7 @@
                 {
                     "begin": "(^|\\G)(\\s*)(.*)",
                     "while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-                    "contentName": "meta.embedded.block.plantuml",
+                    "contentName": "meta.embedded.block.plantuml comment.block.plantuml",
                     "patterns": [
                         {
                             "include": "source.wsd"

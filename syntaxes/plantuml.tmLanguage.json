@@ -93,6 +93,38 @@
         }
     ],
     "repository": {
+        "SaltBlock": {
+            "patterns": [
+                {
+                    "comment": "SALT wireframe block. PlantUML SALT mockups open with `{{salt` and\nclose with `}}`. This pattern must consume the block before any\ninjection grammar does — notably `vue.volar`'s `vue.interpolations`\n(`injectionSelector: L:text.html.markdown`, `begin: \\{\\{`), which\nwould otherwise swallow the scan inside a `plantuml` markdown fence\nand corrupt tokenization for the rest of the fence after the first\n`end note`. We win on length: `\\{\\{salt…` matches more chars than\nVolar's bare `\\{\\{`, so oniguruma picks ours.\n",
+                    "begin": "(?i)\\{\\{(salt|qa|tree|fish|indentation)\\b",
+                    "beginCaptures": {
+                        "0": {
+                            "name": "keyword.other.salt.source.wsd"
+                        }
+                    },
+                    "end": "(?i)\\}\\}",
+                    "endCaptures": {
+                        "0": {
+                            "name": "keyword.other.salt.source.wsd"
+                        }
+                    },
+                    "contentName": "meta.embedded.salt.source.wsd",
+                    "patterns": [
+                        {
+                            "comment": "SALT brace/border/widget forms",
+                            "match": "[\\[\\]{}()+*]",
+                            "name": "keyword.operator.salt.source.wsd"
+                        },
+                        {
+                            "comment": "SALT widget label text",
+                            "match": "[^\\s\\[\\]{}()+*]+",
+                            "name": "string.unquoted.salt.source.wsd"
+                        }
+                    ]
+                }
+            ]
+        },
         "Quoted": {
             "patterns": [
                 {
@@ -105,7 +137,7 @@
                     "comment": "double quoted",
                     "name": "string.quoted.double.source.wsd",
                     "begin": "\"",
-                    "end": "\""
+                    "end": "(?:\"|$)"
                 }
             ]
         },
@@ -210,6 +242,9 @@
         },
         "General": {
             "patterns": [
+                {
+                    "include": "#SaltBlock"
+                },
                 {
                     "comment": "multi-line title, enables ctrl+r jump list.",
                     "begin": "(?i)^\\s*(title)\\s*$",
@@ -387,6 +422,9 @@
                     },
                     "patterns": [
                         {
+                            "include": "#SaltBlock"
+                        },
+                        {
                             "name": "meta.comment.multline.noteof.source.wsd",
                             "match": ".+?"
                         }
@@ -472,6 +510,27 @@
                     "patterns": [
                         {
                             "include": "#General"
+                        },
+                        {
+                            "comment": "actor and link message",
+                            "match": "(?i):([^:]+):\\s*:(.+)$",
+                            "captures": {
+                                "1": {
+                                    "name": "variable.other.enummember.actor.link.source.wsd"
+                                },
+                                "2": {
+                                    "name": "meta.comment.message.link.source.wsd"
+                                }
+                            }
+                        },
+                        {
+                            "comment": "link message",
+                            "match": "(?i):(.+)$",
+                            "captures": {
+                                "1": {
+                                    "name": "meta.comment.message.link.source.wsd"
+                                }
+                            }
                         },
                         {
                             "comment": "actor and link message",
