@@ -110,6 +110,14 @@ details underneath the feature list, and the product limitations.
   `onLanguage:markdown` activation event, so it works without opening the
   preview. Scoped to markdown fences only — `.puml`/`.wsd` files are
   untouched. Keyword-only: no macros/variables.
+- **PlantUML go-to-definition inside markdown fences.** Alt+Click / Cmd+Click / F12
+  on a `SALT(<alias>)` argument inside a puml fence jumps the editor to the
+  matching `!procedure _<alias>()` definition in the same fence
+  (`src/completions/definitions.ts`, registered on `markdown` with the same `fenceAt`
+  self-filter pattern). The pure `aliasDefinitions()` function in
+  `src/plantuml/invocations.ts` reuses the existing `PROC_OPEN_REG` scanner to
+  produce the alias→line map. Keyword-only: same-fence only (no `!include`
+  resolution yet); covered by `tests/plantuml_definition_check.cjs`.
 - **Follows the active editor.** The preview switches when you open another
   Markdown file and re-renders **on save** by default
   (`hackerMarkdown.renderOnSave`), or live (debounced) as you type when the
@@ -202,6 +210,11 @@ details underneath the feature list, and the product limitations.
   full list, and the `plantuml`-language files get nothing. Typing plain
   letters relies on the editor's `quickSuggestions`; the `@`/`!` triggers and
   `Ctrl+Space` always work.
+- **Go-to-definition for plantuml procedures is same-fence only.** The
+  `DefinitionProvider` (`src/completions/definitions.ts`) resolves `SALT(<alias>)` to
+  `!procedure _<alias>()` only within the same puml fence. Cross-fence jumps via
+  `!include` resolution are not supported. The cursor word matches any
+  procedure alias in the fence; non-alias words silently return no definition.
 - Cursor sync is a **highlight only.** Rendered blocks from renderers we don't
   rewrite (e.g. `jebbs.plantuml`'s
   in-engine `<img>`, KaTeX output) carry no `data-hmk-*` span, so a cursor

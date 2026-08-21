@@ -640,6 +640,50 @@ Ctrl+Space (or type `@` / `!`) inside the fence shows the list; outside the
 fence nothing pops. Guidance on activating/relaunching the host: sections
 1–2 and 5.
 
+## 3k. PlantUML go-to-definition (in-markdown IntelliSense)
+
+`src/completions/definitions.ts` adds a `DefinitionProvider` that resolves
+`SALT(<alias>)` inside `plantuml`/`puml`/`uml` markdown fences to the
+matching `!procedure _<alias>()` definition in the same fence — F12 /
+Alt+Click / Cmd+Click on the alias word jumps the editor cursor to the
+definition line.
+
+The core (`src/plantuml/invocations.ts` function `aliasDefinitions`) is pure
+(no `vscode` import) and is unit-checked against the real shipped `out/` code
+without a dev host:
+
+```sh
+npm run compile
+node tests/plantuml_definition_check.cjs   # alias→line mapping, per-fence isolation, duplicate alias, underscore stripping, tilde fences
+```
+
+The vscode boundary (`src/completions/definitions.ts`) is a definition provider
+registered on the `markdown` language (same `fenceAt` self-filter pattern as
+completions). Definitions live in the **extension host**, not the preview
+webview, so they are outside the OOPIF CDP harness — verify by hand with the
+dev host open on `tests/samples/enroll-flow.puml.md`: F12 on `enroll_uploading_1`
+inside `SALT(enroll_uploading_1)` jumps to line 213
+(`!procedure _enroll_uploading_1()`); F12 on a non-alias word silently does
+nothing. Guidance on activating/relaunching the host: sections 1–2 and 5.
+
+For a programmatic assertion, use the workbench CDP target with
+`vscode.executeDefinitionProvider` (same pattern as `executeCompletionItemProvider`
+documented in `quirks.md` §"Language features in embedded regions"):
+
+```sh
+# probe with the workbench target, position inside SALT(enroll_uploading_1)
+cdp_eval workbench "...
+  const loc = await vscode.commands.executeCommand(
+    'vscode.executeDefinitionProvider',
+    vscode.Uri.file('$PWD/tests/samples/enroll-flow.puml.md'),
+    new vscode.Position(466, <char-pos>)
+  );
+  console.log(JSON.stringify(loc[0]));
+"
+```
+
+Expect `"line": 212` (0-based definition line).
+
 ## 3j. Ctrl/Cmd+Shift+V override & cross-window placement
 
 Two placement/shortcut features worth an explicit check:
@@ -790,6 +834,7 @@ running window gets a live install that still needs a reload to activate.
 | Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs 9335` + `node exp/persist_test.cjs 9335` (section 3d) |
 | PlantUML rendering pure-logic check (no dev host) | `node tests/plantuml_check.cjs` (section 3e) |
 | PlantUML completion pure-logic check (no dev host) | `node tests/plantuml_completion_check.cjs` (section 3g) |
+| PlantUML definition pure-logic check (no dev host) | `node tests/plantuml_definition_check.cjs` (section 3k) |
 | Keybinding override / serializer / cross-window move | section 3h (`Developer: Toggle Keyboard Shortcuts Troubleshooting` + `Move Editor into New Window`) |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 | PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/plantuml_note_highlight_check.cjs 9334` (also works on `--with-extensions` hosts) |

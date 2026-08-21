@@ -58,6 +58,8 @@ feature deep-dives, limitations); sync internals in
 - **PlantUML code completion** — `@start…`/`@end…`, keywords,
   `!include`/`!define`, `skinparam` names and colors are suggested inside
   puml fences (`hackerMarkdown.completions.enabled`).
+- **PlantUML go-to-definition** — Alt+Click / Cmd+Click / F12 on a salt alias
+  inside a puml fence jumps to the matching `!procedure` definition in the same fence.
 - **PlantUML syntax highlighting** — `.puml`/`.plantuml`/`.wsd`/`.pu`/`.iuml`
   files and PlantUML code fences inside Markdown are highlighted in the
   editor (TextMate grammars vendored from
