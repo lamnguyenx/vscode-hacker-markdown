@@ -2,7 +2,7 @@
 
 A Markdown preview you can **dock in the Panel or the Primary Sidebar**, or open in the Editor — unlike the built-in preview, which is locked to the editor area. It renders through the built-in `markdown-language-features` engine, so the output matches the stock preview (front matter, `highlight.js`, tables, contributed markdown-it plugins).
 
-**Features** — dockable preview, editor-area previews that survive reloads, pin-to-document, bidirectional scroll & cursor sync, click-to-source, PlantUML rendering + completion + syntax highlighting, pan/zoom diagrams, media toolbar (invert / tables / column width), mermaid/KaTeX support. See [Features](docs/important/features.md) for the full list, [architecture.md](docs/important/architecture.md) for how it works.
+**Features** — dockable preview, editor-area previews that survive reloads, pin-to-document, bidirectional scroll & cursor sync, click-to-source, PlantUML rendering + completion + syntax highlighting, pan/zoom diagrams, media toolbar (invert / tables / column width), mermaid/KaTeX support, **go-to-definition + find-references + hover + rename + document highlights + code lens + folding for PlantUML procedure aliases inside markdown fences**. See [Features](docs/important/features.md) for the full list, [architecture.md](docs/important/architecture.md) for how it works.
 
 ## Commands
 

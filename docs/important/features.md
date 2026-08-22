@@ -57,9 +57,23 @@ feature deep-dives, limitations); sync internals in
   stock preview is untouched.
 - **PlantUML code completion** — `@start…`/`@end…`, keywords,
   `!include`/`!define`, `skinparam` names and colors are suggested inside
-  puml fences (`hackerMarkdown.completions.enabled`).
-- **PlantUML go-to-definition** — Alt+Click / Cmd+Click / F12 on a salt alias
-  inside a puml fence jumps to the matching `!procedure` definition in the same fence.
+  puml fences (`hackerMarkdown.completions.enabled`). All `@start`/`@end`
+  diagram types (`@startjson`, `@startgantt`, …) and preprocessor directives
+  (`!function`, `!includesub`, `!assert`, …) are included. Dynamic procedure
+  names (`SALT`, `_sample_row_empty`) defined in the current document are also
+  suggested, with both bare and `_`-prefixed forms.
+- **PlantUML go-to-definition & find-references** — Alt+Click / Cmd+Click / F12
+  on a `SALT(alias)` inside a puml fence jumps to the matching `!procedure`
+  definition in the same fence. Shift+F12 shows all call sites plus the definition.
+- **PlantUML hover** — hovering over a procedure alias or `SALT(alias)` shows
+  the `!procedure` signature, reference count, and line number.
+- **PlantUML rename** — F2 on a procedure alias renames all `SALT(alias)` calls
+  and the `!procedure _alias()` definition in the same fence.
+- **PlantUML document highlights** — clicking a procedure alias highlights all
+  occurrences (definition + invocations) in the fence.
+- **PlantUML code lens** — "N references" shown above each `!procedure` definition;
+  click to open the references peek view.
+- **PlantUML folding** — `!procedure … !endprocedure` blocks are foldable in the editor.
 - **PlantUML syntax highlighting** — `.puml`/`.plantuml`/`.wsd`/`.pu`/`.iuml`
   files and PlantUML code fences inside Markdown are highlighted in the
   editor (TextMate grammars vendored from

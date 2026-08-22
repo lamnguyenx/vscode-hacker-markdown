@@ -116,8 +116,43 @@ details underneath the feature list, and the product limitations.
   (`src/completions/definitions.ts`, registered on `markdown` with the same `fenceAt`
   self-filter pattern). The pure `aliasDefinitions()` function in
   `src/plantuml/invocations.ts` reuses the existing `PROC_OPEN_REG` scanner to
-  produce the alias→line map. Keyword-only: same-fence only (no `!include`
+  produce the alias→line map. Same-fence only (no `!include`
   resolution yet); covered by `tests/plantuml_definition_check.cjs`.
+- **PlantUML find-references inside markdown fences.** Shift+F12 on a procedure
+  alias or `SALT(alias)` shows all call sites plus the definition line. The
+  `ReferenceProvider` (`src/completions/definitions.ts`) uses the pure
+  `invocationReferences()` function which scans the fence for every
+  `SALT(alias)` occurrence (not deduplicated). Also registered on `markdown`
+  with `fenceAt` self-filtering.
+- **PlantUML hover, rename, document highlights, code lens, and folding.**
+  All five providers live in `src/completions/definitions.ts`, registered on
+  `markdown` with `fenceAt` self-filtering, and rely on the same pure
+  core functions:
+  - **Hover** (`HoverProvider`): resolves the alias, shows the `!procedure`
+    signature in a fenced code block plus the invocation count and line number.
+  - **Rename** (`RenameProvider`, `prepareRename` + `provideRenameEdits`):
+    renames the alias in all `SALT(alias)` calls and the `!procedure _alias()`
+    definition in the same fence. Validates `newName` against `/^\w+$/`.
+    Replaces `_alias` → `_newName` on definition lines (preserving the `_`).
+  - **Document highlights** (`DocumentHighlightProvider`): highlights all
+    occurrences of the alias — definition → `Write` kind, invocations → `Read`.
+  - **Code lens** (`CodeLensProvider`): shows "N references" above each
+    `!procedure` definition; click opens the references peek view.
+  - **Folding** (`FoldingRangeProvider`): folds `!procedure … !endprocedure`
+    blocks, using the `procedureFoldRanges()` pure helper.
+  All five share a single `resolveAlias()` helper (word + `_`-prefix fallback)
+  and the pure `aliasOccurrences()` function which returns typed occurrences
+  (`definition` / `invocation`) with exact column ranges.
+- **Dynamic procedure alias completion.** Beyond the static 790-word catalog,
+  `provideCompletionItems` (`src/completions/provider.ts`) calls the pure
+  `procedureNames()` function (`src/plantuml/invocations.ts`) which scans the
+  current fence for both `!procedure _name()` and `!unquoted procedure Name()`
+  definitions using a broader regex (`PROC_NAME_REG`). Each procedure name
+  becomes a `CompletionItem` (bare name + `_`-prefixed form for `_`-started
+  names). The provider also fires on `(` so typing `SALT(` immediately shows
+  all aliases. All diagram `@start`/`@end` types (`@startjson`, `@endgantt`,
+  …) and preprocessor directives (`!function`, `!includesub`, `!assert`, …)
+  are now in the static catalog (`words.ts`, extended beyond the jebbs port).
 - **Follows the active editor.** The preview switches when you open another
   Markdown file and re-renders **on save** by default
   (`hackerMarkdown.renderOnSave`), or live (debounced) as you type when the
@@ -205,16 +240,23 @@ details underneath the feature list, and the product limitations.
 - Rendering happens through `markdown.api.render`, which cannot rewrite relative image paths, so image `src` attributes are rewritten extension-side against the document folder (same behavior as the built-in preview's resource provider).
 - PlantUML fences are rewritten from the rendered HTML fragment, so the fence source takes the HTML-escape round-trip (only `& < > "`; `&amp;` is decoded last to keep literal `&lt;` intact). The rendered diagram (inlined `<svg>`) carries no `data-line`, but the rewrite adds a fence-level `data-hmk-from`/`data-hmk-to` span for cursor sync and click-to-source. The server must be CSP-compatible (`https`, or `http://` on `localhost`/`127.0.0.1`), same as the stock preview, and the extension host fetches the SVG directly (no CORS involved).
 - Contributed preview scripts and styles are loaded (mermaid, KaTeX, …), but the extension has no control over *when* other extensions activate; a script contributed by an extension that never activates simply never loads. `markdown.css` / `highlight.css` are copied from `microsoft/vscode` (MIT) to keep rendering identical to the stock preview.
-- Completions are a **static keyword list**, scoped to markdown fences. No
-  macros/variables (unlike jebbs's `.puml`-file-only completion), no jar-backed
-  full list, and the `plantuml`-language files get nothing. Typing plain
-  letters relies on the editor's `quickSuggestions`; the `@`/`!` triggers and
-  `Ctrl+Space` always work.
-- **Go-to-definition for plantuml procedures is same-fence only.** The
-  `DefinitionProvider` (`src/completions/definitions.ts`) resolves `SALT(<alias>)` to
-  `!procedure _<alias>()` only within the same puml fence. Cross-fence jumps via
-  `!include` resolution are not supported. The cursor word matches any
-  procedure alias in the fence; non-alias words silently return no definition.
+- Completions are a **static keyword list plus dynamic procedure names**,
+  scoped to markdown fences. No macros/variables (unlike jebbs's
+  `.puml`-file-only completion), no jar-backed full list, and the
+  `plantuml`-language files get nothing. Typing plain letters relies on the
+  editor's `quickSuggestions`; the `@`/`!`/`(` triggers and `Ctrl+Space`
+  always work. Dynamic procedure names (`SALT`, `_form_empty`) are suggested
+  by scanning the current fence for `!procedure` and `!unquoted procedure`
+  definitions — same-fence only, no cross-file resolution.
+- **Go-to-definition, find-references, hover, rename, highlights, code lens
+  for plantuml procedures are all same-fence only.** Every provider
+  (`src/completions/definitions.ts`) resolves aliases only within the same puml
+  fence. Cross-fence jumps via `!include` are not supported. All are text-based,
+  not semantic — a bare alias word in a comment matches the definition. And the
+  rename provider only replaces `SALT(alias)` + `!procedure _alias()` tokens;
+  bare alias words elsewhere are untouched. Code lens scans the full document on
+  every idle tick (fast for typical docs, but no per-version cache yet). Folding
+  does not handle unmatched `!procedure` without a closing `!endprocedure`.
 - Cursor sync is a **highlight only.** Rendered blocks from renderers we don't
   rewrite (e.g. `jebbs.plantuml`'s
   in-engine `<img>`, KaTeX output) carry no `data-hmk-*` span, so a cursor

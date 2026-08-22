@@ -17,11 +17,11 @@ export const PLANTUML_TYPE_WORDS: readonly string[] = [
 ];
 
 export const PLANTUML_KEYWORDS: readonly string[] = [
-	"@enddot", "@endsalt", "@enduml", "@startdot", "@startsalt", "@startuml", "activate", "again", "allow_mixing", "allowmixing", "also", "alt", "as", "autonumber", "bold", "bottom", "box", "break", "caption", "center", "circle", "create", "critical", "deactivate", "description", "destroy", "down", "else", "elseif", "empty", "end", "endif", "endwhile", "false", "footbox", "footer", "fork", "group", "header", "hide", "hnote", "if", "is", "italic", "kill", "left", "legend", "link", "loop", "members", "namespace", "newpage", "note", "of", "on", "opt", "order", "over", "package", "page", "par", "partition", "plain", "ref", "repeat", "return", "right", "rnote", "rotate", "show", "skin", "skinparam", "start", "stop", "strictuml", "title", "top", "top to bottom direction", "true", "up", "while"
+	"@endditaa", "@enddot", "@endebnf", "@endfiles", "@endgantt", "@endjson", "@endlatex", "@endmath", "@endmindmap", "@endnwdiag", "@endregex", "@endsalt", "@endtree", "@enduml", "@endwbs", "@endyaml", "@startditaa", "@startdot", "@startebnf", "@startfiles", "@startgantt", "@startjson", "@startlatex", "@startmath", "@startmindmap", "@startnwdiag", "@startregex", "@startsalt", "@starttree", "@startuml", "@startwbs", "@startyaml", "activate", "again", "allow_mixing", "allowmixing", "also", "alt", "as", "autonumber", "bold", "bottom", "box", "break", "caption", "center", "circle", "create", "critical", "deactivate", "description", "destroy", "down", "else", "elseif", "empty", "end", "endprocedure", "endif", "endwhile", "false", "footbox", "footer", "fork", "group", "header", "hide", "hnote", "if", "is", "italic", "kill", "left", "legend", "link", "loop", "members", "namespace", "newpage", "note", "of", "on", "opt", "order", "over", "package", "page", "par", "partition", "plain", "procedure", "ref", "repeat", "return", "right", "rnote", "rotate", "show", "skin", "skinparam", "start", "stop", "strictuml", "title", "top", "top to bottom direction", "true", "up", "while"
 ];
 
 export const PLANTUML_PREPROCESSOR_WORDS: readonly string[] = [
-	"!define", "!definelong", "!else", "!enddefinelong", "!endif", "!exit", "!if", "!ifdef", "!ifndef", "!include", "!pragma", "!undef"
+	"!assert", "!define", "!definelong", "!dump_json", "!dump_json_indent", "!else", "!enddefinelong", "!endif", "!endfunction", "!endprocedure", "!endsub", "!exit", "!function", "!if", "!ifdef", "!ifndef", "!import", "!include", "!includesub", "!load", "!load_json", "!log", "!pragma", "!procedure", "!return", "!startsub", "!undef", "!unload"
 ];
 
 export const PLANTUML_SKINPARAM_WORDS: readonly string[] = [
