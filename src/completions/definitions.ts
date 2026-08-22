@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { fenceAt } from './fences';
-import { aliasDefinitions, invocationReferences } from '../plantuml/invocations';
+import { aliasDefinitions, aliasOccurrences, invocationReferences, procedureFoldRanges } from '../plantuml/invocations';
 
 /** The word under or adjacent to `position`, or undefined. */
 function wordAt(line: string, char: number): { word: string; start: number; end: number } | undefined {
@@ -18,6 +18,18 @@ function wordAt(line: string, char: number): { word: string; start: number; end:
 	return { word: line.slice(start, end), start, end };
 }
 
+/** Resolves alias from cursor word: direct match, or `_`-prefix fallback. */
+function resolveAlias(text: string, fenceStart: number, word: string): string | undefined {
+	const defs = aliasDefinitions(text, fenceStart);
+	if (defs.has(word)) {
+		return word;
+	}
+	if (word.startsWith('_') && defs.has(word.slice(1))) {
+		return word.slice(1);
+	}
+	return undefined;
+}
+
 const definitionProvider: vscode.DefinitionProvider = {
 	provideDefinition(document, position): vscode.ProviderResult<vscode.Definition | vscode.DefinitionLink[]> {
 		const fence = fenceAt(document.getText(), position.line);
@@ -30,13 +42,7 @@ const definitionProvider: vscode.DefinitionProvider = {
 			return undefined;
 		}
 		const defs = aliasDefinitions(document.getText(), fence.startLine);
-		// Direct alias lookup (cursor on `enroll_uploading_1` in SALT(...)).
 		let defLine = defs.get(w.word);
-		// When cursor starts with `_` (cursor on `_enroll_uploading_1` inside
-		// a procedure definition), strip the underscore and try again. VS Code
-		// then sees "1 result at cursor position" and automatically fires the
-		// alternative command (default: `editor.action.goToReferences`), so
-		// Alt+Click on a procedure name shows all its `SALT(x)` call sites.
 		if (defLine === undefined && w.word.startsWith('_')) {
 			defLine = defs.get(w.word.slice(1));
 		}
@@ -61,10 +67,7 @@ const referenceProvider: vscode.ReferenceProvider = {
 		if (!w) {
 			return undefined;
 		}
-		// If the cursor word starts with `_`, it is likely a procedure definition
-		// name (`_enroll_uploading_1`). Strip it to get the invocation alias.
 		const alias = w.word.startsWith('_') ? w.word.slice(1) : w.word;
-		// Verify the alias actually exists as a procedure definition.
 		const defs = aliasDefinitions(document.getText(), fence.startLine);
 		const defLine = defs.get(alias);
 		if (defLine === undefined) {
@@ -79,8 +82,6 @@ const referenceProvider: vscode.ReferenceProvider = {
 				new vscode.Range(l, col, l, col + `SALT(${alias})`.length),
 			);
 		});
-		// Include the definition itself as a reference so "show references" shows
-		// the full picture (definition + all invocations).
 		if (defLine >= 0) {
 			const textLine = document.lineAt(defLine).text;
 			const col = textLine.indexOf(alias);
@@ -95,11 +96,157 @@ const referenceProvider: vscode.ReferenceProvider = {
 	}
 };
 
+const hoverProvider: vscode.HoverProvider = {
+	provideHover(document, position): vscode.ProviderResult<vscode.Hover> {
+		const fence = fenceAt(document.getText(), position.line);
+		if (!fence) {
+			return undefined;
+		}
+		const line = document.lineAt(position.line).text;
+		const w = wordAt(line, position.character);
+		if (!w) {
+			return undefined;
+		}
+		const alias = resolveAlias(document.getText(), fence.startLine, w.word);
+		if (!alias) {
+			return undefined;
+		}
+		const defs = aliasDefinitions(document.getText(), fence.startLine);
+		const defLine = defs.get(alias)!;
+		const defText = document.lineAt(defLine).text.trim();
+		const occurrences = aliasOccurrences(document.getText(), fence.startLine, fence.endLine, alias);
+		const refCount = occurrences.filter((o) => o.kind === 'invocation').length;
+		const md = new vscode.MarkdownString();
+		md.appendCodeblock(defText, 'plantuml');
+		md.appendMarkdown(`**${refCount} reference${refCount !== 1 ? 's' : ''}** &middot; line ${defLine + 1}`);
+		return new vscode.Hover(md);
+	}
+};
+
+const renameProvider: vscode.RenameProvider = {
+	prepareRename(document, position): vscode.ProviderResult<vscode.Range | { range: vscode.Range; placeholder: string }> {
+		const fence = fenceAt(document.getText(), position.line);
+		if (!fence) {
+			return undefined;
+		}
+		const line = document.lineAt(position.line).text;
+		const w = wordAt(line, position.character);
+		if (!w) {
+			return undefined;
+		}
+		const alias = resolveAlias(document.getText(), fence.startLine, w.word);
+		if (!alias) {
+			return undefined;
+		}
+		return {
+			range: new vscode.Range(position.line, w.start, position.line, w.end),
+			placeholder: alias,
+		};
+	},
+
+	provideRenameEdits(document, position, newName): vscode.ProviderResult<vscode.WorkspaceEdit> {
+		if (!/^\w+$/.test(newName)) {
+			return undefined;
+		}
+		const fence = fenceAt(document.getText(), position.line);
+		if (!fence) {
+			return undefined;
+		}
+		const line = document.lineAt(position.line).text;
+		const w = wordAt(line, position.character);
+		if (!w) {
+			return undefined;
+		}
+		const alias = resolveAlias(document.getText(), fence.startLine, w.word);
+		if (!alias) {
+			return undefined;
+		}
+		const occurrences = aliasOccurrences(document.getText(), fence.startLine, fence.endLine, alias);
+		const edit = new vscode.WorkspaceEdit();
+		for (const occ of occurrences) {
+			const replacement = occ.kind === 'definition' ? `_${newName}` : newName;
+			edit.replace(document.uri, new vscode.Range(occ.line, occ.startCol, occ.line, occ.endCol), replacement);
+		}
+		return edit;
+	}
+};
+
+const highlightProvider: vscode.DocumentHighlightProvider = {
+	provideDocumentHighlights(document, position): vscode.ProviderResult<vscode.DocumentHighlight[]> {
+		const fence = fenceAt(document.getText(), position.line);
+		if (!fence) {
+			return undefined;
+		}
+		const line = document.lineAt(position.line).text;
+		const w = wordAt(line, position.character);
+		if (!w) {
+			return undefined;
+		}
+		const alias = resolveAlias(document.getText(), fence.startLine, w.word);
+		if (!alias) {
+			return undefined;
+		}
+		const occurrences = aliasOccurrences(document.getText(), fence.startLine, fence.endLine, alias);
+		return occurrences.map((occ) => {
+			const kind = occ.kind === 'definition' ? vscode.DocumentHighlightKind.Write : vscode.DocumentHighlightKind.Read;
+			return new vscode.DocumentHighlight(new vscode.Range(occ.line, occ.startCol, occ.line, occ.endCol), kind);
+		});
+	}
+};
+
+const codeLensProvider: vscode.CodeLensProvider = {
+	provideCodeLenses(document): vscode.ProviderResult<vscode.CodeLens[]> {
+		const text = document.getText();
+		const lines = text.replace(/\r\n|\r/g, '\n').split('\n');
+		const lenses: vscode.CodeLens[] = [];
+		for (let i = 0; i < lines.length; i++) {
+			const trimmed = lines[i]!.trim();
+			const procMatch = /^\s*!procedure\s+_([a-zA-Z0-9_]+)\s*\(/.exec(trimmed);
+			if (!procMatch) {
+				continue;
+			}
+			const fence = fenceAt(text, i);
+			if (!fence) {
+				continue;
+			}
+			const alias = procMatch[1]!;
+			const occurrences = aliasOccurrences(text, fence.startLine, fence.endLine, alias);
+			const refCount = occurrences.filter((o) => o.kind === 'invocation').length;
+			const defLine = aliasDefinitions(text, fence.startLine).get(alias);
+			const locations = defLine !== undefined
+				? occurrences.map((o) => new vscode.Location(
+					document.uri,
+					new vscode.Range(o.line, o.startCol, o.line, o.endCol),
+				))
+				: [];
+			lenses.push(new vscode.CodeLens(
+				new vscode.Range(i, trimmed.search(/\S/), i, lines[i]!.length),
+				{
+					title: `${refCount} reference${refCount !== 1 ? 's' : ''}`,
+					command: refCount > 0 ? 'editor.action.showReferences' : '',
+					arguments: refCount > 0 ? [document.uri, new vscode.Position(i, 0), locations] : undefined,
+				},
+			));
+		}
+		return lenses;
+	}
+};
+
+const foldingProvider: vscode.FoldingRangeProvider = {
+	provideFoldingRanges(document): vscode.ProviderResult<vscode.FoldingRange[]> {
+		const ranges = procedureFoldRanges(document.getText());
+		return ranges.map((r) => new vscode.FoldingRange(r.startLine, r.endLine));
+	}
+};
+
 export function registerDefinitions(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
-		vscode.languages.registerDefinitionProvider({ language: 'markdown' }, definitionProvider)
-	);
-	context.subscriptions.push(
-		vscode.languages.registerReferenceProvider({ language: 'markdown' }, referenceProvider)
+		vscode.languages.registerDefinitionProvider({ language: 'markdown' }, definitionProvider),
+		vscode.languages.registerReferenceProvider({ language: 'markdown' }, referenceProvider),
+		vscode.languages.registerHoverProvider({ language: 'markdown' }, hoverProvider),
+		vscode.languages.registerRenameProvider({ language: 'markdown' }, renameProvider),
+		vscode.languages.registerDocumentHighlightProvider({ language: 'markdown' }, highlightProvider),
+		vscode.languages.registerCodeLensProvider({ language: 'markdown' }, codeLensProvider),
+		vscode.languages.registerFoldingRangeProvider({ language: 'markdown' }, foldingProvider),
 	);
 }

@@ -684,6 +684,46 @@ cdp_eval workbench "...
 
 Expect `"line": 212` (0-based definition line).
 
+## 3l. PlantUML hover, rename, highlights, code lens, folding
+
+All five live in `src/completions/definitions.ts`, registered on `markdown`,
+self-gated by `fenceAt()`. The pure core (`aliasOccurrences`,
+`procedureFoldRanges`, `procedureNames` in `src/plantuml/invocations.ts`) is
+covered by the same pure-logic check as go-to-definition:
+
+```sh
+npm run compile
+node tests/plantuml_definition_check.cjs
+```
+
+This exercises 31 checks across 11 sections, including `aliasOccurrences`
+(definition + invocation detection, substring safety, repeated invocations),
+`procedureFoldRanges` (pair matching, empty, non-puml), and `procedureNames`
+(`!unquoted procedure` + `!procedure` detection).
+
+**Manual dev-host checks** (`tools/launch-devhost.sh --file
+"$PWD/tests/samples/enroll-flow.puml.md"`):
+
+1. **Hover** over `SALT(enroll_uploading_1)` → tooltip shows
+   `!procedure _enroll_uploading_1()` + "2 references" + line number.
+2. **F2** on `enroll_uploading_1` → rename offered; type `foo` → all
+   `SALT(foo)` + `!procedure _foo()` updated; `SALT(enroll_extracting_1)`
+   unaffected.
+3. **Click** on `SALT(enroll_uploading_1)` → all occurrences highlighted
+   (definition in `Write` color, invocations in `Read` color).
+4. **Code lens** above `!procedure _enroll_uploading_1()` shows "2 references".
+5. **Fold** the `!procedure _enroll_uploading_1() … !endprocedure` block.
+
+**Completion enhancements** (`src/completions/words.ts` + `provider.ts`):
+- All `@start`/`@end` diagram types and preprocessor directives are now in
+  the static catalog (29 type + 109 keyword + 28 preprocessor + 514 skinparam
+  + 154 color words).
+- Dynamic procedure names (`SALT`, `_sample_row_empty`, `sample_row_empty`)
+  are suggested inside puml fences via `procedureNames()`, which detects both
+  `!procedure _name()` and `!unquoted procedure Name()`.
+- The provider also fires on `(` so `SALT(` immediately shows all aliases.
+- Verified by the catalog-sanity checks in `tests/plantuml_completion_check.cjs`.
+
 ## 3j. Ctrl/Cmd+Shift+V override & cross-window placement
 
 Two placement/shortcut features worth an explicit check:
@@ -834,7 +874,7 @@ running window gets a live install that still needs a reload to activate.
 | Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs 9335` + `node exp/persist_test.cjs 9335` (section 3d) |
 | PlantUML rendering pure-logic check (no dev host) | `node tests/plantuml_check.cjs` (section 3e) |
 | PlantUML completion pure-logic check (no dev host) | `node tests/plantuml_completion_check.cjs` (section 3g) |
-| PlantUML definition pure-logic check (no dev host) | `node tests/plantuml_definition_check.cjs` (section 3k) |
+| PlantUML definition / hover / rename / highlights / code lens / folding pure-logic check (no dev host) | `node tests/plantuml_definition_check.cjs` (section 3k + 3l) |
 | Keybinding override / serializer / cross-window move | section 3h (`Developer: Toggle Keyboard Shortcuts Troubleshooting` + `Move Editor into New Window`) |
 | Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
 | PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/plantuml_note_highlight_check.cjs 9334` (also works on `--with-extensions` hosts) |
@@ -876,12 +916,15 @@ running window gets a live install that still needs a reload to activate.
   project: keystrokes inside a cross-origin page never reach VS Code. The
   preview chrome itself (our own webview) does forward keys.
 - **Completions are not in the smoke suite.** The in-markdown PlantUML
-  completions (section 3g) are extension-host language features, outside the
+  completions (section 3g + 3l) are extension-host language features, outside the
   webview-OOPIF CDP harness; they are covered by the pure-logic
-  `plantuml_completion_check.cjs` + a manual dev-host spot-check
-  (`Ctrl+Space` / `@` / `!` inside a puml fence), not by `test_preview.cjs`.
-  An automated assertion would need `vscode.executeCompletionItemProvider`
-  from the workbench target (see quirks.md).
+  `plantuml_completion_check.cjs` + `plantuml_definition_check.cjs`
+  (catalog sanity + `procedureNames`) plus a manual dev-host spot-check
+  (`Ctrl+Space` / `@` / `!` / `(` inside a puml fence), not by `test_preview.cjs`.
+  Dynamic procedure alias completions (`SALT`, `_sample_row_empty`) are verified
+  by the `procedureNames` pure check (section 3l). An automated assertion would
+  need `vscode.executeCompletionItemProvider` from the workbench target (see
+  quirks.md).
 - **Cursor-sync *media* highlighting (cursor inside a rendered puml fence) is
   not in the smoke suite.** The `data-hmk-from`/`data-hmk-to` span emission is
   pinned by `tests/plantuml_check.cjs` and `tests/mermaid_check.cjs` (pure

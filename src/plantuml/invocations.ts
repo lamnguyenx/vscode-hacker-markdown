@@ -196,6 +196,66 @@ export function aliasDefinitions(text: string, fenceStartLine: number): Map<stri
 	return out;
 }
 
+export interface AliasOccurrence {
+	/** 0-based absolute document line. */
+	readonly line: number;
+	/** 0-based column of the alias word start (after `_` for definitions). */
+	readonly startCol: number;
+	/** 0-based column after the alias word end. */
+	readonly endCol: number;
+	/** `definition` if this is `!procedure _<alias>()`; `invocation` if `SALT(<alias>)`. */
+	readonly kind: 'definition' | 'invocation';
+}
+
+export interface ProcFoldRange {
+	/** 0-based, inclusive start line (`!procedure`). */
+	readonly startLine: number;
+	/** 0-based, inclusive end line (`!endprocedure`). */
+	readonly endLine: number;
+}
+
+/**
+ * Returns every semantically meaningful occurrence of `alias` inside the fence
+ * spanning lines `[fenceStart, fenceEnd)` — the `!procedure _<alias>()`
+ * definition line and every `SALT(<alias>)` invocation line.
+ */
+export function aliasOccurrences(text: string, fenceStart: number, fenceEnd: number | undefined, alias: string): AliasOccurrence[] {
+	const lines = text.replace(/\r\n|\r/g, '\n').split('\n');
+	const out: AliasOccurrence[] = [];
+	const end = fenceEnd ?? lines.length - 1;
+
+	for (let i = fenceStart + 1; i < end; i++) {
+		const lineText = lines[i]!;
+		const trimmed = lineText.trim();
+
+		// Definition line: !procedure _<alias>()
+		const procMatch = /^\s*!procedure\s+_([a-zA-Z0-9_]+)\s*\(/.exec(trimmed);
+		if (procMatch && procMatch[1] === alias) {
+			const undIdx = lineText.indexOf(`_${alias}`);
+			if (undIdx >= 0) {
+				out.push({ line: i, startCol: undIdx, endCol: undIdx + 1 + alias.length, kind: 'definition' });
+			}
+			continue;
+		}
+
+		if (trimmed.startsWith("'") || trimmed.startsWith('!')) {
+			continue;
+		}
+
+		// Invocation: SALT(<alias>)
+		const saltStr = `SALT(${alias})`;
+		let idx = lineText.indexOf(saltStr);
+		while (idx >= 0) {
+			const beforeOk = idx === 0 || !/\w/.test(lineText[idx - 1]!);
+			if (beforeOk) {
+				out.push({ line: i, startCol: idx + 5, endCol: idx + 5 + alias.length, kind: 'invocation' });
+			}
+			idx = lineText.indexOf(saltStr, idx + 1);
+		}
+	}
+	return out;
+}
+
 /**
  * Finds every `SALT(<alias>)` invocation inside the fence spanning lines
  * `[fenceStart, fenceEnd)` — the `SALT(...)` calls that reference a procedure.
@@ -204,18 +264,52 @@ export function aliasDefinitions(text: string, fenceStartLine: number): Map<stri
  * absolute document lines.
  */
 export function invocationReferences(text: string, fenceStart: number, fenceEnd: number | undefined, alias: string): number[] {
-	const lines = text.replace(/\r\n|\r/g, '\n').split('\n');
-	const out: number[] = [];
-	const end = fenceEnd ?? lines.length - 1;
-	for (let i = fenceStart + 1; i < end; i++) {
-		const lineText = lines[i]!;
-		// Skip !-directives and comments to avoid false positives in proc definitions
-		if (lineText.trim().startsWith('!') || lineText.trim().startsWith("'")) {
-			continue;
-		}
-		if (lineText.includes(`SALT(${alias})`)) {
-			out.push(i);
+	return aliasOccurrences(text, fenceStart, fenceEnd, alias)
+		.filter((o) => o.kind === 'invocation')
+		.map((o) => o.line);
+}
+
+/**
+ * Returns every `!procedure` … `!endprocedure` range inside puml fences in
+ * `text`, as 0-based inclusive line pairs. Reuses the existing
+ * `saltInvocationLines` scanner.
+ */
+export function procedureFoldRanges(text: string): ProcFoldRange[] {
+	const { procRanges } = saltInvocationLines(text);
+	const out: ProcFoldRange[] = [];
+	for (const ranges of procRanges.values()) {
+		for (const r of ranges) {
+			out.push({ startLine: r.from, endLine: r.to });
 		}
 	}
 	return out;
+}
+
+/**
+ * Matches both `!procedure _name()` and `!unquoted procedure SALT()`
+ * patterns. Captures the full procedure name including leading `_`.
+ */
+const PROC_NAME_REG = /^\s*!(?:unquoted\s+)?procedure\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/i;
+
+/**
+ * Returns every procedure name defined in the puml fence that opens at
+ * `fenceStartLine`, including both `_`-prefixed (e.g. `_form_empty`) and
+ * bare (e.g. `SALT`) names. Names preserve their original casing.
+ */
+export function procedureNames(text: string, fenceStartLine: number): string[] {
+	const lines = text.replace(/\r\n|\r/g, '\n').split('\n');
+	const names: string[] = [];
+	let i = fenceStartLine + 1;
+	while (i < lines.length) {
+		const trimmed = lines[i]!.trim();
+		if (/^(`{3,}|~{3,})\s*$/.test(trimmed)) {
+			break;
+		}
+		const match = PROC_NAME_REG.exec(trimmed);
+		if (match) {
+			names.push(match[1]!);
+		}
+		i++;
+	}
+	return names;
 }

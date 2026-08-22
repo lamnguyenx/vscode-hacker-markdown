@@ -140,16 +140,16 @@ const catalogs = [PLANTUML_TYPE_WORDS, PLANTUML_KEYWORDS, PLANTUML_PREPROCESSOR_
 function all() {
   return [].concat(...catalogs);
 }
-run('expected sizes match jebbs predefined.ts', () => {
+run('expected sizes match jebbs predefined.ts plus extensions', () => {
   assert.strictEqual(PLANTUML_TYPE_WORDS.length, 29);
-  assert.strictEqual(PLANTUML_KEYWORDS.length, 81);
-  assert.strictEqual(PLANTUML_PREPROCESSOR_WORDS.length, 12);
+  assert.strictEqual(PLANTUML_KEYWORDS.length, 109);
+  assert.strictEqual(PLANTUML_PREPROCESSOR_WORDS.length, 28);
   assert.strictEqual(PLANTUML_SKINPARAM_WORDS.length, 514);
   assert.strictEqual(PLANTUML_COLOR_WORDS.length, 154);
 });
 run('key markers present', () => {
   const words = new Set(all());
-  for (const w of ['@startuml', '@enduml', 'participant', 'usecase', '!include', 'skinparam', 'BackgroundColor', 'AliceBlue']) {
+  for (const w of ['@startuml', '@enduml', '@startjson', '@endjson', '@startyaml', '@startmindmap', '@startgantt', '@startwbs', 'participant', 'usecase', '!include', '!includesub', '!procedure', '!endprocedure', '!function', '!endfunction', '!return', '!assert', 'skinparam', 'BackgroundColor', 'AliceBlue', 'procedure', 'endprocedure']) {
     assert.ok(words.has(w), `missing ${w}`);
   }
 });
