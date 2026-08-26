@@ -26,8 +26,8 @@ Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
 
 | Script | Purpose |
 | --- | --- |
-| `tools/launch-devhost.sh` | Launch/restart the dev host in the background on macOS and Linux; restores the previously active app/window (section 1) |
-| `tools/kill-devhost.sh` | Gracefully shut down the dev host on a port (SIGTERM to the main process, so no "Closed … Reopen?" dialog; frees orphaned CDP-port fd holders on Linux) |
+| `vscode_cdp` (from `bach_cli/bach/vscode.sh`) | Launch/restart the dev host in the background on macOS and Linux |
+| `vscode_cdp_kill` (from `bach_cli/bach/vscode.sh`) | Gracefully shut down the dev host on a port (SIGTERM to the main process, so no "Closed … Reopen?" dialog; frees orphaned CDP-port fd holders on Linux) |
 | `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
 | `tests/test_preview.cjs` | Full 21-check functional smoke test |
 | `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
@@ -54,34 +54,34 @@ extension in its own instance with a debug port:
 
 ```sh
 cd /Users/lamnt45/git/vscode-hacker-markdown
-tools/launch-devhost.sh          # defaults: port 9335, exp/devhost profile, tests/workspace/test.md
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/test.md"
 ```
 
-Runs on macOS and Linux. On macOS it captures the currently active app
-(`lsappinfo front`), gracefully shuts down any previous dev host bound to the
-same CDP port (`tools/kill-devhost.sh` — SIGTERM to the main process only, so
-no "Closed … Reopen?" dialog), launches `code` under `nohup`, polls the CDP
-port until the window is up, then re-activates the captured app (`open -b` —
-no osascript, so no automation-permission prompt). On Linux it locates the
-**native desktop VS Code binary** (`/usr/share/code/code`, `/usr/bin/code`,
-…; the `code` on PATH is usually the Remote-SSH CLI wrapper, which cannot run
-a dev host — it rejects `--extensionDevelopmentPath` and
-`--remote-debugging-port`), finds a reachable X display, detaches the launch
-(`systemd-run --user`, else `setsid+nohup`), and restores the previously
-active X window (`xdotool`). Either way it does not steal your keyboard
-focus, so you can keep working while the host starts in the background.
-`HACKER_MD_CODE=/path/to/desktop/code` overrides the binary search on Linux.
+`vscode_cdp` (from `bach_cli/bach/vscode.sh`) runs on macOS and Linux. It
+gracefully shuts down any previous dev host bound to the same CDP port
+(`vscode_cdp_kill` — SIGTERM to the main process only, so no "Closed …
+Reopen?" dialog), launches `code` detached (`nohup` on macOS,
+`systemd-run --user`/`setsid` on Linux), then polls the CDP port until the
+window is up and returns. **Unlike the previous in-repo scripts it does NOT
+restore the previously active app/window — the dev host steals focus on
+launch.** Plan for that, or run `vscode_cdp` and switch back manually.
+
+Default profile is `~/.local/share/vscode-cdp/cdp-<port>` (shared across
+projects); pass `--profile "$PWD/exp/devhost"` for a per-repo profile.
+Default file is none (a Markdown editor is *not* active at startup, so the
+preview stays empty until you open one) — pass `--file
+"$PWD/tests/workspace/test.md"` to match the smoke-test's preconditions.
 
 For other fixtures/profiles/ports it accepts `--file`, `--profile`, `--port`:
 
 ```sh
-tools/launch-devhost.sh --file "$PWD/tests/workspace/e2e-anchor.md"                    # scroll-anchor E2E (section 3b)
-tools/launch-devhost.sh --file "$PWD/tests/samples/enroll-flow-elements.puml.md"   # puml frames (section 3d)
-tools/launch-devhost.sh --port 9337 --profile "$PWD/exp/devhost-puml" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"  # isolated puml host (section 3e)
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/e2e-anchor.md"                    # scroll-anchor E2E (section 3b)
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"   # puml frames (section 3d)
+vscode_cdp --port 9337 --profile "$PWD/exp/devhost-puml" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"  # isolated puml host (section 3e)
 ```
 
-The underlying command it runs (for reference; the script also handles the
-kill + focus restoration around it):
+The underlying command it runs (for reference; the function also handles the
+kill around it):
 
 ```sh
 code --extensionDevelopmentPath="$PWD" \
@@ -142,29 +142,28 @@ Notes:
 
 ### Linux-specific notes
 
-- **Native binary required.** `launch-devhost.sh` locates the native desktop
-  VS Code binary — never the `code` on PATH, which inside a Remote-SSH /
-  vscode-server session is a thin CLI wrapper that cannot run a dev host (it
-  rejects `--extensionDevelopmentPath`, `--user-data-dir` and
+- **The `code` on PATH must already be the native desktop binary.**
+  `vscode_cdp` does not locate it for you — the previous in-repo script did,
+  by scanning `/usr/share/code/code`, `/usr/bin/code`, `/opt/...`, validating
+  against `resources/app/product.json`, and rejecting anything under
+  `.vscode-server`. Inside a Remote-SSH / vscode-server session the `code`
+  on PATH is a thin CLI wrapper that cannot run a dev host (it rejects
+  `--extensionDevelopmentPath`, `--user-data-dir` and
   `--remote-debugging-port`). See
-  [`native-vs-remote-ssh-vscode.md`](native-vs-remote-ssh-vscode.md). The
-  search covers `/usr/share/code/code`, `/usr/local/bin/code`, `/usr/bin/code`,
-  `/opt/visual-studio-code/bin/code`, `/opt/vscode/bin/code`,
-  `/usr/bin/codium`, `/opt/vscodium/bin/codium`, `/snap/bin/code`; a candidate
-  is validated by resolving symlinks (anything under `.vscode-server` is the
-  remote CLI) and by the presence of `resources/app/product.json` next to the
-  binary. Override with `HACKER_MD_CODE=/path/to/desktop/code`.
-- **Display.** If `DISPLAY` is unset or unreachable, the script probes the
-  `/tmp/.X11-unix/X*` sockets with `xset` and picks the first responsive one.
+  [`native-vs-remote-ssh-vscode.md`](native-vs-remote-ssh-vscode.md). Make
+  sure the native binary is first on PATH, or use whatever wrapper your
+  environment provides to point at it.
+- **Display.** `$DISPLAY` must be set and reachable when the launch happens
+  — `vscode_cdp` errors out otherwise, with no auto-detection of X sockets.
   A headless box needs `xvfb-run` or a real X server.
 - **Detachment.** The host is launched via `systemd-run --user` when available
   (so it survives the launching shell), else `setsid nohup`. The log goes to
-  `exp/devhost-launch.log`.
+  `${XDG_STATE_HOME:-$HOME/.local/state}/bach/vscode-cdp-<port>.log`.
 - **Orphaned CDP-port holders.** Chromium spawns a `dconf watch /system/proxy/`
   helper (GLib proxy watching) that inherits the CDP listening socket fd. When
   the dev-host main process is killed, the helper survives, keeping the port in
   a zombie LISTEN state (connections hang, curl times out) — the next launch
-  then fails to bind. `tools/kill-devhost.sh` detects the non-serving holder
+  then fails to bind. `vscode_cdp_kill` detects the non-serving holder
   via `ss` and frees it; if a relaunch still hangs, kill it manually:
   `ss -tlnp | grep :9335` → kill the listed `pid`.
 
@@ -307,7 +306,7 @@ position survive?) has its own script. It needs the dev host launched with
 the fixture document (it edits the mermaid block on a known line):
 
 ```sh
-tools/launch-devhost.sh --file "$PWD/tests/workspace/e2e-anchor.md"
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/e2e-anchor.md"
 node tests/open_view.cjs 9335
 node exp/e2e-anchor.cjs 9335   # PASS: reading position held across mermaid re-render
 git checkout -- tests/workspace/e2e-anchor.md   # the run saves the inserted node into the fixture
@@ -394,7 +393,7 @@ The dev host renders puml only when *both* hold:
 To verify the pan/zoom frames against `tests/samples/enroll-flow-elements.puml.md`:
 
 ```sh
-tools/launch-devhost.sh --with-extensions --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
+vscode_cdp --with-extensions --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
 node tests/open_view.cjs 9335
 node exp/probe_all.cjs 9335 "<expr>"   # iterate ALL iframe targets (extra webviews present)
 node exp/persist_test.cjs 9335          # zoom -> save -> zoom restored
@@ -430,7 +429,7 @@ The e2e path (isolated host, a real server) is documented in the plan doc:
 ```sh
 # fresh profile => ONLY this extension loads (all extensions disabled, which is the launch default);
 # plantuml.server = http://localhost:9274 in exp/devhost-puml settings
-tools/launch-devhost.sh --port 9337 --profile "$PWD/exp/devhost-puml" \
+vscode_cdp --port 9337 --profile "$PWD/exp/devhost-puml" \
      --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
 node tests/open_view.cjs 9337
 # assert: a puml fence rendered an <img> (decoded from the server URL) wrapped in .hmk-frame
@@ -529,8 +528,8 @@ isolating and fixing such conflicts.
 npm run build:syntax       # plantuml.yaml-tmLanguage → plantuml.tmLanguage.json
 
 # 2. Launch with the suspect fixture (Volar enabled = the "broken" side)
-tools/kill-devhost.sh 9334
-tools/launch-devhost.sh --port 9334 --with-extensions \
+vscode_cdp_kill 9334
+vscode_cdp --port 9334 --with-extensions \
   --profile "$PWD/exp/devhost-withext" \
   --file "$PWD/tests/samples/enroll-flow.puml.md"
 
@@ -540,7 +539,7 @@ tools/launch-devhost.sh --port 9334 --with-extensions \
 node tests/plantuml_note_highlight_check.cjs 9334
 
 # 4. Isolate the culprit with the "Volar-off" control:
-tools/kill-devhost.sh 9334
+vscode_cdp_kill 9334
 setsid nohup /usr/share/code/code \
   --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-withext" \
   --remote-debugging-port=9334 --with-extensions --disable-extension vue.volar \
@@ -553,9 +552,9 @@ node tests/plantuml_note_highlight_check.cjs 9334     # should PASS
 
 | Control | Command | Result says |
 | --- | --- | --- |
-| **A — Extensions off** | `tools/launch-devhost.sh` (default `--disable-extensions`) | "our grammar works in isolation" |
+| **A — Extensions off** | `vscode_cdp` (default `--disable-extensions`) | "our grammar works in isolation" |
 | **B — All extensions** | `--with-extensions` | "some user extension collides" |
-| **C — All extensions – suspect** | `--with-extensions --disable-extension vue.volar` (call `code` directly — no launch script passthrough) | "this extension IS the trigger" |
+| **C — All extensions – suspect** | `--with-extensions --disable-extension vue.volar` (call `code` directly — no function passthrough) | "this extension IS the trigger" |
 
 ### Scope-stack forensics
 
@@ -606,12 +605,12 @@ the fixture, scrolls to the multi-line notes, and asserts every
 
 ```sh
 # baseline (extensions off)
-tools/launch-devhost.sh --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.md"
+vscode_cdp --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.md"
 node tests/plantuml_note_highlight_check.cjs 9334 && echo PASS
 
 # real-world (with extensions)
-tools/kill-devhost.sh 9334
-tools/launch-devhost.sh --port 9334 --with-extensions \
+vscode_cdp_kill 9334
+vscode_cdp --port 9334 --with-extensions \
   --profile "$PWD/exp/devhost-withext" \
   --file "$PWD/tests/samples/enroll-flow.puml.md"
 node tests/plantuml_note_highlight_check.cjs 9334 && echo PASS
@@ -701,7 +700,7 @@ This exercises 31 checks across 11 sections, including `aliasOccurrences`
 `procedureFoldRanges` (pair matching, empty, non-puml), and `procedureNames`
 (`!unquoted procedure` + `!procedure` detection).
 
-**Manual dev-host checks** (`tools/launch-devhost.sh --file
+**Manual dev-host checks** (`vscode_cdp --file
 "$PWD/tests/samples/enroll-flow.puml.md"`):
 
 1. **Hover** over `SALT(enroll_uploading_1)` → tooltip shows
@@ -773,8 +772,8 @@ first `markdown.api.render` call (it activates automatically on that command).
 
 ```sh
 npm run compile                    # tsc -> out/ + esbuild -> build/ (bundle + copied src/media)
-# restart the dev host (the script kills the old window on the same port first):
-tools/launch-devhost.sh
+# restart the dev host (the function kills the old window on the same port first):
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/test.md"
 node tests/open_view.cjs 9335
 node tests/test_preview.cjs 9335
 git checkout -- tests/workspace/sub.md tests/workspace/e2e-anchor.md   # the suite saves live-edit tokens into the fixtures
@@ -790,7 +789,7 @@ npm run build:syntax              # plantuml.yaml-tmLanguage → .tmLanguage.jso
 # (If codeblock.json changed, skip — that file is already .json)
 
 # Relaunch the dev host (or just reload the window & close/reopen the tab)
-tools/launch-devhost.sh --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.md"
+vscode_cdp --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.md"
 
 # Close the fixture tab (Cmd+W), reopen (Ctrl+P → Enter) — THIS IS REQUIRED.
 # Grammar changes are never hot-reloaded on already-open tabs (see §3f).
@@ -800,7 +799,7 @@ tools/launch-devhost.sh --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.
 node tests/plantuml_note_highlight_check.cjs 9334
 
 # A/B against Volar (see §3g for the full workflow):
-tools/kill-devhost.sh 9334
+vscode_cdp_kill 9334
 setsid nohup /usr/share/code/code \
   --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-withext" \
   --remote-debugging-port=9334 --with-extensions --disable-extension vue.volar \
@@ -845,7 +844,7 @@ wrong target or times out. When a run misbehaves inexplicably after switching
 fixtures, wipe the profile (`rm -rf exp/devhost`; the launch script recreates
 it) or relaunch with `--profile "$PWD/exp/devhost-<name>"` for a fresh one.
 On Linux, also make sure no orphan holds the port from the previous host
-(`tools/kill-devhost.sh` handles this automatically).
+(`vscode_cdp_kill` handles this automatically).
 
 **`make install` skips an unchanged version — bump it to reinstall.** The
 install delegates to `vscode-hacker-meta`, which leaves an already-installed
@@ -864,8 +863,8 @@ running window gets a live install that still needs a reload to activate.
 
 | Task | Command |
 | --- | --- |
-| Start dev host (port 9335) | `tools/launch-devhost.sh` (flags: `--port`, `--profile`, `--file`, `--with-extensions`; default: all extensions disabled; Linux: native binary, auto DISPLAY) |
-| Stop dev host | `tools/kill-devhost.sh [port]` (graceful SIGTERM; no "Reopen?" dialog) |
+| Start dev host (port 9335) | `vscode_cdp` (flags: `--port`, `--profile`, `--file`, `--with-extensions`, `--ext`, `--no-ext`; default: all extensions disabled; Linux: requires native `code` on PATH, `$DISPLAY` set) |
+| Stop dev host | `vscode_cdp_kill [port]` (graceful SIGTERM; no "Reopen?" dialog) |
 | List CDP targets | `curl -s http://127.0.0.1:9335/json/list` |
 | Prepare the view | `node tests/open_view.cjs 9335` |
 | Full functional smoke test | `node tests/test_preview.cjs 9335` |
@@ -880,7 +879,7 @@ running window gets a live install that still needs a reload to activate.
 | PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/plantuml_note_highlight_check.cjs 9334` (also works on `--with-extensions` hosts) |
 | Inspect editor tokens & scopes | `Ctrl+Shift+P` → `Developer: Inspect Editor Tokens and Scopes` (section 3f) |
 | Build only the grammar (skip full `npm run compile`) | `npm run build:syntax` (section 5) |
-| Launch with a single extension excluded (A/B test) | `tools/kill-devhost.sh 9334` then call `code` directly with `--disable-extension vue.volar` (section 1) |
+| Launch with a single extension excluded (A/B test) | `vscode_cdp_kill 9334` then call `code` directly with `--disable-extension vue.volar` (section 1) |
 
 ## Known Limits of This Setup
 

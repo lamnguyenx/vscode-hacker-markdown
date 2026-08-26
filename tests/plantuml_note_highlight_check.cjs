@@ -15,13 +15,13 @@
 //
 // Usage:
 //   npm run compile
-//   tools/launch-devhost.sh --with-extensions --port 9334 \
+//   vscode_cdp --with-extensions --port 9334 --profile "$PWD/exp/devhost-withext" \
 //     --file "$PWD/tests/samples/enroll-flow.puml.md"
 //   node tests/plantuml_note_highlight_check.cjs 9334
 //
 // To A/B test the Volar trigger, also run with Volar disabled (the bug
 // disappears):
-//   tools/kill-devhost.sh 9334
+//   vscode_cdp_kill 9334
 //   setsid nohup /usr/share/code/code \
 //     --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-withext" \
 //     --remote-debugging-port=9334 --with-extensions --disable-extension vue.volar \

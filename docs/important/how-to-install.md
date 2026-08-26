@@ -106,9 +106,9 @@ NOT be excluded, or the webview would 404).
 
 ## 2. What gets installed vs what the dev host uses
 
-- **The dev host** (`tools/launch-devhost.sh`) runs the extension straight from
-  this repository (`--extensionDevelopmentPath="$PWD"`) — it does **not** read
-  the installed copy.
+- **The dev host** (`vscode_cdp --extensionDevelopmentPath …`) runs the
+  extension straight from this repository (`--extensionDevelopmentPath="$PWD"`)
+  — it does **not** read the installed copy.
 - **A normal VS Code window** runs the **installed** copy under
   `~/.vscode/extensions/lamnt45.vscode-hacker-markdown-2026.08.17-1/`. If you're
   watching a normal window (not a dev host) while editing, changes in the repo

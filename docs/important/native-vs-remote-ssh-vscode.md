@@ -24,8 +24,8 @@ code --extensionDevelopmentPath="$PWD" --remote-debugging-port=9335 --new-window
 ```
 
 inside a Remote-SSH session silently degrades to a plain `code` invocation
-(the flags are ignored), which is also why `tools/launch-devhost.sh` failed
-with `dev host did not come up on port …` before the Linux support landed.
+(the flags are ignored), which is also why `vscode_cdp` against the remote
+CLI fails with `VS Code CDP host did not come up on port …`.
 
 The native binary also needs a display: it is a GUI application. On a headless
 machine it exits with `Missing X server or $DISPLAY` unless run under
@@ -54,20 +54,34 @@ ls "$(dirname "$(realpath "$(which code)")")/resources/app/product.json"
                                   # resources/app next to it)
 ```
 
-## How `tools/launch-devhost.sh` picks the binary (Linux)
+## How to make `vscode_cdp` find the native binary (Linux)
 
-1. `HACKER_MD_CODE=/path/to/code` overrides the search entirely.
-2. Otherwise it tries, in order: `/usr/share/code/code`, `/usr/local/bin/code`,
-   `/usr/bin/code`, `/opt/visual-studio-code/bin/code`, `/opt/vscode/bin/code`,
-   `/usr/bin/codium`, `/opt/vscodium/bin/codium`, `/snap/bin/code`.
-3. A candidate is accepted only if **both** hold:
-   - `readlink -f` does not resolve into `.vscode-server` / `.vscode-remote`
-     (that is the remote CLI, whatever it is named), and
-   - `resources/app/product.json` exists next to the resolved binary
-     (a desktop build ships its app bundle there).
+`vscode_cdp` runs whatever `code` is first on PATH — it does **not** probe
+known native-binary locations or validate `resources/app/product.json`
+(the previous in-repo `tools/launch-devhost.sh` did). Inside an
+Remote-SSH / vscode-server session the `code` on PATH is usually the remote
+CLI wrapper, which rejects the dev-host flags, so:
 
-macOS keeps using the plain `code` from PATH — there the PATH entry is the
-native desktop CLI.
+1. Before launching, confirm what `code` resolves to:
+   ```sh
+   realpath "$(which code)"        # contains .vscode-server → wrong CLI
+   ls "$(dirname "$(realpath "$(which code)")")/resources/app/product.json"
+                                   # missing → not a desktop build
+   ```
+2. If those fail, put the native binary first on PATH. Typical locations:
+   `/usr/share/code/code`, `/usr/local/bin/code`, `/usr/bin/code`,
+   `/opt/visual-studio-code/bin/code`, `/opt/vscode/bin/code`,
+   `/usr/bin/codium`, `/opt/vscodium/bin/codium`, `/snap/bin/code` — any of
+   them work as long as `realpath` does not land inside `.vscode-server` /
+   `.vscode-remote` and `resources/app/product.json` exists next to the
+   resolved binary. A shell alias in your bach profile works, as does
+   symlinking the native binary into `~/.local/bin`.
+3. macOS needs none of this — on macOS the `code` on PATH is already the
+   native desktop CLI.
+
+The remote CLI's per-flag rejection is silent on stderr but is visible in the
+launch log; if `vscode_cdp` reports "did not come up on port …", that is the
+first thing to rule out.
 
 ## Gotchas seen in practice
 
@@ -89,10 +103,11 @@ native desktop CLI.
 - A symlink named `code` can point at either binary; always resolve with
   `readlink -f` before judging.
 - The remote CLI's error message is logged, not fatal: the first broken
-  launch produces `exp/devhost-launch.log` containing three
-  `Ignoring option …` lines and no CDP port.
+  launch produces the launch log (under
+  `${XDG_STATE_HOME:-$HOME/.local/state}/bach/vscode-cdp-<port>.log`)
+  containing three `Ignoring option …` lines and no CDP port.
 - Chromium's `dconf watch` child (GLib proxy watching) inherits the CDP
   listening socket; after the dev host exits it can keep the port in a zombie
   LISTEN state that blocks the next launch (`ss -tlnp | grep :9335`, kill the
-  holder). `tools/kill-devhost.sh` frees it automatically — see
+  holder). `vscode_cdp_kill` frees it automatically — see
   `how-to-test.md` §1 (Linux notes).
