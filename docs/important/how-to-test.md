@@ -86,7 +86,7 @@ kill around it):
 ```sh
 code --extensionDevelopmentPath="$PWD" \
      --user-data-dir="$PWD/exp/devhost" \
-     --remote-debugging-port=9335 \
+     --remote-debugging-port=$CHROME_CDP_PORT$ \
      --new-window \
      "$PWD/tests/workspace/test.md"
 ```
@@ -138,7 +138,7 @@ Notes:
 - The harmless warning `'remote-debugging-port' is not in the list of known
   options` can be ignored. (The CLI prepends its own
   `--remote-debugging-port=9333`; Chromium lets the **last** occurrence win,
-  so the window still binds 9335.)
+  so the window still binds $CHROME_CDP_PORT$.)
 
 ### Linux-specific notes
 
@@ -165,12 +165,12 @@ Notes:
   a zombie LISTEN state (connections hang, curl times out) — the next launch
   then fails to bind. `vscode_cdp_kill` detects the non-serving holder
   via `ss` and frees it; if a relaunch still hangs, kill it manually:
-  `ss -tlnp | grep :9335` → kill the listed `pid`.
+  `ss -tlnp | grep :$CHROME_CDP_PORT$` → kill the listed `pid`.
 
 Verify the extension registered:
 
 ```sh
-curl -s http://127.0.0.1:9335/json/list          # workbench page target
+curl -s http://127.0.0.1:$CHROME_CDP_PORT$/json/list          # workbench page target
 ```
 
 or run `Hacker Markdown: Open` / `Hacker Markdown: Open Preview in Editor` /
@@ -181,7 +181,7 @@ or run `Hacker Markdown: Open` / `Hacker Markdown: Open Preview in Editor` /
 A fresh dev-host profile needs three manual-ish steps before the preview exists:
 
 ```sh
-node tests/open_view.cjs 9335
+node tests/open_view.cjs $CHROME_CDP_PORT$
 ```
 
 This script does, in order:
@@ -207,7 +207,7 @@ to attach to.
 ## 3. The Functional Smoke Test
 
 ```sh
-node tests/test_preview.cjs 9335
+node tests/test_preview.cjs $CHROME_CDP_PORT$
 ```
 
 The 21 checks (current status: **all passing**):
@@ -307,8 +307,8 @@ the fixture document (it edits the mermaid block on a known line):
 
 ```sh
 vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/e2e-anchor.md"
-node tests/open_view.cjs 9335
-node exp/e2e-anchor.cjs 9335   # PASS: reading position held across mermaid re-render
+node tests/open_view.cjs $CHROME_CDP_PORT$
+node exp/e2e-anchor.cjs $CHROME_CDP_PORT$   # PASS: reading position held across mermaid re-render
 git checkout -- tests/workspace/e2e-anchor.md   # the run saves the inserted node into the fixture
 ```
 
@@ -394,9 +394,9 @@ To verify the pan/zoom frames against `tests/samples/enroll-flow-elements.puml.m
 
 ```sh
 vscode_cdp --with-extensions --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
-node tests/open_view.cjs 9335
-node exp/probe_all.cjs 9335 "<expr>"   # iterate ALL iframe targets (extra webviews present)
-node exp/persist_test.cjs 9335          # zoom -> save -> zoom restored
+node tests/open_view.cjs $CHROME_CDP_PORT$
+node exp/probe_all.cjs $CHROME_CDP_PORT$ "<expr>"   # iterate ALL iframe targets (extra webviews present)
+node exp/persist_test.cjs $CHROME_CDP_PORT$          # zoom -> save -> zoom restored
 ```
 
 Expected: 12 puml `<img>`s, all wrapped in `.hmk-frame`; zoom-in / Alt+drag
@@ -774,8 +774,8 @@ first `markdown.api.render` call (it activates automatically on that command).
 npm run compile                    # tsc -> out/ + esbuild -> build/ (bundle + copied src/media)
 # restart the dev host (the function kills the old window on the same port first):
 vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/test.md"
-node tests/open_view.cjs 9335
-node tests/test_preview.cjs 9335
+node tests/open_view.cjs $CHROME_CDP_PORT$
+node tests/test_preview.cjs $CHROME_CDP_PORT$
 git checkout -- tests/workspace/sub.md tests/workspace/e2e-anchor.md   # the suite saves live-edit tokens into the fixtures
 ```
 
@@ -863,19 +863,19 @@ running window gets a live install that still needs a reload to activate.
 
 | Task | Command |
 | --- | --- |
-| Start dev host (port 9335) | `vscode_cdp` (flags: `--port`, `--profile`, `--file`, `--with-extensions`, `--ext`, `--no-ext`; default: all extensions disabled; Linux: requires native `code` on PATH, `$DISPLAY` set) |
+| Start dev host (port $CHROME_CDP_PORT$) | `vscode_cdp` (flags: `--port`, `--profile`, `--file`, `--with-extensions`, `--ext`, `--no-ext`; default: all extensions disabled; Linux: requires native `code` on PATH, `$DISPLAY` set) |
 | Stop dev host | `vscode_cdp_kill [port]` (graceful SIGTERM; no "Reopen?" dialog) |
-| List CDP targets | `curl -s http://127.0.0.1:9335/json/list` |
-| Prepare the view | `node tests/open_view.cjs 9335` |
-| Full functional smoke test | `node tests/test_preview.cjs 9335` |
-| Scroll-anchor E2E (start host with `tests/workspace/e2e-anchor.md`) | `node exp/e2e-anchor.cjs 9335` |
+| List CDP targets | `curl -s http://127.0.0.1:$CHROME_CDP_PORT$/json/list` |
+| Prepare the view | `node tests/open_view.cjs $CHROME_CDP_PORT$` |
+| Full functional smoke test | `node tests/test_preview.cjs $CHROME_CDP_PORT$` |
+| Scroll-anchor E2E (start host with `tests/workspace/e2e-anchor.md`) | `node exp/e2e-anchor.cjs $CHROME_CDP_PORT$` |
 | Harness (webview logic; needs ports 8377/8378) | open `http://127.0.0.1:8377/exp/scroll-anchor-test.html` (section 3c) |
-| Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs 9335` + `node exp/persist_test.cjs 9335` (section 3d) |
+| Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs $CHROME_CDP_PORT$` + `node exp/persist_test.cjs $CHROME_CDP_PORT$` (section 3d) |
 | PlantUML rendering pure-logic check (no dev host) | `node tests/plantuml_check.cjs` (section 3e) |
 | PlantUML completion pure-logic check (no dev host) | `node tests/plantuml_completion_check.cjs` (section 3g) |
 | PlantUML definition / hover / rename / highlights / code lens / folding pure-logic check (no dev host) | `node tests/plantuml_definition_check.cjs` (section 3k + 3l) |
 | Keybinding override / serializer / cross-window move | section 3h (`Developer: Toggle Keyboard Shortcuts Troubleshooting` + `Move Editor into New Window`) |
-| Evaluate in webview | `node tests/cdp_eval.cjs 9335 iframe vscode-webview:// "<expr>"` |
+| Evaluate in webview | `node tests/cdp_eval.cjs $CHROME_CDP_PORT$ iframe vscode-webview:// "<expr>"` |
 | PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/plantuml_note_highlight_check.cjs 9334` (also works on `--with-extensions` hosts) |
 | Inspect editor tokens & scopes | `Ctrl+Shift+P` → `Developer: Inspect Editor Tokens and Scopes` (section 3f) |
 | Build only the grammar (skip full `npm run compile`) | `npm run build:syntax` (section 5) |
