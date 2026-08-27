@@ -24,13 +24,22 @@ div.mermaid-wrapper {
 	transform: translateX(-50%);
 }
 
-/* Wide tables: pan = each table scrolls horizontally inside its own region;
- * fit = normal wrapping table. */
+/* Wide tables: pan = each table keeps its columns on one line and pans
+ * horizontally inside its own region (mirror of how `pre` doesn't wrap and
+ * gets a scrollbar); fit = normal wrapping table. `display: block` makes the
+ * <table> itself the scroll container — anonymous table boxes still lay the
+ * rows/cells out as a real grid inside it (the block only absorbs the
+ * overflow). `white-space: nowrap` on cells is what makes the table wide
+ * enough to overflow: without it, cells wrap to fit the block box, max-content
+ * collapses back to the column width, and the scrollbar never appears. */
 body[data-tables="pan"] .markdown-body table {
 	display: block;
 	overflow-x: auto;
-	width: max-content;
-	min-width: 100%;
+	max-width: 100%;
+}
+body[data-tables="pan"] .markdown-body table td,
+body[data-tables="pan"] .markdown-body table th {
+	white-space: nowrap;
 }
 
 /* Media inversion: dark/light force the mode; auto follows the theme
