@@ -102,9 +102,20 @@ function extractSvg(text: string): string | undefined {
 	return text.slice(start, end + 6);
 }
 
-/** Copies the fence-level `data-hmk-from`/`data-hmk-to` spans onto the `<svg>` root. */
+/**
+ * Copies the fence-level `data-hmk-from`/`data-hmk-to` spans onto the `<svg>`
+ * root, and re-stamps `data-hmk-puml` so the marker matches both the inlined
+ * SVG and the failed-fetch `<img>` code paths. Keeping the marker on the SVG
+ * root gives a uniform `[data-hmk-puml]` hook for user stylesheets (e.g.
+ * per-type invert); the default invert CSS does not select on it (PlantUML is
+ * already covered by the `svg:not(.mermaid-wrapper *)` embedded-SVG fallback).
+ *
+ * `data-hmk-puml` is a boolean attribute on the source `<img>`, so `parseAttrs`
+ * cannot read it — this function only ever runs on the puml-img path, so the
+ * marker is stamped unconditionally.
+ */
 function buildInlineSvg(svg: string, attrs: Map<string, string>): string {
-	let result = svg;
+	let result = svg.replace(/^<svg\b/, '<svg data-hmk-puml=""');
 	for (const key of ['data-hmk-from', 'data-hmk-to'] as const) {
 		const value = attrs.get(key);
 		if (value !== undefined) {

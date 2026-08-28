@@ -36,6 +36,19 @@ export function snapshotStaleBlocks(): StaleBlock[] {
 			lineCount++;
 			gapOrder = 0;
 		} else if (child.tagName === 'IMG' || child.tagName.toUpperCase() === 'SVG' || child.querySelector('svg, img')) {
+			// Mermaid's own library handles its re-render lifecycle (it does
+			// `replaceWith` on the wrapper + re-renders into the new node), and
+			// the positional keying here is broken for it: the rendered
+			// `.mermaid-wrapper` loses `data-line` so it lands in an anonymous
+			// gap slot, but the new fragment's `<pre class="mermaid">` keeps
+			// `data-line` (engine source map) so it is NOT a gap block — the
+			// old wrapper then pairs with a sibling SPAN at the same gap slot,
+			// wraps it in a holder, and waits 8 s for an SVG that never lands
+			// inside it (leaving a persistent "Re-rendering…" badge + blank
+			// space). The anchor guard covers the scroll position for mermaid.
+			if (child.closest('.mermaid-wrapper')) {
+				continue;
+			}
 			// rect height (not offsetHeight): renderer placeholders are
 			// often inline (e.g. mermaid's pre has style="all: unset").
 			const height = child.getBoundingClientRect().height;
