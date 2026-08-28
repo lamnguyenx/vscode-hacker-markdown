@@ -44,15 +44,23 @@ body[data-tables="pan"] .markdown-body table th {
 
 /* Media inversion: dark/light force the mode; auto follows the theme
  * (VS Code's webview body classes, including high contrast). Scoped to
- * .markdown-body so the toolbar's own SVGs are untouched. */
+ * .markdown-body so the toolbar's own SVGs are untouched.
+ *
+ * Mermaid is excluded from the default invert: its diagrams are usually
+ * theme-aware (or multi-colored), so a blanket `invert()` double-inverts
+ * them. `.mermaid-wrapper` is the marker the bierner.markdown-mermaid
+ * extension wraps its output in; PlantUML and embedded markdown SVGs have
+ * no such wrapper and stay inverted. `[data-hmk-puml]` (carried onto inlined
+ * PlantUML SVGs by `inlineSvg.ts`) is a stable hook a user stylesheet can
+ * sharpen further; the default rule does not select on it. */
 body[data-invert="dark"] .markdown-body img,
-body[data-invert="dark"] .markdown-body svg,
+body[data-invert="dark"] .markdown-body svg:not(.mermaid-wrapper svg),
 body[data-invert="dark"] .markdown-body video,
 body.vscode-dark[data-invert="auto"] .markdown-body img,
-body.vscode-dark[data-invert="auto"] .markdown-body svg,
+body.vscode-dark[data-invert="auto"] .markdown-body svg:not(.mermaid-wrapper svg),
 body.vscode-dark[data-invert="auto"] .markdown-body video,
 body.vscode-high-contrast[data-invert="auto"] .markdown-body img,
-body.vscode-high-contrast[data-invert="auto"] .markdown-body svg,
+body.vscode-high-contrast[data-invert="auto"] .markdown-body svg:not(.mermaid-wrapper svg),
 body.vscode-high-contrast[data-invert="auto"] .markdown-body video {
 	filter: invert(100%) hue-rotate(180deg);
 }
