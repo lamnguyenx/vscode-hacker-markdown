@@ -1,9 +1,9 @@
 {
-	"name": "vscode-hacker-markdown",
+	"name": "hacker-markdown",
 	"displayName": "Hacker Markdown",
 	"description": "A Markdown preview you can dock in the Panel or Primary Sidebar, or open in the Editor.",
-	"version": "2026.8.20-1",
-	"publisher": "lamnt45",
+	"version": "2026.9.3",
+	"publisher": "lamnguyenx",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
