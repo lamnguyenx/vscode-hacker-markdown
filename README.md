@@ -23,7 +23,7 @@ npm run compile
 To load it into a normal VS Code window, install it from source:
 
 ```sh
-make install        # builds (npm run compile) and copies into ~/.vscode/extensions
+make install      # build + install into VS Code and code-server
 ```
 
 then `Cmd+Shift+P > Developer: Reload Window` — see
@@ -38,7 +38,7 @@ provided), or launch an Extension Development Host manually — see
 
 - [features.md](docs/important/features.md) — feature list
 - [architecture.md](docs/important/architecture.md) — how it works, feature deep-dives, limitations
-- [how-to-install.md](docs/important/how-to-install.md) — build from source and install into VS Code (`make install`)
+- [how-to-install.md](docs/important/how-to-install.md) — build from source and install (`make install`)
 - [how-to-test.md](docs/important/how-to-test.md) — end-to-end CDP test pipeline
 - [editor-preview-sync.md](docs/important/editor-preview-sync.md) — cursor highlight + scroll sync internals
 - [quirks.md](docs/important/quirks.md) — generalized tool / webview behaviors
