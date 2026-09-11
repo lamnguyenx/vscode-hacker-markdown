@@ -186,12 +186,15 @@ export class PreviewHost {
 					font-src ${cspSource} https: data:;
 					">
 
+				${this.getContributedStyles()}
+				${this.getUserStyles()}
 				<link rel="stylesheet" type="text/css" href="${markdownCss}">
 				<link rel="stylesheet" type="text/css" href="${highlightCss}">
 				<link rel="stylesheet" type="text/css" href="${mainCss}">
 				<link rel="stylesheet" type="text/css" href="${mediaCss}">
-				${this.getContributedStyles()}
-				${this.getUserStyles()}
+				<style>
+					body code { font-family: var(--vscode-editor-font-family), "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace !important; }
+				</style>
 			</head>
 			<body class="vscode-body" ${this.getMediaAttrs()}>
 				<div class="toolbar" role="toolbar">

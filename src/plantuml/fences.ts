@@ -20,6 +20,17 @@ export interface FenceOptions {
 const PUML_FENCE_REG = /<pre([^>]*)>\s*<code([^>]*class="[^"]*language-(?:plantuml|puml|uml)[^"]*"[^>]*)>([\s\S]*?)<\/code>\s*<\/pre>/gi;
 
 /**
+ * Fallback regex for code-server where the mermaid extension's
+ * `options.highlight` override breaks fence rendering: when the original
+ * highlighter is null (browser/code-server environment), the fallback
+ * returns raw text; if that text contains `<`, markdown-it returns it
+ * without `<pre><code>` wrapping, so `PUML_FENCE_REG` can't find it.
+ * This matches `<pre>` whose content starts with `@start` (a PlantUML
+ * marker that never appears at the start of a non-puml code block).
+ */
+const PUML_UNWRAPPED_REG = /<pre([^>]*)>([\s\S]*?@start\w+[\s\S]*?@end\w+[\s\S]*?)<\/pre>/gi;
+
+/**
  * Post-processes the HTML fragment returned by `markdown.api.render`: replaces
  * every `plantuml`/`puml`/`uml` fenced block with a PlantUML-server `<img>`
  * (one per `newpage`), the same way jebbs.plantuml renders fences inside the
@@ -30,24 +41,36 @@ const PUML_FENCE_REG = /<pre([^>]*)>\s*<code([^>]*class="[^"]*language-(?:plantu
  */
 export function rewritePumlFences(html: string, opts: FenceOptions): string {
 	const docUri: DiagramUri | undefined = opts.docUri && opts.docUri.scheme === 'file' ? opts.docUri : undefined;
-	return html.replace(PUML_FENCE_REG, (full, preAttrs: string, codeAttrs: string, innerHtml: string) => {
+	html = html.replace(PUML_FENCE_REG, (full, preAttrs: string, codeAttrs: string, innerHtml: string) => {
 		if (!opts.server) {
 			return pumlServerError(innerHtml);
 		}
 		const source = unescapeHtml(innerHtml);
 		const range = fenceSourceRange(preAttrs, codeAttrs, innerHtml);
-		// The salt-capable PlantUML server only emits per-SALT `data-source-code`
-		// ranges when the source file is known (`!pragma sourceFile`). The
-		// server only knows the fence content as a string, so inject the
-		// current markdown file's path here — the webview then translates the
-		// 1-based, diagram-relative ranges back with the fence's `data-hmk-from`.
-		// The pragma is inert on servers that do not know it.
 		const diagram = new Diagram(withSourceFilePragma(source, docUri), docUri, opts.includePaths);
 		const format = diagram.type === DiagramType.Ditaa ? 'png' : 'svg';
 		const urls = Array.from({ length: diagram.pageCount }, (_, index) =>
 			makePlantumlURL(opts.server, diagram, format, index));
 		return urls.map((url) => `\n<img style="background-color:#FFF;"${range} data-hmk-puml src="${url}">`).join('');
 	});
+	// Fallback for code-server where the mermaid extension's highlight override
+	// strips the <code> wrapper (see PUML_UNWRAPPED_REG doc comment). The
+	// captured content may include HTML wrapper elements (<div class="mermaid-chart">)
+	// inserted by the mermaid extension, so extract only the @start...@end portion.
+	html = html.replace(PUML_UNWRAPPED_REG, (full, preAttrs: string, content: string) => {
+		if (!opts.server) {
+			return pumlServerError(content);
+		}
+		const srcMatch = content.match(/(@start\w+[\s\S]*?@end\w+)/);
+		const source = srcMatch ? unescapeHtml(srcMatch[1]) : unescapeHtml(content);
+		const range = fenceSourceRange(preAttrs, '', content);
+		const diagram = new Diagram(withSourceFilePragma(source, docUri), docUri, opts.includePaths);
+		const format = diagram.type === DiagramType.Ditaa ? 'png' : 'svg';
+		const urls = Array.from({ length: diagram.pageCount }, (_, index) =>
+			makePlantumlURL(opts.server, diagram, format, index));
+		return urls.map((url) => `\n<img style="background-color:#FFF;"${range} data-hmk-puml src="${url}">`).join('');
+	});
+	return html;
 }
 
 /**

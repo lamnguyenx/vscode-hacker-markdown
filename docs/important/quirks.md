@@ -356,6 +356,28 @@ integrates with:
   (or vice versa) means a min-height wrapper around an img that never
   satisfies the "content landed" observer. Only pair same-kind blocks.
 
+- **Mermaid extension highlight override strips `<pre><code>` from non-mermaid fences.**
+  The `mermaidchart.vscode-mermaid-chart` (and similar) extensions override
+  `options.highlight` in markdown-it. For non-mermaid fences (like `plantuml`/`puml`/`uml`),
+  the override falls through to `c?.(t, i, r) ?? t` where `c` is the original
+  highlight function saved before the override. On code-server, `c` is `null`
+  (no syntax highlighter in the browser environment), so the fallback returns
+  the raw code text `t`. If `t` contains `<` characters (common in PlantUML
+  salt mockups: `<b>`, `<&microphone>`), markdown-it's fence renderer sees `<`
+  and returns the text **as-is without `<pre><code>` wrapping**. Any
+  post-processing that expects `<pre><code class="language-X">` will miss it.
+  Additionally, the mermaid extension wraps the content in
+  `<pre style="all:unset;"><div class="mermaid-chart">` which, if captured by
+  a fallback regex and sent to a PlantUML server as source, causes "Syntax
+  Error" because the HTML wrapper is not valid PlantUML.
+  Fix: use a fallback regex that matches `<pre>` containing `@start...@end`
+  regardless of inner HTML wrappers, and extract only the `@start...@end`
+  portion before sending to the server (snippet from `src/plantuml/fences.ts`):
+  ```js
+  const srcMatch = content.match(/(@start\w+[\s\S]*?@end\w+)/);
+  const source = srcMatch ? unescapeHtml(srcMatch[1]) : unescapeHtml(content);
+  ```
+
 ## Dev host lifecycle
 
 - **`onDidCloseTextDocument` fires *minutes* after the tab closes — or never
@@ -441,3 +463,75 @@ integrates with:
   when `package.json#version` is unchanged, and it can forward to a **running**
   instance instead of installing locally. After editing `package.json`, bump
   the version or overwrite the extension dir in place, then reload.
+
+## CSS variables with font-family lists
+
+- **`var()` with a multi-font fallback discards the fallback chain when the
+  variable is set.** Consider:
+  ```css
+  code { font-family: var(--x, "SF Mono", Monaco, Consolas, monospace); }
+  ```
+  When `--x` is set (e.g., to `Consolas Nerd Font`), the property resolves to
+  just `font-family: "Consolas Nerd Font"` — the entire fallback list inside
+  `var()` is discarded. If that font doesn't exist on the system, the browser
+  falls back to its user-agent default (serif in most browsers), not to the
+  listed monospace fonts. This is by design: `var()` substitutes the *entire*
+  value, including replacing the fallback comma list.
+  The fix is to put `var()` as one item in the font list, not as the whole value:
+  ```css
+  code { font-family: var(--x), "SF Mono", Monaco, Consolas, monospace; }
+  ```
+  This way the browser tries `--x` first, then falls through each listed font
+  to `monospace` if none are available.
+  (This trap affected code blocks in Eink 60Hz theme on code-server:
+  `--vscode-editor-font-family` was `Consolas Nerd Font` which didn't exist
+  on the Linux host, and the missing fallback chain caused serif rendering.)
+
+## code-server-specific behavior
+
+These quirks apply when running the extension inside code-server (browser-based
+VS Code) rather than the desktop native build:
+
+- **The extension host is two-tier.** code-server splits extensions across two
+  hosts: a **web-worker extension host** (in the browser) for built-in
+  extensions like `vscode.markdown-language-features`, and a **remote extension
+  host** (Node.js process on the server) for user extensions.
+  `markdown.markdownItPlugins: true` with `extendMarkdownIt` does NOT work for
+  user extensions in code-server — the markdown engine runs in the web-worker
+  host and never discovers `extendMarkdownIt` exported from the remote host.
+  All markdown-it modifications must be done as post-processing of the fragment
+  from `markdown.api.render`.
+
+- **Extension code is cached by the Service Worker.** code-server registers a
+  Service Worker that caches extension JavaScript. Neither `location.reload()`
+  nor CDP's `Navigate` with `ignoreCache: true` bypasses it. The only reliable
+  way to force a fresh extension load is to **bump `package.json#version`** and
+  re-run `make install`. Direct `cp` to the installed extension directory is
+  unreliable.
+
+- **`console.log` goes to a file, not the browser console.** Extension host
+  output appears in:
+  ```
+  ~/.local/share/code-server/logs/<timestamp>/exthost<N>/remoteexthost.log
+  ```
+  Messages prefixed `[Extension Host]` in the browser DevTools are cross-posted
+  by the VS Code service layer and are not raw `console.log()` output. To
+  confirm code execution, write to a temp file:
+  ```js
+  try { require('fs').writeFileSync('/tmp/hmk-debug.txt', data); } catch {}
+  ```
+
+- **Use `location.reload()` not `Developer: Reload Window`.** In code-server,
+  `location.reload()` via CDP `evaluate_script` is cleaner than the workbench
+  command. The command can hit a `beforeunload` dialog from unsaved content
+  that the browser's reload cancels silently — the page navigates away but
+  never comes back.
+
+- **`retainContextWhenHidden: true` preserves the webview across reloads.**
+  The docked webview view keeps its JavaScript and DOM across page reloads.
+  Changes to `build/*.css` (mtime-busted in `cacheBustBuild()`) are NOT picked
+  up until the HTML is rebuilt — which only happens on `rebuild()` (triggered
+  by `refresh()` only if `hasUserStyles()` is true) or on a fresh
+  `resolveWebviewView()` call. To force a fresh webview without bumping
+  version: open a new editor-area preview via "Hacker Markdown: Open Preview
+  in Editor", which creates a new `WebviewPanel` with fresh HTML.

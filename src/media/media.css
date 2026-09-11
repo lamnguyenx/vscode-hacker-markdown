@@ -6,8 +6,9 @@
  * after this file and win the cascade. */
 
 /* Reading column: any CSS length typed in the toolbar (700px, 45vw, ...),
- * 100% (full width) by default. */
-body {
+ * 100% (full width) by default. Applied to .markdown-body only so the
+ * toolbar stays full-width even when the column is narrowed. */
+.markdown-body {
 	max-width: var(--hmk-column-width, 100%);
 	margin: 0 auto;
 }

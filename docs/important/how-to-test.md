@@ -508,7 +508,7 @@ tokenization works). Verify scopes, not colors:
   `unexpected-closing-bracket`). This is reproducible on the dev host with
   `--with-extensions` but NOT with `--disable-extensions` or
   `--disable-extension vue.volar`. Catch it with
-  `node tests/plantuml_note_highlight_check.cjs 9334`. See §3i for the full
+  `node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$`. See §3i for the full
   injection-conflict debugging workflow.
   Full write-up:
   `docs/issues/bugs/2026/08/21/2026-08-21-note-on-link-highlight-lost-after-end-note.md`.
@@ -528,24 +528,24 @@ isolating and fixing such conflicts.
 npm run build:syntax       # plantuml.yaml-tmLanguage → plantuml.tmLanguage.json
 
 # 2. Launch with the suspect fixture (Volar enabled = the "broken" side)
-vscode_cdp_kill 9334
-vscode_cdp --port 9334 --with-extensions \
+vscode_cdp_kill $VSCODE_CDP_PORT$
+vscode_cdp --port $VSCODE_CDP_PORT$ --with-extensions \
   --profile "$PWD/exp/devhost-withext" \
   --file "$PWD/tests/samples/enroll-flow.puml.md"
 
 # 3. Close & reopen the fixture tab (grammar changes are never hot-reloaded
 #    on already-open tabs; close Cmd+W, reopen Ctrl+P → Enter)
 #    Then probe with the regression test:
-node tests/plantuml_note_highlight_check.cjs 9334
+node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
 
 # 4. Isolate the culprit with the "Volar-off" control:
-vscode_cdp_kill 9334
+vscode_cdp_kill $VSCODE_CDP_PORT$
 setsid nohup /usr/share/code/code \
   --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-withext" \
-  --remote-debugging-port=9334 --with-extensions --disable-extension vue.volar \
+  --remote-debugging-port=$VSCODE_CDP_PORT$ --with-extensions --disable-extension vue.volar \
   --new-window "$PWD/tests/samples/enroll-flow.puml.md" \
   > exp/devhost-launch.log 2>&1 < /dev/null &
-node tests/plantuml_note_highlight_check.cjs 9334     # should PASS
+node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$     # should PASS
 ```
 
 ### Three controls, one conclusion
@@ -605,15 +605,15 @@ the fixture, scrolls to the multi-line notes, and asserts every
 
 ```sh
 # baseline (extensions off)
-vscode_cdp --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.md"
-node tests/plantuml_note_highlight_check.cjs 9334 && echo PASS
+vscode_cdp --port $VSCODE_CDP_PORT$ --file "$PWD/tests/samples/enroll-flow.puml.md"
+node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$ && echo PASS
 
 # real-world (with extensions)
-vscode_cdp_kill 9334
-vscode_cdp --port 9334 --with-extensions \
+vscode_cdp_kill $VSCODE_CDP_PORT$
+vscode_cdp --port $VSCODE_CDP_PORT$ --with-extensions \
   --profile "$PWD/exp/devhost-withext" \
   --file "$PWD/tests/samples/enroll-flow.puml.md"
-node tests/plantuml_note_highlight_check.cjs 9334 && echo PASS
+node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$ && echo PASS
 ```
 
 ## 3i. PlantUML code completions (in-markdown IntelliSense)
@@ -789,23 +789,23 @@ npm run build:syntax              # plantuml.yaml-tmLanguage → .tmLanguage.jso
 # (If codeblock.json changed, skip — that file is already .json)
 
 # Relaunch the dev host (or just reload the window & close/reopen the tab)
-vscode_cdp --port 9334 --file "$PWD/tests/samples/enroll-flow.puml.md"
+vscode_cdp --port $VSCODE_CDP_PORT$ --file "$PWD/tests/samples/enroll-flow.puml.md"
 
 # Close the fixture tab (Cmd+W), reopen (Ctrl+P → Enter) — THIS IS REQUIRED.
 # Grammar changes are never hot-reloaded on already-open tabs (see §3f).
 # Reload Window alone is not always enough.
 
 # Probe:
-node tests/plantuml_note_highlight_check.cjs 9334
+node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
 
 # A/B against Volar (see §3g for the full workflow):
-vscode_cdp_kill 9334
+vscode_cdp_kill $VSCODE_CDP_PORT$
 setsid nohup /usr/share/code/code \
   --extensionDevelopmentPath="$PWD" --user-data-dir="$PWD/exp/devhost-withext" \
-  --remote-debugging-port=9334 --with-extensions --disable-extension vue.volar \
+  --remote-debugging-port=$VSCODE_CDP_PORT$ --with-extensions --disable-extension vue.volar \
   --new-window "$PWD/tests/samples/enroll-flow.puml.md" \
   > exp/devhost-launch.log 2>&1 < /dev/null &
-node tests/plantuml_note_highlight_check.cjs 9334
+node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
 ```
 
 After changing grammar files (`syntaxes/*`) or `package.json#contributes.*`
@@ -876,10 +876,10 @@ running window gets a live install that still needs a reload to activate.
 | PlantUML definition / hover / rename / highlights / code lens / folding pure-logic check (no dev host) | `node tests/plantuml_definition_check.cjs` (section 3k + 3l) |
 | Keybinding override / serializer / cross-window move | section 3h (`Developer: Toggle Keyboard Shortcuts Troubleshooting` + `Move Editor into New Window`) |
 | Evaluate in webview | `node tests/cdp_eval.cjs $CHROME_CDP_PORT$ iframe vscode-webview:// "<expr>"` |
-| PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/plantuml_note_highlight_check.cjs 9334` (also works on `--with-extensions` hosts) |
+| PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$` (also works on `--with-extensions` hosts) |
 | Inspect editor tokens & scopes | `Ctrl+Shift+P` → `Developer: Inspect Editor Tokens and Scopes` (section 3f) |
 | Build only the grammar (skip full `npm run compile`) | `npm run build:syntax` (section 5) |
-| Launch with a single extension excluded (A/B test) | `vscode_cdp_kill 9334` then call `code` directly with `--disable-extension vue.volar` (section 1) |
+| Launch with a single extension excluded (A/B test) | `vscode_cdp_kill $VSCODE_CDP_PORT$` then call `code` directly with `--disable-extension vue.volar` (section 1) |
 
 ## Known Limits of This Setup
 
@@ -933,3 +933,168 @@ running window gets a live install that still needs a reload to activate.
   configured PlantUML server on a dedicated host (section 3d/3e).
 - The onboarding overlay only appears on **fresh** profiles; once dismissed it
   is persisted and `open_view.cjs` becomes a no-op for steps 1.
+
+### Code font fallback & column-width gotchas
+
+Two CSS cascade traps worth documenting:
+
+**1. `code` font-family fallback.** The `markdown.css` rule sets
+`font-family: var(--vscode-editor-font-family, "SF Mono", ..., monospace)`.
+When `--vscode-editor-font-family` is set (e.g. to `Consolas Nerd Font` on
+the Eink 60Hz theme), `var()` substitutes the entire value — the fallback
+chain is discarded, and if the named font doesn't exist on the system
+(code-server host), the browser falls back to its default (serif, not
+monospace).
+
+The fix is twofold:
+- Put the variable as the first item in the comma-separated list, not as the
+  sole `var()` value: `font-family: var(--vscode-editor-font-family), "SF Mono", ..., monospace`.
+- Add `!important` to beat the built-in `markdown-language-features/markdown.css`
+  which is injected via `markdown.previewStyles` and also carries the same
+  `code { font-family: var(...) }` rule.
+- As a permanent insurance, an inline `<style>` tag in `previewHost.ts:buildHtml()`
+  repeats the rule with `!important`, so it's always in the HTML regardless of
+  external stylesheet loading order.
+
+To verify in a code-server CDP session:
+```js
+// Measure rendered width vs monospace/serif
+const s = getComputedStyle(document.querySelector('#preview p code'));
+const el = document.createElement('span');
+el.style.fontSize = '72px'; el.textContent = 'mmmmmmmmmmlli';
+el.style.fontFamily = s.fontFamily; document.body.appendChild(el);
+const w = el.getBoundingClientRect().width;
+el.style.fontFamily = 'monospace';
+const mono = el.getBoundingClientRect().width;
+el.remove();
+console.assert(Math.abs(w - mono) < 3, 'code should render monospace');
+```
+
+**2. Column-width must not constrain the toolbar.** The `media.css` rule
+`body { max-width: var(--hmk-column-width, 100%); margin: 0 auto; }`
+constrained the entire `<body>`, including the toolbar. Since the layout is:
+```html
+<body>
+  <div class="toolbar">…</div>
+  <div class="markdown-body">…</div>
+</body>
+```
+The `<body>` shrink wrapped everything. Fix: apply `max-width` and
+`margin: 0 auto` to `.markdown-body` only, so the toolbar stays full-width.
+
+To verify:
+```js
+const body = document.body;
+const toolbar = document.querySelector('.toolbar');
+const content = document.querySelector('.markdown-body');
+const bw = body.getBoundingClientRect().width;
+const tw = toolbar.getBoundingClientRect().width;
+const cw = content.getBoundingClientRect().width;
+console.assert(Math.abs(bw - tw) < 1, 'toolbar should be full-width');
+console.assert(cw < tw, 'content should be narrower');
+```
+
+When working on code-server (browser-based VS Code), use `location.reload()`
+via CDP `evaluate_script` to reload the IDE after `make install`. Unlike the
+desktop dev host (`Developer: Reload Window`), the browser-level reload is
+cleaner and avoids the `beforeunload` dialog from unsaved content.
+
+### Code-server: extension host caching & activation
+
+**Extensions are cached by the service worker.** code-server registers a
+Service Worker (logged as `[Service Worker] registered` in the console) that
+caches extension JavaScript files. A standard page reload (`F5` or
+`location.reload()`) may not invalidate it — the Service Worker intercepts
+extension module requests and serves stale cached copies. Even `ignoreCache:
+true` on `Navigate` CDP command does not bypass the Service Worker.
+
+To force a fresh load: **bump `package.json#version`** and re-run
+`make install`. code-server treats each version as a new extension and loads
+its code from scratch. A version bump is the only reliable way to bust the
+extension host cache.
+
+**Extension logs go to remoteexthost.log, not the browser console.**
+`console.log()` from an extension running in the remote extension host
+appears in:
+```
+~/.local/share/code-server/logs/<timestamp>/exthost<N>/remoteexthost.log
+```
+Browser DevTools console messages marked `[Extension Host]` are cross-posted
+by the VS Code service layer and are NOT the same as raw `console.log()`.
+If your `console.log` doesn't appear in either place, it may be suppressed
+— write to a temp file instead to confirm code execution:
+```js
+try { require('fs').writeFileSync('/tmp/hmk-debug.txt', fragment); } catch {}
+```
+
+**`markdown.markdownItPlugins` does NOT work in code-server.** code-server
+uses a web-worker extension host for built-in extensions (including
+`markdown-language-features`), while user extensions run in a REMOTE
+extension host (Node.js). The `extendMarkdownIt` function exported from a
+remote-host extension is never called by the markdown engine running in the
+web-worker host. If you need to modify markdown-it rendering, do it via
+post-processing of the fragment returned by `markdown.api.render` — not
+via the `markdown.markdownItPlugins` contribution point.
+
+### VLM-assisted webview debugging
+
+When your model lacks vision capabilities, delegate screenshot analysis to a
+vision-capable model via the CLI:
+
+```sh
+# Take a screenshot of the preview webview inner iframe
+node -e "
+const CDP = require('cdp');
+const target = await CDP.list({ port: 9023 }).find(t => t.title.includes('vscode-webview'));
+await CDP.screenshot(target.id, '/tmp/preview.png');
+"
+
+# Analyze with a vision model
+opencode run -m "opencode-go/muse-spark-1.3-contributor" \
+  "Describe the rendered content. Are there any errors?" \
+  -f /tmp/preview.png --variant minimal
+```
+
+The webview OOPIF iframe can be targeted by its URL pattern
+(`vscode-webview://`). To reach the preview inner iframe through the
+code-server nested-iframe structure:
+```js
+// code-server: main page → webview iframe → inner content iframe
+const webviewIframe = document.querySelectorAll('iframe.webview')[0];
+const innerDoc = webviewIframe.contentDocument
+  .querySelector('iframe').contentDocument;
+const preview = innerDoc.getElementById('preview');
+```
+
+### Mermaid extension highlight override (code-server)
+
+The `mermaidchart.vscode-mermaid-chart` extension (and similar mermaid
+extensions) override `options.highlight` on the markdown-it instance via
+`extendMarkdownIt`. On code-server, VS Code's built-in syntax highlighter is
+absent, so the original `highlight` function is `null`. The fallback path
+becomes:
+```js
+c?.(t, i, r) ?? t   // c = null, so returns raw code text t
+```
+When the puml source contains `<` characters (salt mockup syntax like
+`<b>`, `<&microphone>`), markdown-it treats the return value as rendered
+HTML and emits it WITHOUT a `<pre><code>` wrapper. This breaks our
+`rewritePumlFences` regex which expects `<pre><code class="language-plantuml">`.
+
+Furthermore, the mermaid extension wraps the content in
+`<pre style="all:unset;"><div class="mermaid-chart">@startuml...</div></pre>`.
+Our `PUML_UNWRAPPED_REG` fallback regex matches this structure and extracts
+only the `@start...@end` portion (stripping the HTML wrapper) before sending
+it to the PlantUML server — otherwise the server receives `<div class="mermaid-chart">`
+as part of the diagram source and returns a "Syntax Error" SVG.
+
+The current fix in `src/plantuml/fences.ts`:
+```typescript
+const srcMatch = content.match(/(@start\w+[\s\S]*?@end\w+)/);
+const source = srcMatch ? unescapeHtml(srcMatch[1]) : unescapeHtml(content);
+```
+
+This applies ONLY to our extension's copy of the fragment — the stock
+preview is unaffected (good). The mermaid extension's broken highlight does
+not prevent our post-processing from working, as long as the rewrite handles
+both the standard `<pre><code>` format and the mermaid-rewritten `<pre>` format.
