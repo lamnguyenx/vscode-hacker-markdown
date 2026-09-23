@@ -2,6 +2,9 @@ import { previewEl } from './dom';
 import { dataLineElements } from './line-sync';
 import { isSaltMockup, mockupRange } from './source-code';
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const SALT_CURSOR_ATTR = 'data-hmk-salt-cursor';
+
 /**
  * Cursor sync: when the editing cursor moves in the Markdown editor, the host
  * posts a `cursorLine` message and we highlight the corresponding preview
@@ -55,14 +58,62 @@ export function clearCursorHighlight(): void {
 	for (const el of previewEl.querySelectorAll<HTMLElement>('.hmk-cursor')) {
 		el.classList.remove('hmk-cursor');
 	}
+	for (const el of previewEl.querySelectorAll(`[${SALT_CURSOR_ATTR}]`)) {
+		el.remove();
+	}
 }
 
 function applyCursorHighlight(line: number): void {
 	clearCursorHighlight();
 	const target = resolveCursorTarget(line);
 	if (target) {
-		blockTarget(target).classList.add('hmk-cursor');
+		const block = blockTarget(target);
+		if (isSaltMockup(block)) {
+			highlightSaltMockup(block);
+		} else {
+			block.classList.add('hmk-cursor');
+		}
 	}
+}
+
+/**
+ * Highlight a SALT mockup inside an inlined PlantUML SVG by injecting
+ * `<rect>` overlays with `vector-effect: non-scaling-stroke`. Unlike CSS
+ * `outline` or `drop-shadow`, SVG `vector-effect` keeps the stroke visually
+ * constant regardless of CSS transforms on the pan/zoom frame — so the
+ * highlight doesn't shrink when zoomed out or thicken when zoomed in.
+ */
+function highlightSaltMockup(el: Element): void {
+	const box = (el as SVGGraphicsElement).getBBox();
+	if (!box || box.width === 0 || box.height === 0) {
+		return;
+	}
+	const parent = el.parentNode;
+	if (!parent) {
+		return;
+	}
+	const base = {
+		[SALT_CURSOR_ATTR]: '',
+		fill: 'none',
+		x: String(box.x),
+		y: String(box.y),
+		width: String(box.width),
+		height: String(box.height),
+		'vector-effect': 'non-scaling-stroke',
+		'pointer-events': 'none',
+	};
+	const glow = svgRect({ ...base, stroke: 'rgba(59, 130, 246, 0.4)', 'stroke-width': '6', rx: '4' });
+	const outline = svgRect({ ...base, stroke: '#3b82f6', 'stroke-width': '2.5', rx: '4' });
+	parent.insertBefore(glow, el.nextSibling);
+	parent.insertBefore(outline, glow.nextSibling);
+}
+
+function svgRect(attrs: Record<string, string>): SVGRectElement {
+	const rect = document.createElementNS(SVG_NS, 'rect');
+	for (const [key, value] of Object.entries(attrs)) {
+		rect.setAttribute(key, value);
+	}
+	return rect;
 }
 
 /**
@@ -72,9 +123,10 @@ function applyCursorHighlight(line: number): void {
  * wraps the whole `<pre>` block. Rendered media inside a pan/zoom frame
  * (plantuml/…) is boxed at the *frame* (`.hmk-frame`), not the inner img/svg,
  * so the box outlines the whole zoomable diagram, matching the frame's own
- * border box. A SALT block inside an inlined SVG is boxed at its own `<g>`
- * (the outline follows the pan/zoom transform of the diagram), not hoisted to
- * the frame — hoisting would outline the whole diagram instead of the mockup.
+ * border box. A SALT block inside an inlined SVG is boxed via injected `<rect>`
+ * overlays (`highlightSaltMockup`), not with a CSS outline — SVG
+ * `vector-effect: non-scaling-stroke` keeps the stroke visually constant
+ * across the pan/zoom transform.
  */
 function blockTarget(el: HTMLElement): HTMLElement {
 	if (isSaltMockup(el)) {
