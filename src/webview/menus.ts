@@ -31,6 +31,15 @@ const persistedValues = new Map<string, string>();
 
 // --- zoom state ---
 let persistedZoom = 100;
+/**
+ * Timestamp of the last locally-initiated zoom change (step/reset).
+ * `mediaState` broadcasts arriving within the guard window are treated as
+ * echoes of our own `setMedia` post and ignored — they carry stale values
+ * from intermediate stepZoom calls whose `config.update` (and thus
+ * `onDidChangeConfiguration`) fires seconds late.
+ */
+let lastLocalZoomAt = 0;
+const ZOOM_ECHO_GUARD_MS = 3000;
 
 function applyZoom(n: number): void {
 	document.documentElement.style.setProperty('--hmk-zoom', String(n / 100));
@@ -47,12 +56,14 @@ function stepZoom(dir: 1 | -1): void {
 	const current = raw ? Math.round(Number(raw) * 100) : persistedZoom;
 	const next = Math.max(50, Math.min(200, Math.round(current / 5) * 5 + dir * 5));
 	persistedZoom = next;
+	lastLocalZoomAt = Date.now();
 	applyZoom(next);
 	post({ type: 'setMedia', key: 'zoom', value: String(next) });
 }
 
 function resetZoom(): void {
 	persistedZoom = 100;
+	lastLocalZoomAt = Date.now();
 	applyZoom(100);
 	post({ type: 'setMedia', key: 'zoom', value: '100' });
 }
@@ -64,6 +75,11 @@ function initZoomControls(): void {
 			e.stopPropagation();
 			stepZoom(btn.getAttribute('data-zoom-step') === '+1' ? 1 : -1);
 		});
+	});
+	toolbar.querySelector<HTMLElement>('[data-command="resetZoom"]')?.addEventListener('click', (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		resetZoom();
 	});
 }
 
@@ -234,8 +250,14 @@ export function applyMediaState(state: MediaState): void {
 	if (CSS_LENGTH_REG.test(state.columnWidth)) {
 		setLengthProperty('--hmk-column-width', state.columnWidth);
 	}
-	persistedZoom = state.zoom;
-	applyZoom(state.zoom);
+	// Skip zoom from a broadcast that arrives within the echo guard window —
+	// it is almost certainly our own stale `setMedia` post echoing back via
+	// `config.update` → `onDidChangeConfiguration`, carrying a value from an
+	// intermediate step. The local zoom is already the latest user intent.
+	if (Date.now() - lastLocalZoomAt > ZOOM_ECHO_GUARD_MS) {
+		persistedZoom = state.zoom;
+		applyZoom(state.zoom);
+	}
 
 	for (const menu of Array.from(toolbar.querySelectorAll<HTMLElement>('.hmk-menu'))) {
 		const key = menuKey(menu);

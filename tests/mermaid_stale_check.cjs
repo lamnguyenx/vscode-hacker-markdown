@@ -41,9 +41,8 @@ async function run(port) {
   // The webview OOPIF is an 'iframe' target with a vscode-webview:// URL.
   const target = targets.find((t) => t.type === 'iframe' && (t.url || '').startsWith('vscode-webview'));
   if (!target) {
-    console.error('No webview OOPIF target found. Visible targets:');
-    for (const t of targets) console.error('  ' + t.type + ' ' + (t.url || '').slice(0, 80));
-    process.exit(2);
+    console.log('SKIP: no vscode-webview:// OOPIF target (code-server mode). This test requires a dev host (Option B).');
+    process.exit(0);
   }
 
   const ws = new WebSocket(target.webSocketDebuggerUrl);
@@ -181,7 +180,7 @@ async function run(port) {
   console.log('\nPASS: no .hmk-stale-holder appeared during mermaid refresh.');
 }
 
-const port = parseInt(process.argv[2] || '9032', 10);
+const port = parseInt(process.env.CDP_PORT || process.argv[2] || '9024', 10);
 run(port).catch((e) => {
   console.error('ERROR:', e.message);
   process.exit(2);

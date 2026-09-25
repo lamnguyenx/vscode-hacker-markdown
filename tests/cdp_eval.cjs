@@ -51,7 +51,7 @@ async function evalOnTarget(wsUrl, expression, opts = {}) {
 }
 
 async function main() {
-  const port = process.argv[2];
+  const port = process.env.CDP_PORT || process.argv[2] || '9024';
   const typeFilter = process.argv[3]; // e.g. 'iframe'
   const urlPrefix = process.argv[4] || '';
   const expr = process.argv[5];

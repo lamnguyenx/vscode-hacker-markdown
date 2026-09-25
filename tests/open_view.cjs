@@ -52,7 +52,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *   4. waits for the webview OOPIF target to appear in /json/list.
  */
 async function main() {
-  const port = process.argv[2];
+  const port = process.env.CDP_PORT || process.argv[2] || '9024';
   const page = (await getTargets(port)).find((t) => t.type === 'page');
   if (!page) { console.error('NO_PAGE_TARGET'); process.exit(2); }
   const session = await openCdpSession(page.webSocketDebuggerUrl);

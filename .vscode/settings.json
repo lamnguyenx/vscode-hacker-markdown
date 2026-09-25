@@ -5,6 +5,7 @@
         "**/.hg": true,
         "**/.DS_Store": true,
         "**/Thumbs.db": true,
+        "**/*.crswap": true,
         "**/*__audio__*/**": true,
         "**/*__pycache__*/**": true,
         "**/.vscode": true,
@@ -166,7 +167,9 @@
         "**/.ruff_cache": true,
         "**/pyrightconfig.json": true,
         "tools/*.mjs": true,
-        "tools/*.mjs.map": true
+        "tools/*.mjs.map": true,
+        "**/test-results": true,
+        "**/playwright-report": true
     },
     "gitignoreToggle.hidden": true
 }

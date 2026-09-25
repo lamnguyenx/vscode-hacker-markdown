@@ -43,7 +43,7 @@ function getTargets(port) {
 
 async function run(port) {
   const targets = await getTargets(port);
-  const page = targets.find((t) => t.type === 'page' && (t.url || '').startsWith('vscode-file'));
+  const page = targets.find((t) => t.type === 'page' && ((t.url || '').startsWith('vscode-file') || (t.url || '').includes('localhost')));
   if (!page) throw new Error(`no workbench page target on port ${port}`);
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   let id = 0;
@@ -185,7 +185,7 @@ async function run(port) {
   console.log('\nPASS: every note/--> line in the visible window has more than one token span.');
 }
 
-const port = parseInt(process.argv[2] || '9334', 10);
+const port = parseInt(process.env.CDP_PORT || process.argv[2] || '9024', 10);
 run(port).catch((e) => {
   console.error('ERROR:', e.message);
   process.exit(2);

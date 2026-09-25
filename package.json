@@ -229,9 +229,11 @@
 		"watch:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2020 --outfile=build/index.js --watch",
 		"compile": "npm run build:syntax && npm run build:webview && npm run build:webview-assets && tsc -p ./ && tsc -p tsconfig.webview.json",
 		"watch": "tsc -w -p ./",
+		"test:e2e": "playwright test --config playwright.config.ts",
 		"vscode:prepublish": "npm run compile"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.63.0",
 		"@types/node": "^26.1.2",
 		"@types/vscode": "^1.100.0",
 		"esbuild": "^0.28.1",
