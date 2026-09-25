@@ -10,7 +10,7 @@
  */
 const assert = require('assert');
 
-const { fenceAt, PLANTUML_FENCE_LANGS } = require('../out/completions/fences.js');
+const { fenceAt, PLANTUML_FENCE_LANGS } = require('../../out/completions/fences.js');
 const {
   PLANTUML_LANGUAGE_WORDS,
   PLANTUML_TYPE_WORDS,
@@ -18,7 +18,7 @@ const {
   PLANTUML_PREPROCESSOR_WORDS,
   PLANTUML_SKINPARAM_WORDS,
   PLANTUML_COLOR_WORDS,
-} = require('../out/completions/words.js');
+} = require('../../out/completions/words.js');
 
 function run(label, fn) {
   fn();

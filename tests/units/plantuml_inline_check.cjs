@@ -14,7 +14,7 @@
  * never imports vscode and the network call is injected (a stub fetcher).
  */
 const assert = require('assert');
-const { inlinePlantumlSvgs } = require('../out/plantuml/inlineSvg.js');
+const { inlinePlantumlSvgs } = require('../../out/plantuml/inlineSvg.js');
 
 /** A stub fetcher that maps url -> svg body (or 404s for unknown urls). */
 function stubFetcher(map) {

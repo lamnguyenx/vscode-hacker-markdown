@@ -3,7 +3,7 @@
 **Status:** CLOSED (fixed 2026-08-28)
 **Affected:** `src/webview/stale.ts` (webview bundle → `build/index.js`)
 **Severity:** high (every mermaid refresh showed an 8-second "Re-rendering…" badge with blank whitespace around the wrong element, making the preview feel frozen despite the actual render taking ~40ms)
-**Regression test:** [`tests/mermaid_stale_check.cjs`](../../../tests/mermaid_stale_check.cjs)
+**Regression test:** [`tests/integration/mermaid_stale_check.cjs`](../../../tests/integration/mermaid_stale_check.cjs)
 
 ## Summary
 
@@ -102,7 +102,7 @@ are unchanged.
 
 ## Verification
 
-### `tests/mermaid_stale_check.cjs` (live CDP regression test)
+### `tests/integration/mermaid_stale_check.cjs` (live CDP regression test)
 
 Connects to the webview OOPIF, triggers a refresh of a mermaid document, polls
 the preview DOM at 10ms intervals for 3s, and asserts `.hmk-stale-holder` /
@@ -115,7 +115,7 @@ the preview DOM at 10ms intervals for 3s, and asserts `.hmk-stale-holder` /
 
 ```sh
 vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/mermaid-fail.md"
-node tests/mermaid_stale_check.cjs 9032
+node tests/integration/mermaid_stale_check.cjs 9032
 ```
 
 ### `exp/measure-render.cjs` (round-trip timing)

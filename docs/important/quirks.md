@@ -1,7 +1,7 @@
 # Quirks: Testing Webview Extensions via CDP
 
 Reusable knowledge for working with this repo's test pipeline
-(`tests/*.cjs`, `exp/*.cjs`, the harnesses in `exp/scroll-anchor-test*.html`)
+(`tests/*/*.cjs`, `exp/*.cjs`, the harnesses in `exp/scroll-anchor-test*.html`)
 and for debugging webview extensions in general. These are generalized
 behaviors of the tools, not bugs in this extension — each entry says what the
 quirk is, why it bites, and the workaround.
@@ -200,13 +200,13 @@ Knowledge for anyone adding IntelliSense (or other language features) to an
   of replace).
 - **The completions themselves are served by the extension host, not the
   preview webview.** They are therefore **outside the webview OOPIF CDP
-  harness** used by `tests/*.cjs` (which can only reach the browser page, not
+  harness** used by `tests/*/*.cjs` (which can only reach the browser page, not
   the extension host). To assert suggestions programmatically you must invoke
   the *command* `vscode.executeCompletionItemProvider` from the **workbench**
   CDP target (the `document` page, not a `vscode-webview://` iframe) with a
   position inside the fence — the returned `isIncomplete`/items live in the
   extension host. This repo leaves completions to a pure-logic check
-  (`tests/plantuml_completion_check.cjs`) plus manual dev-host verification
+  (`tests/units/plantuml_completion_check.cjs`) plus manual dev-host verification
   (see how-to-test.md §3g).
 - **A shared cached `CompletionItem[]` cannot be returned directly.** VS Code
   mutates `item.range` per request, so returning module-level cached items
@@ -413,7 +413,7 @@ integrates with:
   content (the smoke suite passes only because it probes the panel before
   focus settles).
 - **The smoke suite dirties tracked fixtures by design.** The live-edit
-  check types into `tests/workspace/sub.md` and saves it, and a failed
+  check types into `tests/samples/workspace/sub.md` and saves it, and a failed
   palette command leaks its typed text into the open buffer (observed: a
   stray `} O` inside a puml sample). `git checkout` the fixtures after a
   run; wipe `exp/devhost/User/workspaceStorage/*/backups` to clear hot-exit

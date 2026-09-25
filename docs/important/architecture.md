@@ -69,7 +69,7 @@ details underneath the feature list, and the product limitations.
   pan/fit and media inversion from the body attributes (auto resolves on
   `vscode-dark` / `vscode-high-contrast`). User styles (`hackerMarkdown.styles`
   / `markdown.styles`) load last, so they can still override or extend these
-  defaults (`tests/custom.css` is the reference override).
+  defaults (`tests/samples/custom.css` is the reference override).
 - **Rendering engine.** Output comes from the built-in `markdown-language-features`
   extension via `markdown.api.render`, so the result matches the stock
   preview — front matter, `highlight.js` code highlighting, tables, and
@@ -130,7 +130,7 @@ details underneath the feature list, and the product limitations.
   self-filter pattern). The pure `aliasDefinitions()` function in
   `src/plantuml/invocations.ts` reuses the existing `PROC_OPEN_REG` scanner to
   produce the alias→line map. Same-fence only (no `!include`
-  resolution yet); covered by `tests/plantuml_definition_check.cjs`.
+  resolution yet); covered by `tests/units/plantuml_definition_check.cjs`.
 - **PlantUML find-references inside markdown fences.** Shift+F12 on a procedure
   alias or `SALT(alias)` shows all call sites plus the definition line. The
   `ReferenceProvider` (`src/completions/definitions.ts`) uses the pure

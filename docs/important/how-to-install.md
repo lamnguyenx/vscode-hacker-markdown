@@ -94,7 +94,7 @@ finds). The vsix ships the same runtime set as the folder install:
 - `vscode:prepublish` is `npm run compile`, so `out/`, `build/`, and
   `syntaxes/plantuml.tmLanguage.json` are all built before packaging.
 - `.vscodeignore` excludes only source/scratch (`src/`, `exp/`, `docs/`,
-  `tests/`, `tools/`, `scripts/`, `_refs/`, `node_modules/`, the dev-only
+  `tests/*/`, `tools/`, `scripts/`, `_refs/`, `node_modules/`, the dev-only
   `plantuml.yaml-tmLanguage`), **not** `out/`, `build/`, or `syntaxes/`.
 
 So `vsce pack` produces an extension with exactly the
@@ -187,7 +187,7 @@ edits to appear. Extension-host edits (`src/*.ts`) always need the reload.
   (Remote-SSH) and you cannot click it, drive `Cmd+Shift+P` →
   `Developer: Reload Window` with **trusted CDP input** on the window's `page`
   CDP target — the same `Input.dispatchKeyEvent` + palette-row click the test
-  harness uses (`tests/test_preview.cjs#runPaletteCommand`). Use the
+  harness uses (`tests/integration/test_preview.cjs#runPaletteCommand`). Use the
   *window's* platform modifiers (darwin `Meta`, linux `Control`) and click the
   row whose label starts with the exact command text.
 - **Grammar not tokenizing.** Open editors cache tokenization — close and

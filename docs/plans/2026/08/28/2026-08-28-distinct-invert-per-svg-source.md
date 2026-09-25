@@ -6,7 +6,7 @@
 SVGs alike; distinguish Mermaid / PlantUML / embedded SVG so Mermaid (often
 theme-aware) stops double-inverting.
 **Files edited:** `src/media/media.css`, `src/plantuml/inlineSvg.ts`,
-`tests/plantuml_inline_check.cjs`
+`tests/units/plantuml_inline_check.cjs`
 
 ## Goal
 
@@ -91,9 +91,9 @@ Documented stable hooks (no setting changes, no toolbar changes).
 ## Verification
 
 1. `npm run compile` (strict TS, both tsconfigs).
-2. `node tests/plantuml_inline_check.cjs` — after the one assertion update
+2. `node tests/units/plantuml_inline_check.cjs` — after the one assertion update
    (the `data-hmk-puml` marker is now *expected* on the inlined svg root).
-3. Dev host (`vscode_cdp …` → `tests/test_preview.cjs`): in a dark theme /
+3. Dev host (`vscode_cdp …` → `tests/integration/test_preview.cjs`): in a dark theme /
    `data-invert="dark"`, a doc containing one mermaid diagram, one plantuml
    diagram, and one raw inline `<svg>` renders the mermaid diagram untouched
    and the plantuml + embedded SVGs inverted.

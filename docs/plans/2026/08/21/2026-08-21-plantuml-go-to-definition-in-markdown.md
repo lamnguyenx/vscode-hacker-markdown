@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-21
 **Status:** DONE (pure checks green; verified live on the user's VS Code)
-**Files added:** `src/completions/definitions.ts`, `tests/plantuml_definition_check.cjs`
+**Files added:** `src/completions/definitions.ts`, `tests/units/plantuml_definition_check.cjs`
 **Files edited:** `src/plantuml/invocations.ts`, `src/extension.ts`,
 `docs/important/{architecture,how-to-test,features}.md`
 
@@ -132,7 +132,7 @@ No new `activationEvents` entry needed.
   `aliasDefinitions()` and `invocationReferences()`; no change to existing
   functions.
 - **edit** `src/extension.ts` (+2 lines) — import + register.
-- **new** `tests/plantuml_definition_check.cjs` (~230 lines) — pure-logic checks
+- **new** `tests/units/plantuml_definition_check.cjs` (~230 lines) — pure-logic checks
   for both `aliasDefinitions` (5 sections + 10 cases) and `invocationReferences`
   (1 section + 5 cases).
 - **doc** `docs/important/architecture.md` — deep-dive bullet + limitations.
@@ -176,11 +176,11 @@ is all the glue needed. No custom commands, no keybinding overrides, no settings
 
 ## How to test
 
-### Pure-logic check — `tests/plantuml_definition_check.cjs`
+### Pure-logic check — `tests/units/plantuml_definition_check.cjs`
 
 ```sh
 npm run compile
-node tests/plantuml_definition_check.cjs
+node tests/units/plantuml_definition_check.cjs
 ```
 
 | Section | Cases |
@@ -212,7 +212,7 @@ For a scriptable end-to-end assertion:
 
 ```sh
 # evaluate via the workbench CDP target
-node tests/cdp_eval.cjs <port> page "..." "
+node tests/integration/cdp_eval.cjs <port> page "..." "
   const loc = await vscode.commands.executeCommand(
     'vscode.executeDefinitionProvider',
     vscode.Uri.file('$PWD/tests/samples/enroll-flow.puml.md'),
@@ -225,11 +225,11 @@ node tests/cdp_eval.cjs <port> page "..." "
 ## Verification summary
 
 - `npm run compile` (strict TS) — pass.
-- `node tests/plantuml_definition_check.cjs` — **15 checks** across 6 sections,
+- `node tests/units/plantuml_definition_check.cjs` — **15 checks** across 6 sections,
   all green.
-- `node tests/plantuml_check.cjs`, `tests/plantuml_completion_check.cjs`,
-  `tests/plantuml_inline_check.cjs`, `tests/mermaid_check.cjs`,
-  `tests/plantuml_note_highlight_check.cjs` — all still green (the new exports
+- `node tests/units/plantuml_check.cjs`, `tests/units/plantuml_completion_check.cjs`,
+  `tests/units/plantuml_inline_check.cjs`, `tests/units/mermaid_check.cjs`,
+  `tests/integration/plantuml_note_highlight_check.cjs` — all still green (the new exports
   are additive; no webview / fence-rewrite change).
 - Manual: F12 on `enroll_uploading_1` → cursor at line 213. Alt+Click on
   `_enroll_extracting_1` → shows references. Shift+F12 → shows references.
@@ -259,7 +259,7 @@ node tests/cdp_eval.cjs <port> page "..." "
 **Status:** PLAN — review before implementation
 **Files added:** (none yet)
 **Files edited:** `src/completions/definitions.ts`, `src/plantuml/invocations.ts`,
-`src/extension.ts`, `tests/plantuml_definition_check.cjs`
+`src/extension.ts`, `tests/units/plantuml_definition_check.cjs`
 
 ## Goal
 
@@ -446,10 +446,10 @@ Five new provider objects + their registrations in `registerDefinitions()`.
 
 `registerDefinitions(context)` already called; new providers registered inside it.
 
-## Pure-logic test additions (`tests/plantuml_definition_check.cjs`)
+## Pure-logic test additions (`tests/units/plantuml_definition_check.cjs`)
 
 Update existing file — append new sections (or create a separate
-`tests/plantuml_lsp_check.cjs` if it gets too large). New sections:
+`tests/units/plantuml_lsp_check.cjs` if it gets too large). New sections:
 
 | Section | Cases |
 | --- | --- |
@@ -462,7 +462,7 @@ Update existing file — append new sections (or create a separate
 | code lens | 2 cases: one procedure shows "N references"; zero-procedure fence shows no lens |
 | folding ranges | 3 cases: basic `!procedure`/`!endprocedure` pair; unmatched opening; nested NBSP / no nesting |
 
-**Total new checks:** ~20, all running with `node tests/plantuml_definition_check.cjs`.
+**Total new checks:** ~20, all running with `node tests/units/plantuml_definition_check.cjs`.
 
 ## Dev-host manual checks
 

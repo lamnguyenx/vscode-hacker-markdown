@@ -5,8 +5,9 @@
 - `./exp` is the temporary directory for experiments, outputs, and scratch
   data (dev-host profiles, logs, screenshots). You may recreate it if it does
   not exist. **Do not put tracked code here.**
-- `./tests` contains the test harness (`open_view.cjs`, `test_preview.cjs`,
-  `cdp_eval.cjs`) and the `tests/workspace/` fixtures used by the dev host.
+- `./tests/units/` — pure-logic checks runnable in plain Node (no dev host, no CDP)
+- `./tests/integration/` — CDP-based integration tests (need a dev host)
+- `./tests/samples/` — fixture files and workspace data used by the dev host
 - The dev host is started/stopped with the `vscode_cdp` / `vscode_cdp_kill`
   shell functions from `bach_cli/bach/vscode.sh` (sourced via the bach CLI) —
   this repo no longer ships its own launch/kill scripts.
@@ -18,9 +19,14 @@
 
 ```bash
 npm run compile
-vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/test.md"
-node tests/open_view.cjs 9335
-node tests/test_preview.cjs 9335
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/workspace/test.md"
+node tests/integration/open_view.cjs 9335
+node tests/integration/test_preview.cjs 9335
+node tests/units/plantuml_check.cjs           # pure-logic checks (no dev host)
+node tests/units/plantuml_inline_check.cjs
+node tests/units/plantuml_completion_check.cjs
+node tests/units/plantuml_definition_check.cjs
+node tests/units/mermaid_check.cjs
 ```
 
 `vscode_cdp` first gracefully kills any prior host on the same CDP port
@@ -30,7 +36,7 @@ launches a fresh one (background, detached — `nohup` on macOS,
 returns. Defaults: port 9335, profile `~/.local/share/vscode-cdp/cdp-<port>`,
 all user extensions disabled (`--disable-extensions`). For this repo, pass
 `--profile "$PWD/exp/devhost"` (per-repo, carries `editor.editContext: false`
-needed by the type-and-save checks) and `--file "$PWD/tests/workspace/test.md"`
+needed by the type-and-save checks) and `--file "$PWD/tests/samples/workspace/test.md"`
 (so a Markdown editor is active at startup and the preview renders
 immediately). Flags: `--port`, `--profile`, `--file`, `--with-extensions`,
 `--ext`, `--no-ext`, `--fg`.

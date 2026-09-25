@@ -19,9 +19,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { rewritePumlFences } = require('../out/plantuml/fences.js');
-const { getDiagramURIComponent } = require('../out/plantuml/plantumlURL.js');
-const { saltInvocationLines } = require('../out/plantuml/invocations.js');
+const { rewritePumlFences } = require('../../out/plantuml/fences.js');
+const { getDiagramURIComponent } = require('../../out/plantuml/plantumlURL.js');
+const { saltInvocationLines } = require('../../out/plantuml/invocations.js');
 
 const SERVER = 'http://localhost:9274';
 
@@ -113,6 +113,63 @@ run('unrelated code fence untouched', () => {
   const html = fenceHtml('python', 'def f():\n    return 1');
   const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
   assert.strictEqual(out, html);
+});
+
+section('unwrapped fallback (PUML_UNWRAPPED_REG) — code-server mermaid extension strips <code>');
+run('raw @start..@end inside <pre> without <code> wrapper (salt mockup with <b>)', () => {
+  const src = '@startuml\n!procedure _form_empty()\n{+\n  ====<b>Speaker\n}\n!endprocedure\n@enduml';
+  const html = `<pre>${escapeHtml(src)}</pre>\n`;
+  const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+  assert.ok(!out.includes('<pre>'), 'pre not replaced: ' + out);
+  const m = out.match(/<img style="background-color:#FFF;"[^>]*src="([^"]+)"\/?>/);
+  assert.ok(m, 'no img tag: ' + out);
+  assert.ok(m[1].startsWith(SERVER + '/svg/'), 'wrong url: ' + m[1]);
+  decodeDiagramUrl(m[1], Buffer.from(src));
+});
+run('mermaid-extension wrapper: <pre style="all:unset;"><div class="mermaid-chart">', () => {
+  const src = '@startuml\nAlice -> Bob\n@enduml';
+  const html = `<pre style="all:unset;"><div class="mermaid-chart">${escapeHtml(src)}</div></pre>\n`;
+  const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+  assert.ok(!out.includes('<pre'), 'pre not replaced: ' + out);
+  const m = out.match(/<img[^>]*src="([^"]+)"\/?>/);
+  assert.ok(m, 'no img tag: ' + out);
+  decodeDiagramUrl(m[1], Buffer.from(src));
+});
+run('unwrapped: mermaid fence without @start..@end is untouched', () => {
+  const html = `<pre style="all:unset;"><div class="mermaid-chart">flowchart LR\n A --> B</div></pre>\n`;
+  const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+  assert.strictEqual(out, html);
+});
+run('unwrapped: non-puml <pre> without @start..@end untouched', () => {
+  const html = '<pre class="code-line">print(1)</pre>\n';
+  assert.strictEqual(rewritePumlFences(html, { server: SERVER, includePaths: [] }), html);
+});
+run('unwrapped: <pre> with @start but without @end does not match (not a puml block)', () => {
+  const html = '<pre>@startuml\nAlice -> Bob\n@end</pre>\n';
+  assert.strictEqual(rewritePumlFences(html, { server: SERVER, includePaths: [] }), html);
+});
+run('unwrapped: data-line on the <pre> becomes data-hmk-from/to', () => {
+  const src = '@startuml\nAlice -> Bob\n@enduml';
+  const html = `<pre data-line="42">${escapeHtml(src)}</pre>\n`;
+  const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+  const m = out.match(/data-hmk-from="(\d+)" data-hmk-to="(\d+)"/);
+  assert.ok(m, 'no data-hmk span: ' + out);
+  assert.strictEqual(m[1], '42', 'wrong from');
+  assert.strictEqual(m[2], '46', 'wrong to');
+});
+run('unwrapped: no server shows error notice', () => {
+  const src = '@startuml\nA -> B\n@enduml';
+  const html = `<pre>${escapeHtml(src)}</pre>\n`;
+  const out = rewritePumlFences(html, { server: '', includePaths: [] });
+  assert.ok(out.includes('class="hmk-puml-error"'), 'error notice missing: ' + out);
+  assert.ok(!out.includes('<pre class="code-line'), 'original pre not replaced: ' + out);
+});
+run('unwrapped: newpage produces one img per page', () => {
+  const src = '@startuml\nA\nnewpage\nB\n@enduml';
+  const html = `<pre>${escapeHtml(src)}</pre>\n`;
+  const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+  const imgs = [...out.matchAll(/<img[^>]*src="([^"]+)"/g)];
+  assert.strictEqual(imgs.length, 2, 'expected 2 imgs, got ' + out);
 });
 
 section('no server configured -> puml fences become an error notice');

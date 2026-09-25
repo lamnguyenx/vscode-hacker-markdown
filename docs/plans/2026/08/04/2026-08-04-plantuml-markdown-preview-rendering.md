@@ -3,7 +3,7 @@
 **Date:** 2026-08-04
 **Status:** DONE (verified)
 **Source:** `_refs/vscode-plantuml` (`src/markdown-it-plantuml/*`, `src/plantuml/{diagram,type,urlMaker/urlMaker,plantumlURL,diagram/include}.*`) — MIT (c) 2016 jebbs
-**Files added:** `src/plantuml/*` (7 files), `tests/plantuml_check.cjs`
+**Files added:** `src/plantuml/*` (7 files), `tests/units/plantuml_check.cjs`
 **Files edited:** `src/previewManager.ts`, `package.json`, `media/main.css` (+error notice styles), `media/index.js` (+`data-command` click delegate in the preview)
 
 ## Goal
@@ -81,7 +81,7 @@ the markdown file's folder).
 
 The pure modules (`type/diagram/plantumlURL/include/fences`) never import
 `vscode`, so they are unit-testable in plain Node against the real shipped
-code (`tests/plantuml_check.cjs`).
+code (`tests/units/plantuml_check.cjs`).
 
 ### Encoding as ported
 
@@ -117,7 +117,7 @@ same char codes (latin1), no size limit. Everything else is verbatim.
 ## Verification
 
 - `npm run compile` passes (strict TS).
-- `tests/plantuml_check.cjs` — pure-logic check of the real `out/plantuml/*.js`:
+- `tests/units/plantuml_check.cjs` — pure-logic check of the real `out/plantuml/*.js`:
   - fence infos `plantuml|puml|uml` all rewritten; `mermaid` untouched;
   - no server → puml fences become the `hmk-puml-error` notice (message, Open
     Settings button, escaped source preserved); non-puml content untouched;
@@ -166,7 +166,7 @@ to rewrite, so no double-render).
 2. **`src/plantuml` could not be unit-tested if it imported `vscode`.** The
    reference modules import `vscode` at module top level; in plain Node a
    `require('vscode')` throws. To run the *real shipped code* in
-   `tests/plantuml_check.cjs` (no dev host), the pure modules
+   `tests/units/plantuml_check.cjs` (no dev host), the pure modules
    (`type/diagram/plantumlURL/include/fences`) were separated from the vscode
    boundary (`renderFragment.ts`, `settings.ts`), includes are injected as an
    argument, and `vscode.Uri` was replaced with a structural `DiagramUri`

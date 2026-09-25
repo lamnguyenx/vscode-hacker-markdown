@@ -6,10 +6,10 @@
 `SALT(x)` invocation, note mockups to their `{{salt` range, diagram framed and
 clamped)
 **Files added:** `src/plantuml/inlineSvg.ts`, `src/plantuml/invocations.ts`,
-`src/webview/source-code.ts`, `tests/plantuml_inline_check.cjs`
+`src/webview/source-code.ts`, `tests/units/plantuml_inline_check.cjs`
 **Files edited:** `src/plantuml/fences.ts`, `src/previewManager.ts`,
 `src/webview/{types,cursor,source,main,stale,frames}.ts`, `src/media/main.css`,
-`tests/plantuml_check.cjs`,
+`tests/units/plantuml_check.cjs`,
 `docs/important/{architecture,editor-preview-sync,how-to-test}.md`
 
 ## Goal
@@ -122,11 +122,11 @@ Top-level `<svg>` blocks now participate in the re-render stale-keeping
 ## Verification
 
 1. `npm run compile` (strict TS + esbuild) — **pass**.
-2. `node tests/plantuml_check.cjs` — existing checks plus new `!pragma
+2. `node tests/units/plantuml_check.cjs` — existing checks plus new `!pragma
    sourceFile` injection and `SALT` invocation scan sections — **pass**.
-3. `node tests/plantuml_inline_check.cjs` — new pure check (stub fetcher):
+3. `node tests/units/plantuml_inline_check.cjs` — new pure check (stub fetcher):
    img→svg replacement, span copy, graceful failure, ordering — **pass**.
-4. `node tests/mermaid_check.cjs`, `node tests/plantuml_completion_check.cjs` — **pass**.
+4. `node tests/units/mermaid_check.cjs`, `node tests/units/plantuml_completion_check.cjs` — **pass**.
 5. Live-server check (port 9274, locally built jar): the shipped rewrite +
    inline pipeline on the user's `enroll-flow.puml.md` produces 20
    `data-source-code` ranges (note mockups) that translate to the correct

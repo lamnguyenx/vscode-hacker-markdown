@@ -1,9 +1,9 @@
 # Plan: PlantUML code completions inside markdown `` ``` `` blocks
 
 **Date:** 2026-08-05
-**Status:** DONE (verified: `npm run compile` + `node tests/plantuml_completion_check.cjs`)
+**Status:** DONE (verified: `npm run compile` + `node tests/units/plantuml_completion_check.cjs`)
 **Source:** `_refs/vscode-plantuml/src/plantuml/intellisense/languageCompletion/predefined.ts` (MIT (c) jebbs) — the static keyword catalog, ported (not the `-language` jar path).
-**Files added:** `src/completions/{words,fences,provider}.ts`, `tests/plantuml_completion_check.cjs`
+**Files added:** `src/completions/{words,fences,provider}.ts`, `tests/units/plantuml_completion_check.cjs`
 **Files edited:** `src/extension.ts`, `package.json`, `docs/important/{architecture,how-to-test,quirks}.md`
 
 ## Goal
@@ -51,7 +51,7 @@ tracking fenced-block state:
   `undefined`.
 
 Module is pure (no `vscode` import) so the real shipped code is unit-testable
-in Node via `tests/plantuml_completion_check.cjs`, matching the repo's
+in Node via `tests/units/plantuml_completion_check.cjs`, matching the repo's
 pure-module convention (`src/plantuml/*`).
 
 ### Keyword catalog (pure)
@@ -101,7 +101,7 @@ attribution header:
 - **`package.json`** —
   - `activationEvents` += `"onLanguage:markdown"`;
   - `configuration` += `hackerMarkdown.completions.enabled` (boolean, default `true`).
-- **`tests/plantuml_completion_check.cjs`** — pure-logic check of
+- **`tests/units/plantuml_completion_check.cjs`** — pure-logic check of
   `out/completions/*.js` (no dev host): fence detection (inside/outside, all
   three lang names, case-insensitivity, tilde+backtick fences, closed vs
   unclosed, indent, other-language fences excluded) + catalog sanity
@@ -111,7 +111,7 @@ attribution header:
 
 ## Verification
 
-1. `npm run compile` (strict TS) and `node tests/plantuml_completion_check.cjs`.
+1. `npm run compile` (strict TS) and `node tests/units/plantuml_completion_check.cjs`.
 2. Manual dev-host check: `tools/launch-devhost.sh` on a fixture with a puml
    fence; confirm suggestions inside the fence and silence outside. Completions
    live in the extension host, not the preview webview, so they are outside the

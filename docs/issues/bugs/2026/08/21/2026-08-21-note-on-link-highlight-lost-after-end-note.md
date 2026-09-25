@@ -147,7 +147,7 @@ end:   (?i)\}\}
 
 Hypothesis: oniguruma's "longest match wins" would pick this (6 chars:
 `{{salt`) over Volar's `\{\{` (2 chars). Built the grammar, reloaded, ran
-`tests/plantuml_note_highlight_check.cjs 9334`.
+`tests/integration/plantuml_note_highlight_check.cjs 9334`.
 
 → **FAIL.** Instructor still showed `expression.embedded.vue` on top of our
 `diagram.source.wsd`. Injection patterns take precedence over the base grammar
@@ -207,7 +207,7 @@ Captured live via CDP on the 9334 dev host (`--with-extensions`,
 | `--> SALT(arg)` | `SALT`/`arg`=mtk9 mtkb, `-->`=mtk5 mtkb, operators=mtk4 mtki | ✓ split |
 | All four `note on link … end note` blocks | consistent across every block | ✓ |
 
-- `node tests/plantuml_note_highlight_check.cjs 9334` now **PASS**es against
+- `node tests/integration/plantuml_note_highlight_check.cjs 9334` now **PASS**es against
   both `--with-extensions` (Volar on) and isolated launches. Before the fix it
   FAILed on Volar-on with 4 flat lines + `unexpected-closing-bracket` flags.
 - Pure-logic checks remain green: `plantuml_check.cjs`,
@@ -224,7 +224,7 @@ Captured live via CDP on the 9334 dev host (`--with-extensions`,
 | `syntaxes/codeblock.json` | `contentName` gets ` comment.block.plantuml` appended — **the actual fix**. |
 | `syntaxes/plantuml.yaml-tmLanguage` | New `#SaltBlock` repository (cosmetic, scopes `{{salt … }}` braces and labels); referenced from `#General` and the `multi-line note of over` body. |
 | `syntaxes/plantuml.tmLanguage.json` | Rebuilt from YAML via `npm run build:syntax`. |
-| `tests/plantuml_note_highlight_check.cjs` | New CDP regression test (added during diagnosis; useful for catching future Volar-vs-plantuml regressions). |
+| `tests/integration/plantuml_note_highlight_check.cjs` | New CDP regression test (added during diagnosis; useful for catching future Volar-vs-plantuml regressions). |
 | `docs/important/how-to-test.md` | New row in the quick-reference table for the new test; a note in §3f explaining the Volar/SALT interaction. |
 
 ## Reproduction (for the historical record)
@@ -234,7 +234,7 @@ Captured live via CDP on the 9334 dev host (`--with-extensions`,
 tools/launch-devhost.sh --port 9334 --with-extensions \
   --profile "$PWD/exp/devhost-withext" \
   --file "$PWD/tests/samples/enroll-flow.puml.md"
-node tests/plantuml_note_highlight_check.cjs 9334   # FAIL on pre-fix build
+node tests/integration/plantuml_note_highlight_check.cjs 9334   # FAIL on pre-fix build
 
 # 2) Confirm Volar was the trigger (Volar off):
 tools/kill-devhost.sh 9334
@@ -243,7 +243,7 @@ setsid nohup /usr/share/code/code \
   --remote-debugging-port=9334 --with-extensions --disable-extension vue.volar \
   --new-window "$PWD/tests/samples/enroll-flow.puml.md" \
   > exp/devhost-launch.log 2>&1 < /dev/null &
-node tests/plantuml_note_highlight_check.cjs 9334   # PASS even without the fix
+node tests/integration/plantuml_note_highlight_check.cjs 9334   # PASS even without the fix
 ```
 
 ## Lessons

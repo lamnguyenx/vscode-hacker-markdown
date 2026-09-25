@@ -1,12 +1,12 @@
 # Plan: Media toolbar controls (invert / table pan / column width)
 
 **Date:** 2026-08-06
-**Status:** DONE (verified: `npm run compile` + dev host CDP spot-checks + `tests/test_preview.cjs` 21/21; styling shipped built-in in `src/media/media.css` — deviation 11)
+**Status:** DONE (verified: `npm run compile` + dev host CDP spot-checks + `tests/integration/test_preview.cjs` 21/21; styling shipped built-in in `src/media/media.css` — deviation 11)
 **Source:** user request — quick media controls in the pinned preview toolbar, replacing
-hardcoded `tests/custom.css` values.
+hardcoded `tests/samples/custom.css` values.
 **Files added:** `src/webview/menus.ts`
 **Files edited:** `package.json`, `src/previewHost.ts`, `src/previewManager.ts`,
-`src/webview/{types,main}.ts`, `src/media/main.css`, `tests/custom.css`,
+`src/webview/{types,main}.ts`, `src/media/main.css`, `tests/samples/custom.css`,
 `README.md`, `docs/important/architecture.md`
 
 ## Goal
@@ -23,7 +23,7 @@ persisted in **user (Global) settings**:
    **reset** button back to `100%`.
 
 The extension only owns the *state + controls*; the actual styling lives in the
-user's `tests/custom.css`, which keys off body attributes (`data-invert`,
+user's `tests/samples/custom.css`, which keys off body attributes (`data-invert`,
 `data-tables`) and a CSS custom property (`--hmk-column-width`).
 
 ## Why this approach
@@ -102,7 +102,7 @@ user's `tests/custom.css`, which keys off body attributes (`data-invert`,
   (absolute, right-aligned under the trigger, widget background/border,
   `z-index` above content), `.hmk-menu-item` (+ `:hover`, `[aria-checked="true"]`
   checkmark), `.toolbar-input` (compact, input theme colors).
-- `tests/custom.css` — rewritten to react to the state:
+- `tests/samples/custom.css` — rewritten to react to the state:
   - column: `body { max-width: var(--hmk-column-width, 100%) !important; margin: 0 auto !important; }`
   - full-bleed media: `div.hmk-frame, div.mermaid-wrapper` 100vw trick (kept
     from the previous CSS; `overflow` stays hidden on frames so zoom still
@@ -119,9 +119,9 @@ user's `tests/custom.css`, which keys off body attributes (`data-invert`,
 ## Verification
 
 1. `npm run compile` (strict TS, both tsconfigs).
-2. Dev host: `tools/launch-devhost.sh` → `node tests/open_view.cjs 9335` →
-   `node tests/test_preview.cjs 9335` (regression).
-3. CDP spot-checks (`node tests/cdp_eval.cjs 9335 iframe vscode-webview:// …`):
+2. Dev host: `tools/launch-devhost.sh` → `node tests/integration/open_view.cjs 9335` →
+   `node tests/integration/test_preview.cjs 9335` (regression).
+3. CDP spot-checks (`node tests/integration/cdp_eval.cjs 9335 iframe vscode-webview:// …`):
    - both dropdowns render in the docked view and the editor panel;
    - clicking `dark`/`fit` items updates `body[data-invert]`/`body[data-tables]`
      and persists in the profile's settings.json;
@@ -144,7 +144,7 @@ user's `tests/custom.css`, which keys off body attributes (`data-invert`,
 ## Trials, errors & deviations (chronological)
 
 11. **The styling must ship built-in.** The first cut required the user to
-    register `tests/custom.css` via `hackerMarkdown.styles` for the toolbar
+    register `tests/samples/custom.css` via `hackerMarkdown.styles` for the toolbar
     toggles to have any visual effect — verified live in the user's real
     window (port 9333) that the state toggled but `filter` stayed `none`
     (`userStyleLinks: 0`). That makes the feature invisible out of the box.

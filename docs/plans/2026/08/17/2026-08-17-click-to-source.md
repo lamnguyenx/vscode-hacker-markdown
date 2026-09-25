@@ -1,9 +1,9 @@
 # Plan: Click-to-source (preview click -> editor cursor jump)
 
 **Date:** 2026-08-17
-**Status:** DONE (verified: `npm run compile` + `node tests/{plantuml_check,plantuml_completion_check,mermaid_check}.cjs` + dev-host `test_preview.cjs` 23/23)
+**Status:** DONE (verified: `npm run compile` + `node tests/units/{plantuml_check,plantuml_completion_check,mermaid_check}.cjs` + dev-host `test_preview.cjs` 23/23)
 **Files added:** `src/webview/source.ts`, `src/mermaid/fences.ts`,
-`src/mermaid/renderFragment.ts`, `tests/mermaid_check.cjs`
+`src/mermaid/renderFragment.ts`, `tests/units/mermaid_check.cjs`
 **Files edited:** `package.json`, `src/webview/{types,main,frames,cursor}.ts`,
 `src/previewManager.ts`,
 `docs/important/{editor-preview-sync,architecture,how-to-test}.md`
@@ -108,8 +108,8 @@ In `onHostMessage` add `case 'editorLine'`. New method `revealEditorLine`:
 ## Verification
 
 1. `npm run compile` (strict TS + esbuild bundle) — **pass**.
-2. Dev-host smoke test: `tools/launch-devhost.sh`, `node tests/open_view.cjs 9335`,
-   `node tests/test_preview.cjs 9335` — existing 21/21 plus the new
+2. Dev-host smoke test: `tools/launch-devhost.sh`, `node tests/integration/open_view.cjs 9335`,
+   `node tests/integration/test_preview.cjs 9335` — existing 21/21 plus the new
    click-to-source check (see below).
 3. Manual (puml fixture + server): click a rendered diagram -> editor cursor
    lands on the fence's opening line, the `.hmk-cursor` box stays on the

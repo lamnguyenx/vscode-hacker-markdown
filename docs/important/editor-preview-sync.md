@@ -282,8 +282,8 @@ reveal the docked view once it has been resolved, and otherwise fall back to
 - Highlighting a live rendered puml diagram is *not* in the default smoke
   suite: the `data-hmk-from`/`data-hmk-to` span emission, the `!pragma
   sourceFile` injection and the SALT invocation scan are pinned by
-  `tests/plantuml_check.cjs`, and the SVG inlining by
-  `tests/plantuml_inline_check.cjs` (pure logic, no server). Verifying the
+  `tests/units/plantuml_check.cjs`, and the SVG inlining by
+  `tests/units/plantuml_inline_check.cjs` (pure logic, no server). Verifying the
   box and the click-jump on a real diagram needs a dev host (or a real
   window) with `hackerMarkdown.plantuml.server` set and the locally-built
   server running (sections 3d/3e in `how-to-test.md`); the salt mockup

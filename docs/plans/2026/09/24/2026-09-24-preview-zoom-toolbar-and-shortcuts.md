@@ -112,13 +112,13 @@ Why zoom is the better primitive:
 - **The webview OOPIF is a bootstrap frame.** Even on the right target,
   the toolbar is one `contentDocument` hop down
   (`document.querySelector('iframe').contentDocument`) — same gotcha as the
-  `d` variable in `tests/test_preview.cjs`, forgotten and re-learned.
+  `d` variable in `tests/integration/test_preview.cjs`, forgotten and re-learned.
 - **`vscode.commands.executeCommand` is not reachable from CDP** on the
   workbench page (`vscode is not defined`) — checking code from outside the
   extension host drove keyroundtrips through UI clicks instead.
 - A `python websocket-client` CDP attempt died on
   `403 ... --remote-allow-origins` — the dev host doesn't set it; Node's
-  built-in `WebSocket` (what `tests/*.cjs` use) is the working client.
+  built-in `WebSocket` (what `tests/*/*.cjs` use) is the working client.
 - Reused-profile sessions left *stale* webview targets from earlier runs
   (documented in how-to-test: wipe the profile or relaunch fresh).
 

@@ -1,11 +1,11 @@
 # Plan: Cursor sync (editor cursor -> preview highlight)
 
 **Date:** 2026-08-05
-**Status:** DONE (verified: `npm run compile` + `node tests/plantuml_check.cjs` + dev-host `test_preview.cjs`)
+**Status:** DONE (verified: `npm run compile` + `node tests/units/plantuml_check.cjs` + dev-host `test_preview.cjs`)
 **Files added:** `src/webview/cursor.ts`
 **Files edited:** `package.json`, `src/webview/{types,main}.ts`, `src/previewHost.ts`,
 `src/previewManager.ts`, `src/plantuml/fences.ts`, `src/media/main.css`,
-`tests/{plantuml_check,test_preview}.cjs`,
+`tests/units/plantuml_check.cjs` + `tests/integration/test_preview.cjs`,
 `docs/important/{architecture,how-to-test}.md`
 
 ## Goal
@@ -136,10 +136,10 @@ resolution above against `previewEl` (reuses `dataLineElements()` from
 - `src/webview/cursor.ts` — new resolver + highlight module.
 - `src/webview/main.ts` — message handler + re-apply on render & late renders.
 - `src/media/main.css` — `.hmk-cursor`.
-- `tests/plantuml_check.cjs` — assert `data-hmk-from`/`data-hmk-to` are present
+- `tests/units/plantuml_check.cjs` — assert `data-hmk-from`/`data-hmk-to` are present
   and correct (single fence, multi-`newpage`, no-range when the pre lacks
   `data-line`).
-- `tests/test_preview.cjs` — new cursor-sync check: focus the editor, `Ctrl+G`
+- `tests/integration/test_preview.cjs` — new cursor-sync check: focus the editor, `Ctrl+G`
   to a known line, assert `.hmk-cursor` appears in the webview with the
   expected `data-line` (and the containing-block fallback on a mid-paragraph /
   in-code-fence line). Self-contained (no PlantUML server needed).
@@ -149,9 +149,9 @@ resolution above against `previewEl` (reuses `dataLineElements()` from
 ## Verification
 
 1. `npm run compile` (strict TS, esbuild bundle) and
-   `node tests/plantuml_check.cjs` — **pass** (data-hmk spans, newpage, no-data-line degrade).
-2. Dev-host smoke test: `tools/launch-devhost.sh`, `node tests/open_view.cjs 9335`,
-   `node tests/test_preview.cjs 9335` — **21/21**, including the three new
+   `node tests/units/plantuml_check.cjs` — **pass** (data-hmk spans, newpage, no-data-line degrade).
+2. Dev-host smoke test: `tools/launch-devhost.sh`, `node tests/integration/open_view.cjs 9335`,
+   `node tests/integration/test_preview.cjs 9335` — **21/21**, including the three new
    cursor-sync checks (exact h3, blank-line → h1 fallback, in-code-fence → the
    `<pre>`).
 3. Manual: cursor inside a puml fence on the puml host (3e/3d) highlights the

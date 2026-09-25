@@ -16,7 +16,7 @@ starting**:
   access) are in
   [Option A: code-server in Docker](#option-a-code-server-in-docker-preferred).
 - **Option B — local Extension Development Host.** A dedicated dev VS Code
-  instance with a CDP port, driven by the `tests/*.cjs` suite. Sections 1–5
+  instance with a CDP port, driven by the `tests/*/*.cjs` suite. Sections 1–5
   describe this pipeline:
 
 1. Launch a dev host with a CDP port
@@ -39,27 +39,27 @@ Remote-SSH, read [`native-vs-remote-ssh-vscode.md`](native-vs-remote-ssh-vscode.
 first — the dev host must run the **native** desktop VS Code, not the
 remote CLI `code` on PATH.
 
-Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
+Test scripts live in [`tests/units/`](../../tests/units/), [`tests/integration/`](../../tests/integration/), [`tests/samples/`](../../tests/samples/) and [`tools/`](../../tools/):
 
 | Script | Purpose |
 | --- | --- |
 | `vscode_cdp` (from `bach_cli/bach/vscode.sh`) | Launch/restart the dev host in the background on macOS and Linux |
 | `vscode_cdp_kill` (from `bach_cli/bach/vscode.sh`) | Gracefully shut down the dev host on a port (SIGTERM to the main process, so no "Closed … Reopen?" dialog; frees orphaned CDP-port fd holders on Linux) |
-| `tests/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
-| `tests/test_preview.cjs` | Full 21-check functional smoke test |
-| `tests/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
-| `tests/plantuml_check.cjs` | Pure-logic check of the PlantUML preview rendering (fence rewrite, `!pragma sourceFile` injection, svg/png, newpage, escaping, `!include` — no dev host, no server) |
-| `tests/plantuml_inline_check.cjs` | Pure-logic check of the PlantUML SVG inlining (img→svg replacement, span copy, graceful failure — stubbed fetcher, no dev host, no server) |
-| `tests/mermaid_check.cjs` | Pure-logic check of the mermaid source-span rewrite (no dev host) |
-| `tests/plantuml_completion_check.cjs` | Pure-logic check of the in-markdown PlantUML code completions: fence detection + catalog (no dev host) |
-| `tests/plantuml_note_highlight_check.cjs` | Live CDP check of `note on link`/`-->` keyword tokenization after `end note` (`vue.volar` corrupts `{{salt }}` SALT blocks; section 3f) |
+| `tests/integration/open_view.cjs` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
+| `tests/integration/test_preview.cjs` | Full 21-check functional smoke test |
+| `tests/integration/cdp_eval.cjs` | Evaluate an expression in the webview OOPIF (debugging) |
+| `tests/units/plantuml_check.cjs` | Pure-logic check of the PlantUML preview rendering (fence rewrite, `!pragma sourceFile` injection, svg/png, newpage, escaping, `!include` — no dev host, no server) |
+| `tests/units/plantuml_inline_check.cjs` | Pure-logic check of the PlantUML SVG inlining (img→svg replacement, span copy, graceful failure — stubbed fetcher, no dev host, no server) |
+| `tests/units/mermaid_check.cjs` | Pure-logic check of the mermaid source-span rewrite (no dev host) |
+| `tests/units/plantuml_completion_check.cjs` | Pure-logic check of the in-markdown PlantUML code completions: fence detection + catalog (no dev host) |
+| `tests/integration/plantuml_note_highlight_check.cjs` | Live CDP check of `note on link`/`-->` keyword tokenization after `end note` (`vue.volar` corrupts `{{salt }}` SALT blocks; section 3f) |
 | `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
 
 ---
 
 ## Prerequisites
 
-- Node.js (for `tests/*.cjs` and `npm run compile`)
+- Node.js (for `tests/*/*.cjs` and `npm run compile`)
 - The extension compiled: `npm run compile` (compiles `src/` → `out/`, and
   bundles `src/webview/**` → `build/index.js`)
 - **Option A only:** the code-server stack up —
@@ -107,7 +107,7 @@ With the stack up (per the meta doc), point the chrome-devtools MCP tools
    activation — click "Restricted Mode" in the status bar (or `Manage` in
    the banner) → **Trust** (remembered in the mounted user-data-dir, so
    this is once per folder).
-3. Open `tests/workspace/test.md` from the Explorer.
+3. Open `tests/samples/workspace/test.md` from the Explorer.
 4. Command palette (`Ctrl+Shift+P`) → `Hacker Markdown: Open` — the preview
    webview loads from the symlinked extension.
 
@@ -127,7 +127,7 @@ document.querySelector('iframe[src*="extensionId=lamnguyenx.hacker-markdown"]')
 
 The inner document is the same DOM the dev-host tests see: `.toolbar`,
 `.doc-name`, `.markdown-body`, `[data-zoom-step]`, `.hmk-frame`,
-`[data-line]`, … — assert on it exactly like `tests/test_preview.cjs` does.
+`[data-line]`, … — assert on it exactly like `tests/integration/test_preview.cjs` does.
 
 ### Trade-offs vs the dev host (Option B)
 
@@ -138,7 +138,7 @@ The inner document is the same DOM the dev-host tests see: `.toolbar`,
 - ⚠️ `hackerMarkdown.media.*` and other Global-scope settings persist in the
   mounted `…/code-server/User/settings.json` — when testing settings, check
   it for leftovers first (`grep hackerMarkdown` there) and clean stale keys;
-- ❌ the `tests/*.cjs` suite (open_view / test_preview / e2e-anchor) targets
+- ❌ the `tests/*/*.cjs` suite (open_view / test_preview / e2e-anchor) targets
   the dev host's CDP port and its OOPIF targets — under Option A, testing is
   manual/interactive; run the pure-logic checks (`plantuml_check.cjs`, …)
   locally as usual, they need no host at all.
@@ -150,7 +150,7 @@ extension in its own instance with a debug port:
 
 ```sh
 cd /Users/lamnt45/git/vscode-hacker-markdown
-vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/test.md"
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/workspace/test.md"
 ```
 
 `vscode_cdp` (from `bach_cli/bach/vscode.sh`) runs on macOS and Linux. It
@@ -166,12 +166,12 @@ Default profile is `~/.local/share/vscode-cdp/cdp-<port>` (shared across
 projects); pass `--profile "$PWD/exp/devhost"` for a per-repo profile.
 Default file is none (a Markdown editor is *not* active at startup, so the
 preview stays empty until you open one) — pass `--file
-"$PWD/tests/workspace/test.md"` to match the smoke-test's preconditions.
+"$PWD/tests/samples/workspace/test.md"` to match the smoke-test's preconditions.
 
 For other fixtures/profiles/ports it accepts `--file`, `--profile`, `--port`:
 
 ```sh
-vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/e2e-anchor.md"                    # scroll-anchor E2E (section 3b)
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/workspace/e2e-anchor.md"                    # scroll-anchor E2E (section 3b)
 vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"   # puml frames (section 3d)
 vscode_cdp --port 9337 --profile "$PWD/exp/devhost-puml" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"  # isolated puml host (section 3e)
 ```
@@ -184,7 +184,7 @@ code --extensionDevelopmentPath="$PWD" \
      --user-data-dir="$PWD/exp/devhost" \
      --remote-debugging-port=$CHROME_CDP_PORT$ \
      --new-window \
-     "$PWD/tests/workspace/test.md"
+     "$PWD/tests/samples/workspace/test.md"
 ```
 
 (The `Run Extension` launch config from `F5` starts the same host; the
@@ -222,7 +222,7 @@ Notes:
     host once stays applied on later relaunches.
   The test helpers always find the preview by probing for `.toolbar .doc-name`,
   never by target order.
-- Opening `tests/workspace/test.md` as the file argument makes a Markdown editor
+- Opening `tests/samples/workspace/test.md` as the file argument makes a Markdown editor
   active at startup, so the preview renders immediately.
 - **The dev-host profile carries `"editor.editContext": false`.**
   VS Code 1.13x defaults `editor.editContext` to on (Chromium EditContext
@@ -277,7 +277,7 @@ or run `Hacker Markdown: Open` / `Hacker Markdown: Open Preview in Editor` /
 A fresh dev-host profile needs three manual-ish steps before the preview exists:
 
 ```sh
-node tests/open_view.cjs $CHROME_CDP_PORT$
+node tests/integration/open_view.cjs $CHROME_CDP_PORT$
 ```
 
 This script does, in order:
@@ -303,7 +303,7 @@ to attach to.
 ## 3. The Functional Smoke Test
 
 ```sh
-node tests/test_preview.cjs $CHROME_CDP_PORT$
+node tests/integration/test_preview.cjs $CHROME_CDP_PORT$
 ```
 
 The 21 checks (current status: **all passing**):
@@ -402,10 +402,10 @@ position survive?) has its own script. It needs the dev host launched with
 the fixture document (it edits the mermaid block on a known line):
 
 ```sh
-vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/e2e-anchor.md"
-node tests/open_view.cjs $CHROME_CDP_PORT$
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/workspace/e2e-anchor.md"
+node tests/integration/open_view.cjs $CHROME_CDP_PORT$
 node exp/e2e-anchor.cjs $CHROME_CDP_PORT$   # PASS: reading position held across mermaid re-render
-git checkout -- tests/workspace/e2e-anchor.md   # the run saves the inserted node into the fixture
+git checkout -- tests/samples/workspace/e2e-anchor.md   # the run saves the inserted node into the fixture
 ```
 
 What it does: focuses the editor, jumps to the last mermaid line
@@ -490,7 +490,7 @@ To verify the pan/zoom frames against `tests/samples/enroll-flow-elements.puml.m
 
 ```sh
 vscode_cdp --with-extensions --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
-node tests/open_view.cjs $CHROME_CDP_PORT$
+node tests/integration/open_view.cjs $CHROME_CDP_PORT$
 node exp/probe_all.cjs $CHROME_CDP_PORT$ "<expr>"   # iterate ALL iframe targets (extra webviews present)
 node exp/persist_test.cjs $CHROME_CDP_PORT$          # zoom -> save -> zoom restored
 ```
@@ -502,7 +502,7 @@ source). Why the framing works: the markdown-it plugin emits the `<img>` as a
 *direct child of `#preview`* (block level, no `<p>` wrapper), so
 `isFrameable` must not treat block siblings (H2/H3…) as "inline prose" —
 the sibling check applies only inside phrasing containers (`p`/`span`/…).
-The pan/zoom fixture checks in `tests/test_preview.cjs` (7b–7d) cover the
+The pan/zoom fixture checks in `tests/integration/test_preview.cjs` (7b–7d) cover the
 same behavior on `test.md`'s `<p>`-wrapped image.
 
 ## 3e. PlantUML rendering (no jebbs.plantuml required)
@@ -517,7 +517,7 @@ is pure (no `vscode` import) and is unit-checked against the real shipped
 
 ```sh
 npm run compile
-node tests/plantuml_check.cjs   # fence rewrite, svg/png, newpage, escaping round-trip, !include
+node tests/units/plantuml_check.cjs   # fence rewrite, svg/png, newpage, escaping round-trip, !include
 ```
 
 The e2e path (isolated host, a real server) is documented in the plan doc:
@@ -527,7 +527,7 @@ The e2e path (isolated host, a real server) is documented in the plan doc:
 # plantuml.server = http://localhost:9274 in exp/devhost-puml settings
 vscode_cdp --port 9337 --profile "$PWD/exp/devhost-puml" \
      --file "$PWD/tests/samples/enroll-flow-elements.puml.md"
-node tests/open_view.cjs 9337
+node tests/integration/open_view.cjs 9337
 # assert: a puml fence rendered an <img> (decoded from the server URL) wrapped in .hmk-frame
 ```
 
@@ -542,8 +542,8 @@ fragment (`src/plantuml/inlineSvg.ts`). This is what lets the webview read the
 salt-capable server's `data-source-code` ranges for cursor highlight and
 click-to-source, and what keeps the canvas clamped (the SVG is wrapped in the
 usual `.hmk-frame` pan/zoom frame — `max-width: 100%`). The pure logic is
-pinned by `tests/plantuml_inline_check.cjs` (stubbed fetcher) and the SALT
-invocation scan by `tests/plantuml_check.cjs`. For the full salt-sync e2e
+pinned by `tests/units/plantuml_inline_check.cjs` (stubbed fetcher) and the SALT
+invocation scan by `tests/units/plantuml_check.cjs`. For the full salt-sync e2e
 (cursor over a mockup → the mockup gets the box; clicking it selects the exact
 source lines), run the dev host against `tests/samples/enroll-flow.puml.md`
 with the locally-built server on 9274: note-on-link mockups jump to their
@@ -604,7 +604,7 @@ tokenization works). Verify scopes, not colors:
   `unexpected-closing-bracket`). This is reproducible on the dev host with
   `--with-extensions` but NOT with `--disable-extensions` or
   `--disable-extension vue.volar`. Catch it with
-  `node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$`. See §3i for the full
+  `node tests/integration/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$`. See §3i for the full
   injection-conflict debugging workflow.
   Full write-up:
   `docs/issues/bugs/2026/08/21/2026-08-21-note-on-link-highlight-lost-after-end-note.md`.
@@ -632,7 +632,7 @@ vscode_cdp --port $VSCODE_CDP_PORT$ --with-extensions \
 # 3. Close & reopen the fixture tab (grammar changes are never hot-reloaded
 #    on already-open tabs; close Cmd+W, reopen Ctrl+P → Enter)
 #    Then probe with the regression test:
-node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
+node tests/integration/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
 
 # 4. Isolate the culprit with the "Volar-off" control:
 vscode_cdp_kill $VSCODE_CDP_PORT$
@@ -641,7 +641,7 @@ setsid nohup /usr/share/code/code \
   --remote-debugging-port=$VSCODE_CDP_PORT$ --with-extensions --disable-extension vue.volar \
   --new-window "$PWD/tests/samples/enroll-flow.puml.md" \
   > exp/devhost-launch.log 2>&1 < /dev/null &
-node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$     # should PASS
+node tests/integration/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$     # should PASS
 ```
 
 ### Three controls, one conclusion
@@ -694,7 +694,7 @@ hijacked the scan. The typical way to fix:
 
 ### Regression harness
 
-`tests/plantuml_note_highlight_check.cjs` is a standalone CDP test that opens
+`tests/integration/plantuml_note_highlight_check.cjs` is a standalone CDP test that opens
 the fixture, scrolls to the multi-line notes, and asserts every
 `note on link` / `-->` line keeps >1 token span. It exits 0 (PASS) or 1
 (FAIL). Use it as a gate before committing grammar changes:
@@ -702,14 +702,14 @@ the fixture, scrolls to the multi-line notes, and asserts every
 ```sh
 # baseline (extensions off)
 vscode_cdp --port $VSCODE_CDP_PORT$ --file "$PWD/tests/samples/enroll-flow.puml.md"
-node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$ && echo PASS
+node tests/integration/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$ && echo PASS
 
 # real-world (with extensions)
 vscode_cdp_kill $VSCODE_CDP_PORT$
 vscode_cdp --port $VSCODE_CDP_PORT$ --with-extensions \
   --profile "$PWD/exp/devhost-withext" \
   --file "$PWD/tests/samples/enroll-flow.puml.md"
-node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$ && echo PASS
+node tests/integration/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$ && echo PASS
 ```
 
 ## 3i. PlantUML code completions (in-markdown IntelliSense)
@@ -721,7 +721,7 @@ is unit-checked against the real shipped `out/` code without a dev host:
 
 ```sh
 npm run compile
-node tests/plantuml_completion_check.cjs   # fence inside/outside, closed/unclosed, tilde, casing; catalog sizes + markers
+node tests/units/plantuml_completion_check.cjs   # fence inside/outside, closed/unclosed, tilde, casing; catalog sizes + markers
 ```
 
 The vscode boundary (`provider.ts`) is a completion provider registered on the
@@ -749,7 +749,7 @@ without a dev host:
 
 ```sh
 npm run compile
-node tests/plantuml_definition_check.cjs   # alias→line mapping, per-fence isolation, duplicate alias, underscore stripping, tilde fences
+node tests/units/plantuml_definition_check.cjs   # alias→line mapping, per-fence isolation, duplicate alias, underscore stripping, tilde fences
 ```
 
 The vscode boundary (`src/completions/definitions.ts`) is a definition provider
@@ -788,7 +788,7 @@ covered by the same pure-logic check as go-to-definition:
 
 ```sh
 npm run compile
-node tests/plantuml_definition_check.cjs
+node tests/units/plantuml_definition_check.cjs
 ```
 
 This exercises 31 checks across 11 sections, including `aliasOccurrences`
@@ -817,7 +817,7 @@ This exercises 31 checks across 11 sections, including `aliasOccurrences`
   are suggested inside puml fences via `procedureNames()`, which detects both
   `!procedure _name()` and `!unquoted procedure Name()`.
 - The provider also fires on `(` so `SALT(` immediately shows all aliases.
-- Verified by the catalog-sanity checks in `tests/plantuml_completion_check.cjs`.
+- Verified by the catalog-sanity checks in `tests/units/plantuml_completion_check.cjs`.
 
 ## 3j. Ctrl/Cmd+Shift+V override & cross-window placement
 
@@ -869,10 +869,10 @@ first `markdown.api.render` call (it activates automatically on that command).
 ```sh
 npm run compile                    # tsc -> out/ + esbuild -> build/ (bundle + copied src/media)
 # restart the dev host (the function kills the old window on the same port first):
-vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/workspace/test.md"
-node tests/open_view.cjs $CHROME_CDP_PORT$
-node tests/test_preview.cjs $CHROME_CDP_PORT$
-git checkout -- tests/workspace/sub.md tests/workspace/e2e-anchor.md   # the suite saves live-edit tokens into the fixtures
+vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/workspace/test.md"
+node tests/integration/open_view.cjs $CHROME_CDP_PORT$
+node tests/integration/test_preview.cjs $CHROME_CDP_PORT$
+git checkout -- tests/samples/workspace/sub.md tests/samples/workspace/e2e-anchor.md   # the suite saves live-edit tokens into the fixtures
 ```
 
 ### Grammar-only fast loop
@@ -892,7 +892,7 @@ vscode_cdp --port $VSCODE_CDP_PORT$ --file "$PWD/tests/samples/enroll-flow.puml.
 # Reload Window alone is not always enough.
 
 # Probe:
-node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
+node tests/integration/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
 
 # A/B against Volar (see §3g for the full workflow):
 vscode_cdp_kill $VSCODE_CDP_PORT$
@@ -901,11 +901,11 @@ setsid nohup /usr/share/code/code \
   --remote-debugging-port=$VSCODE_CDP_PORT$ --with-extensions --disable-extension vue.volar \
   --new-window "$PWD/tests/samples/enroll-flow.puml.md" \
   > exp/devhost-launch.log 2>&1 < /dev/null &
-node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
+node tests/integration/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$
 ```
 
 After changing grammar files (`syntaxes/*`) or `package.json#contributes.*`
-(the default `open_view.cjs` fixture is `tests/workspace/test.md`) remember:
+(the default `open_view.cjs` fixture is `tests/samples/workspace/test.md`) remember:
 
 - the dev-host restart re-reads `package.json`, but the **open editor keeps
   its cached tokens** — close and reopen `test.md` (or open the sample in
@@ -920,7 +920,7 @@ troubleshooting a failure, re-run once on a fresh host to rule out
 contamination. It also **dirties tracked fixtures by design**: the live-edit
 check types into `sub.md` and saves it, and any failed palette input leaks
 typed text into the open buffer — `git checkout` the fixtures after a run
-(`tests/workspace/sub.md`, `tests/workspace/e2e-anchor.md`, any sample file
+(`tests/samples/workspace/sub.md`, `tests/samples/workspace/e2e-anchor.md`, any sample file
 you opened).
 
 **The suite is load-sensitive.** Several checks have short windows (cursor
@@ -965,17 +965,17 @@ running window gets a live install that still needs a reload to activate.
 | Start dev host (port $CHROME_CDP_PORT$) | `vscode_cdp` (flags: `--port`, `--profile`, `--file`, `--with-extensions`, `--ext`, `--no-ext`; default: all extensions disabled; Linux: requires native `code` on PATH, `$DISPLAY` set) |
 | Stop dev host | `vscode_cdp_kill [port]` (graceful SIGTERM; no "Reopen?" dialog) |
 | List CDP targets | `curl -s http://127.0.0.1:$CHROME_CDP_PORT$/json/list` |
-| Prepare the view | `node tests/open_view.cjs $CHROME_CDP_PORT$` |
-| Full functional smoke test | `node tests/test_preview.cjs $CHROME_CDP_PORT$` |
-| Scroll-anchor E2E (start host with `tests/workspace/e2e-anchor.md`) | `node exp/e2e-anchor.cjs $CHROME_CDP_PORT$` |
+| Prepare the view | `node tests/integration/open_view.cjs $CHROME_CDP_PORT$` |
+| Full functional smoke test | `node tests/integration/test_preview.cjs $CHROME_CDP_PORT$` |
+| Scroll-anchor E2E (start host with `tests/samples/workspace/e2e-anchor.md`) | `node exp/e2e-anchor.cjs $CHROME_CDP_PORT$` |
 | Harness (webview logic; needs ports 8377/8378) | open `http://127.0.0.1:8377/exp/scroll-anchor-test.html` (section 3c) |
 | Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs $CHROME_CDP_PORT$` + `node exp/persist_test.cjs $CHROME_CDP_PORT$` (section 3d) |
-| PlantUML rendering pure-logic check (no dev host) | `node tests/plantuml_check.cjs` (section 3e) |
-| PlantUML completion pure-logic check (no dev host) | `node tests/plantuml_completion_check.cjs` (section 3g) |
-| PlantUML definition / hover / rename / highlights / code lens / folding pure-logic check (no dev host) | `node tests/plantuml_definition_check.cjs` (section 3k + 3l) |
+| PlantUML rendering pure-logic check (no dev host) | `node tests/units/plantuml_check.cjs` (section 3e) |
+| PlantUML completion pure-logic check (no dev host) | `node tests/units/plantuml_completion_check.cjs` (section 3g) |
+| PlantUML definition / hover / rename / highlights / code lens / folding pure-logic check (no dev host) | `node tests/units/plantuml_definition_check.cjs` (section 3k + 3l) |
 | Keybinding override / serializer / cross-window move | section 3h (`Developer: Toggle Keyboard Shortcuts Troubleshooting` + `Move Editor into New Window`) |
-| Evaluate in webview | `node tests/cdp_eval.cjs $CHROME_CDP_PORT$ iframe vscode-webview:// "<expr>"` |
-| PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$` (also works on `--with-extensions` hosts) |
+| Evaluate in webview | `node tests/integration/cdp_eval.cjs $CHROME_CDP_PORT$ iframe vscode-webview:// "<expr>"` |
+| PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `node tests/integration/plantuml_note_highlight_check.cjs $VSCODE_CDP_PORT$` (also works on `--with-extensions` hosts) |
 | Inspect editor tokens & scopes | `Ctrl+Shift+P` → `Developer: Inspect Editor Tokens and Scopes` (section 3f) |
 | Build only the grammar (skip full `npm run compile`) | `npm run build:syntax` (section 5) |
 | Launch with a single extension excluded (A/B test) | `vscode_cdp_kill $VSCODE_CDP_PORT$` then call `code` directly with `--disable-extension vue.volar` (section 1) |
@@ -1025,7 +1025,7 @@ running window gets a live install that still needs a reload to activate.
   quirks.md).
 - **Cursor-sync *media* highlighting (cursor inside a rendered puml fence) is
   not in the smoke suite.** The `data-hmk-from`/`data-hmk-to` span emission is
-  pinned by `tests/plantuml_check.cjs` and `tests/mermaid_check.cjs` (pure
+  pinned by `tests/units/plantuml_check.cjs` and `tests/units/mermaid_check.cjs` (pure
   logic, no dev host / no server); the smoke suite asserts the generic
   block/paragraph/code-fence highlight (checks 7e) plus the mermaid click-to-
   source echo (7g). Highlighting a live rendered puml `<img>` requires a

@@ -11,7 +11,7 @@
  */
 const assert = require('assert');
 
-const { aliasDefinitions, aliasOccurrences, invocationReferences, procedureFoldRanges, procedureNames } = require('../out/plantuml/invocations.js');
+const { aliasDefinitions, aliasOccurrences, invocationReferences, procedureFoldRanges, procedureNames } = require('../../out/plantuml/invocations.js');
 
 function run(label, fn) {
 	fn();

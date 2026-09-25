@@ -4,7 +4,7 @@
 //
 // Usage: node tests/mermaid_check.cjs
 const assert = require('assert');
-const { mermaidSpans, rewriteMermaidSpans } = require('../out/mermaid/fences.js');
+const { mermaidSpans, rewriteMermaidSpans } = require('../../out/mermaid/fences.js');
 
 const section = (name) => console.log(`\n== ${name} ==`);
 
