@@ -1,25 +1,32 @@
 /* Media toolbar controls (hackerMarkdown.media.*) — the styling half of the
- * toolbar's invert / tables / column-width controls. The host broadcasts the
- * state as body attributes (`data-invert`, `data-tables`) and a CSS custom
- * property (`--hmk-column-width` on <html>); this file turns them into
- * layout. User styles (`hackerMarkdown.styles` / `markdown.styles`) load
- * after this file and win the cascade. */
+ * toolbar's invert / tables / column-width / zoom controls. The host
+ * broadcasts the state as body attributes (`data-invert`, `data-tables`) and
+ * CSS custom properties (`--hmk-column-width`, `--hmk-zoom` on <html>); this
+ * file turns them into layout. User styles (`hackerMarkdown.styles` /
+ * `markdown.styles`) load after this file and win the cascade. */
 
 /* Reading column: any CSS length typed in the toolbar (700px, 45vw, ...),
  * 100% (full width) by default. Applied to .markdown-body only so the
- * toolbar stays full-width even when the column is narrowed. */
+ * toolbar stays full-width even when the column is narrowed. Zoom: scales
+ * the markdown body (text, images, tables, diagrams) without affecting the
+ * toolbar. Full-bleed media (`div.hmk-frame`, `.mermaid-wrapper`) use
+ * `calc(100vw / var(--hmk-zoom, 1))` to compensate for Chromium scaling vw
+ * units inside zoomed subtrees — at 150% zoom the frame still spans the
+ * visible viewport rather than overflowing. */
 .markdown-body {
 	max-width: var(--hmk-column-width, 100%);
 	margin: 0 auto;
+	zoom: var(--hmk-zoom, 1);
 }
 
 /* Full-bleed media: block-level diagrams/images stay viewport-wide even when
- * the column is narrowed. Block media are always wrapped in .hmk-frame
- * (pan/zoom) or .mermaid-wrapper; inline images are untouched. */
+ * the column is narrowed. Chromium scales `vw` inside zoomed subtrees, so at
+ * zoom > 1 an unscaled `100vw` would overflow — divide by zoom to keep the
+ * visual width equal to one viewport. */
 div.hmk-frame,
 div.mermaid-wrapper {
-	width: 100vw;
-	max-width: 100vw;
+	width: calc(100vw / var(--hmk-zoom, 1));
+	max-width: calc(100vw / var(--hmk-zoom, 1));
 	position: relative;
 	left: 50%;
 	transform: translateX(-50%);

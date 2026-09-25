@@ -170,7 +170,8 @@ body:not(.hmk-pinned) .doc-name::after {
 	outline-offset: -1px;
 }
 
-.hmk-column-control {
+.hmk-column-control,
+.hmk-zoom-control {
 	display: flex;
 	align-items: center;
 	gap: 2px;

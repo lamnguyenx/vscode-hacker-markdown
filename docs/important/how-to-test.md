@@ -1,10 +1,23 @@
 # How to Test This Extension
 
 A webview-view extension is hard to test manually because its UI runs inside an
-**out-of-process iframe (OOPIF)** that normal browser tooling (DevTools, plain
-Playwright) cannot reach, and the extension only exists inside an
-**Extension Development Host**. This document describes the exact pipeline we
-use to test it end-to-end:
+**out-of-process iframe (OOPIF)** (or, under code-server, a nest of same-page
+iframes) that normal browser tooling (DevTools, plain Playwright) cannot reach.
+There are **two environments** to test it end-to-end — **pick one before
+starting**:
+
+- **Option A — code-server in Docker (preferred).** The extension is
+  symlinked into the `vscode-hacker-meta` code-server container and driven
+  from a real Chromium browser on **pp** over CDP. Real user extensions,
+  full interactive browser tooling, no dev host. The **environment** (ssh
+  tunnels, docker compose, TLS, login, restart) is documented in
+  `/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md`;
+  only the extension-specific parts (install, workspace URL, webview DOM
+  access) are in
+  [Option A: code-server in Docker](#option-a-code-server-in-docker-preferred).
+- **Option B — local Extension Development Host.** A dedicated dev VS Code
+  instance with a CDP port, driven by the `tests/*.cjs` suite. Sections 1–5
+  describe this pipeline:
 
 1. Launch a dev host with a CDP port
 2. Prepare the workbench: dismiss the one-time onboarding overlay, reveal the
@@ -12,6 +25,10 @@ use to test it end-to-end:
 3. Reach *inside* the webview OOPIF with a raw CDP client
 4. Simulate user actions (trusted CDP input only) and assert on observable state
 5. Use the built-in `markdown.api.render` engine + DOM state as ground truth
+
+**Agents: ask before testing.** Before running any test, ask the user which
+environment they want (A or B); when the user has no preference, default to
+**Option A (code-server)**.
 
 For the generalized "why is the tool doing this" knowledge (scroll-event
 timing, monaco virtualization, CDP keybinding flags, …), see
@@ -45,7 +62,86 @@ Test scripts live in [`tests/`](../../tests/) and [`tools/`](../../tools/):
 - Node.js (for `tests/*.cjs` and `npm run compile`)
 - The extension compiled: `npm run compile` (compiles `src/` → `out/`, and
   bundles `src/webview/**` → `build/index.js`)
-- A local build of VS Code on the `code` CLI
+- **Option A only:** the code-server stack up —
+  `/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md`
+- **Option B only:** a local build of VS Code on the `code` CLI
+
+## Option A: code-server in Docker (preferred)
+
+Everything about the environment — topology, ssh tunnels, docker compose,
+TLS certificate, login, browser launch, restart (`hotload`), gotchas — is
+documented **once**, in the meta repo:
+
+> **`/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md`**
+> (*Dev on nuc, test on pp*). Read it first. This section covers only what
+> is specific to *this* extension: the install, the workspace URL, and how
+> to reach the preview webview DOM.
+
+### One-time install (symlink)
+
+code-server loads the extension straight from the repo: a symlink in its
+extensions dir is the entire install:
+
+```sh
+ln -sf /home/lamnt45/git/vscode-hacker-markdown \
+  /home/lamnt45/git/vscode-hacker-meta/exp/code-server/.local/share/code-server/extensions/hacker-markdown
+```
+
+The `${HOME}/git` mount is live, so `package.json`/`out/`/`build/` are read
+as-is from the working tree — but a running code-server caches the loaded
+extension, so after every rebuild restart it and reload the browser tab:
+
+```sh
+npm run compile      # here
+hotload code-server  # meta repo — defined in the doc above
+```
+
+### Drive it from the pp browser
+
+With the stack up (per the meta doc), point the chrome-devtools MCP tools
+(or any raw CDP client) at the pp browser and:
+
+1. Open
+   `https://localhost:9620/?folder=/home/lamnt45/git/vscode-hacker-markdown`.
+2. First visit per folder: the **Restricted Mode** banner blocks extension
+   activation — click "Restricted Mode" in the status bar (or `Manage` in
+   the banner) → **Trust** (remembered in the mounted user-data-dir, so
+   this is once per folder).
+3. Open `tests/workspace/test.md` from the Explorer.
+4. Command palette (`Ctrl+Shift+P`) → `Hacker Markdown: Open` — the preview
+   webview loads from the symlinked extension.
+
+### Reaching the webview DOM
+
+Unlike the dev host (Option B), a code-server webview is **not** a separate
+OOPIF CDP target: `/json/list` shows no `vscode-webview://` iframe target.
+The webview is nested iframes *inside the workbench page*, so evaluate from
+the workbench page target and dive through the frames — find this
+extension's webview by its iframe `src`:
+
+```js
+document.querySelector('iframe[src*="extensionId=lamnguyenx.hacker-markdown"]')
+  .contentDocument                           // the webview bootstrap frame
+  .querySelector('iframe').contentDocument   // the preview document
+```
+
+The inner document is the same DOM the dev-host tests see: `.toolbar`,
+`.doc-name`, `.markdown-body`, `[data-zoom-step]`, `.hmk-frame`,
+`[data-line]`, … — assert on it exactly like `tests/test_preview.cjs` does.
+
+### Trade-offs vs the dev host (Option B)
+
+- ✅ real browser + real user extensions (no `--disable-extensions` caveats,
+  mermaid/puml plugins just work);
+- ✅ interactive MCP tooling (click / type / screenshot / evaluate) reaches
+  the whole workbench — editor, palette, explorer, webview;
+- ⚠️ `hackerMarkdown.media.*` and other Global-scope settings persist in the
+  mounted `…/code-server/User/settings.json` — when testing settings, check
+  it for leftovers first (`grep hackerMarkdown` there) and clean stale keys;
+- ❌ the `tests/*.cjs` suite (open_view / test_preview / e2e-anchor) targets
+  the dev host's CDP port and its OOPIF targets — under Option A, testing is
+  manual/interactive; run the pure-logic checks (`plantuml_check.cjs`, …)
+  locally as usual, they need no host at all.
 
 ## 1. Launch the Extension Development Host
 
@@ -863,6 +959,9 @@ running window gets a live install that still needs a reload to activate.
 
 | Task | Command |
 | --- | --- |
+| Pick an environment (agents: **ask the user first**) | **A** = code-server in Docker (preferred) · **B** = dev host |
+| Restart code-server after a rebuild (Option A) | `npm run compile` here → `hotload code-server` from the meta repo (symlink install is one-time) |
+| code-server workspace / CDP endpoint (Option A) | browser: `https://localhost:9620/?folder=/home/lamnt45/git/vscode-hacker-markdown` · CDP: `http://localhost:9024` — environment in `/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md` |
 | Start dev host (port $CHROME_CDP_PORT$) | `vscode_cdp` (flags: `--port`, `--profile`, `--file`, `--with-extensions`, `--ext`, `--no-ext`; default: all extensions disabled; Linux: requires native `code` on PATH, `$DISPLAY` set) |
 | Stop dev host | `vscode_cdp_kill [port]` (graceful SIGTERM; no "Reopen?" dialog) |
 | List CDP targets | `curl -s http://127.0.0.1:$CHROME_CDP_PORT$/json/list` |

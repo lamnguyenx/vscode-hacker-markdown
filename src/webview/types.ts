@@ -12,6 +12,7 @@ export interface MediaState {
 	readonly invert: MediaInvert;
 	readonly columnWidth: string;
 	readonly tables: MediaTables;
+	readonly zoom: number;
 }
 
 /** Host -> webview (see `PreviewHost.post`). */
@@ -33,4 +34,4 @@ export type WebviewMessage =
 	| { type: 'command'; id: string }
 	/** `from`/`to` are set when the click maps to a whole source range (a SALT block). */
 	| { type: 'editorLine'; line: number; from?: number; to?: number }
-	| { type: 'setMedia'; key: 'invert' | 'columnWidth' | 'tables'; value: string };
+	| { type: 'setMedia'; key: 'invert' | 'columnWidth' | 'tables' | 'zoom'; value: string };

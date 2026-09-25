@@ -241,6 +241,7 @@ export class PreviewHost {
 		// the webview also updates this property live while the toolbar input is
 		// typed in. Invalid values fall back to 100%.
 		out.push(`--hmk-column-width: ${this.getColumnWidth()};`);
+		out.push(`--hmk-zoom: ${this.getZoom() / 100};`);
 		return out.join(' ');
 	}
 
@@ -248,6 +249,12 @@ export class PreviewHost {
 	private getColumnWidth(): string {
 		const value = vscode.workspace.getConfiguration('hackerMarkdown').get<string>('media.columnWidth', '100%');
 		return isCssLength(value) ? value : '100%';
+	}
+
+	/** `hackerMarkdown.media.zoom` clamped to 50–200, default 100. */
+	private getZoom(): number {
+		const value = vscode.workspace.getConfiguration('hackerMarkdown').get<number>('media.zoom', 100);
+		return Math.max(50, Math.min(200, value));
 	}
 
 	/** The body state attributes consumed by user styles (`data-invert`/`data-tables`). */
@@ -272,6 +279,7 @@ export class PreviewHost {
 		const invert = config.get<string>('media.invert', 'auto');
 		const tables = config.get<string>('media.tables', 'pan');
 		const columnWidth = this.getColumnWidth();
+		const zoom = this.getZoom();
 		const invertItem = (value: string, label: string) =>
 			`<button class="hmk-menu-item" role="menuitemradio" aria-checked="${invert === value}" data-value="${value}">${label}</button>`;
 		const tablesItem = (value: string, label: string) =>
@@ -294,8 +302,14 @@ export class PreviewHost {
 					</div>
 				</div>
 				<div class="hmk-column-control" title="Reading column width (CSS length)">
-					<input class="toolbar-input" type="text" value="${escapeAttribute(columnWidth)}" aria-label="Reading column width" spellcheck="false" autocomplete="off">
+					<input class="toolbar-input" type="text" data-media-input="columnWidth" value="${escapeAttribute(columnWidth)}" aria-label="Reading column width" spellcheck="false" autocomplete="off">
 					<button class="toolbar-button" data-command="resetColumn" title="Reset column width to 100%" aria-label="Reset column width to 100%">${svgReset}</button>
+				</div>
+				<span class="toolbar-separator" role="separator"></span>
+				<div class="hmk-zoom-control">
+					<button class="toolbar-button" data-zoom-step="-1" title="Zoom out" aria-label="Zoom out">${svgZoomOut}</button>
+					<button class="toolbar-button hmk-zoom-value" data-command="resetZoom" title="Reset zoom to 100% (Ctrl+0)" aria-label="Zoom level: ${zoom}%">${zoom}%</button>
+					<button class="toolbar-button" data-zoom-step="+1" title="Zoom in" aria-label="Zoom in">${svgZoomIn}</button>
 				</div>`;
 	}
 
@@ -498,3 +512,5 @@ const svgEditor = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><p
 const svgInvert = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5v11a5.5 5.5 0 0 1 0-11z"/></svg>`;
 const svgTables = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 2h12v12H2V2zm1 1v4h4V3H3zm5 0v4h5V3H8zM3 8v5h4V8H3zm5 0v5h5V8H8z"/></svg>`;
 const svgReset = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" transform="rotate(180 8 8)" d="M13.65 2.35A6.96 6.96 0 0 0 8 1A7 7 0 1 0 8 15a6.96 6.96 0 0 0 5.14-2.2l-.7-.72A5.96 5.96 0 1 1 8 2a5.96 5.96 0 0 1 4.95 2.6L10.5 7H14V3.5l-1.35 1.35a6.96 6.96 0 0 0-3.99-2.1A6.9 6.9 0 0 1 13.65 2.35z"/></svg>`;
+const svgZoomOut = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M6.5 1a5.5 5.5 0 1 0 3.32 9.85l3.42 3.42 1.06-1.06-3.42-3.42A5.5 5.5 0 0 0 6.5 1zm0 1.9a3.6 3.6 0 1 1 0 7.2 3.6 3.6 0 0 1 0-7.2zM4.3 6.1h4.4v1.3H4.3z"/></svg>`;
+const svgZoomIn = /* html */ `<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M6.5 1a5.5 5.5 0 1 0 3.32 9.85l3.42 3.42 1.06-1.06-3.42-3.42A5.5 5.5 0 0 0 6.5 1zm0 1.9a3.6 3.6 0 1 1 0 7.2 3.6 3.6 0 0 1 0-7.2zM5.6 4.8v1.3H4.3v1.3h1.3v1.3h1.3V7.4h1.3V6.1H6.9V4.8z"/></svg>`;

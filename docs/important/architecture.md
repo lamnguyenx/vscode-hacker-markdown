@@ -47,6 +47,19 @@ details underneath the feature list, and the product limitations.
     `markdown.preview` font overrides); the webview applies it live while
     typing and persists on Enter/blur via `setMedia`; the reset button
     restores `100%`. Invalid values are ignored locally and revert on blur.
+  - **Zoom** stepper group (`[−] [100%] [reset]` with ±5% steps, clamped
+    50–200%): emitted as `--hmk-zoom` (a number fraction like `1.0`, `1.05`,
+    `1.5`) on `<html>`. The stepper buttons step the value webview-side
+    (snapping to the nearest 5%) and post `setMedia zoom`; the percentage
+    readout button resets to 100% on click (or via `Ctrl+0`). Keyboard
+    shortcuts `Ctrl/Cmd+=`, `Ctrl/Cmd+-`, `Ctrl/Cmd+0` also step/reset while
+    the preview has focus (`preventDefault` so VS Code's window-zoom and the
+    browser's page-zoom don't double-fire). The `.markdown-body` applies
+    `zoom: var(--hmk-zoom, 1)`, scaling everything — text, images, diagrams —
+    while the toolbar stays chrome-size. Full-bleed media frames
+    (`.hmk-frame`, `.mermaid-wrapper`) compensate for Chromium's vw-scaling
+    under zoom via `width: calc(100vw / var(--hmk-zoom, 1))`, keeping the
+    diagram fill-frame at any zoom level.
   Host→webview `mediaState` broadcasts (on host creation, on `ready`, and on
   config change — so editing settings.json syncs every host, docked or
   editor panel) update the body attributes, the CSS property and the control

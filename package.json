@@ -140,6 +140,13 @@
 					"default": "pan",
 					"description": "Wide table handling in the preview. `pan` makes each table scroll horizontally inside its own region; `fit` wraps to the column. Toggle from the preview toolbar."
 				},
+				"hackerMarkdown.media.zoom": {
+					"type": "number",
+					"default": 100,
+					"minimum": 50,
+					"maximum": 200,
+					"description": "Preview zoom level (50–200%). Set from the preview toolbar −/+/reset buttons; Ctrl+=/Ctrl+-/Ctrl+0 also work when the preview is focused."
+				},
 				"hackerMarkdown.overridePreviewShortcut": {
 					"type": "boolean",
 					"default": true,

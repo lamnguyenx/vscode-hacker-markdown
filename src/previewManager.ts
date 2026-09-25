@@ -384,6 +384,9 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 					case 'resetColumn':
 						this.setMedia('columnWidth', '100%');
 						break;
+					case 'resetZoom':
+						this.setMedia('zoom', '100');
+						break;
 					case 'togglePin':
 						this.togglePin();
 						break;
@@ -395,15 +398,17 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 	// --- media controls -------------------------------------------------------
 
 	/** The current `hackerMarkdown.media.*` state (sanitized) broadcast to hosts. */
-	private mediaState(): { invert: 'auto' | 'dark' | 'light' | 'off'; columnWidth: string; tables: 'pan' | 'fit' } {
+	private mediaState(): { invert: 'auto' | 'dark' | 'light' | 'off'; columnWidth: string; tables: 'pan' | 'fit'; zoom: number } {
 		const config = vscode.workspace.getConfiguration('hackerMarkdown');
 		const invert = config.get<string>('media.invert', 'auto');
 		const tables = config.get<string>('media.tables', 'pan');
 		const columnWidth = config.get<string>('media.columnWidth', '100%');
+		const rawZoom = config.get<number>('media.zoom', 100);
 		return {
 			invert: invert === 'dark' || invert === 'light' || invert === 'off' ? invert : 'auto',
 			tables: tables === 'fit' ? 'fit' : 'pan',
-			columnWidth: isCssLength(columnWidth) ? columnWidth : '100%'
+			columnWidth: isCssLength(columnWidth) ? columnWidth : '100%',
+			zoom: Math.max(50, Math.min(200, typeof rawZoom === 'number' ? rawZoom : 100))
 		};
 	}
 
@@ -425,6 +430,11 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 		} else if (key === 'columnWidth') {
 			if (isCssLength(value)) {
 				void config.update('media.columnWidth', value, vscode.ConfigurationTarget.Global);
+			}
+		} else if (key === 'zoom') {
+			const n = Number(value);
+			if (isFinite(n) && n >= 50 && n <= 200) {
+				void config.update('media.zoom', Math.round(n), vscode.ConfigurationTarget.Global);
 			}
 		}
 	}

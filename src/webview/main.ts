@@ -133,11 +133,12 @@ window.addEventListener('message', (event) => {
 			break;
 		}
 		case 'mediaState': {
-			const state = message as { invert?: string; columnWidth?: string; tables?: string };
+			const state = message as { invert?: string; columnWidth?: string; tables?: string; zoom?: number };
 			applyMediaState({
 				invert: (state.invert as 'auto' | 'dark' | 'light' | 'off') ?? 'auto',
 				columnWidth: String(state.columnWidth ?? '100%'),
-				tables: state.tables === 'fit' ? 'fit' : 'pan'
+				tables: state.tables === 'fit' ? 'fit' : 'pan',
+				zoom: typeof state.zoom === 'number' ? state.zoom : 100
 			});
 			break;
 		}

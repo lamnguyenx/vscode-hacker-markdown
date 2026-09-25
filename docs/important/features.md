@@ -80,8 +80,10 @@ feature deep-dives, limitations); sync internals in
   [jebbs/plantuml](https://github.com/qjebbs/vscode-plantuml), MIT).
 - **Media toolbar controls** — the preview toolbar carries an *invert media*
   dropdown (`auto`/`dark`/`light`/`off`), a *wide tables* dropdown
-  (`pan`/`fit`), and a *reading column width* input (any CSS length, with a
-  reset to `100%`). Persisted in `hackerMarkdown.media.*` settings.
+  (`pan`/`fit`), a *reading column width* input (any CSS length, with a
+  reset to `100%`), and a *zoom* stepper group (`[−] [100%] [reset]` with
+  ±5% steps, clamp 50–200%). Ctrl+=/Ctrl+-/Ctrl+0 also work when the
+  preview is focused. Persisted in `hackerMarkdown.media.*` settings.
 
 ## Shortcuts
 
