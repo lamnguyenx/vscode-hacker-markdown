@@ -187,7 +187,7 @@ edits to appear. Extension-host edits (`src/*.ts`) always need the reload.
   (Remote-SSH) and you cannot click it, drive `Cmd+Shift+P` →
   `Developer: Reload Window` with **trusted CDP input** on the window's `page`
   CDP target — the same `Input.dispatchKeyEvent` + palette-row click the test
-  harness uses (`tests/integration/test_preview.cjs#runPaletteCommand`). Use the
+  harness uses (`tests/integration/test_preview.ts#runPaletteCommand`). Use the
   *window's* platform modifiers (darwin `Meta`, linux `Control`) and click the
   row whose label starts with the exact command text.
 - **Grammar not tokenizing.** Open editors cache tokenization — close and

@@ -16,7 +16,7 @@
 		"_refs",
 		"src/webview",
 		"tools",
-		"tests/playwright",
+		"tests",
 		"playwright.config.ts"
 	]
 }

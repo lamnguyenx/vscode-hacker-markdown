@@ -17,7 +17,8 @@
  * degradation: the diagram still renders as a plain image).
  *
  * Pure-ish: no `vscode` import and the network call is injectable, so the
- * replace logic is unit-testable in plain Node (`tests/plantuml_inline_check.cjs`).
+ * replace logic is unit-testable with bun in plain TypeScript
+ * (`tests/units/plantuml_inline_check.ts`).
  */
 
 export interface SvgResponse {

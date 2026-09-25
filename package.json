@@ -229,6 +229,8 @@
 		"watch:webview": "esbuild src/webview/main.ts --bundle --format=iife --target=es2020 --outfile=build/index.js --watch",
 		"compile": "npm run build:syntax && npm run build:webview && npm run build:webview-assets && tsc -p ./ && tsc -p tsconfig.webview.json",
 		"watch": "tsc -w -p ./",
+		"test:units": "bun tests/units/plantuml_check.ts && bun tests/units/plantuml_inline_check.ts && bun tests/units/plantuml_completion_check.ts && bun tests/units/plantuml_definition_check.ts && bun tests/units/mermaid_check.ts",
+		"typecheck:tests": "tsc -p tsconfig.tests.json",
 		"test:e2e": "playwright test --config playwright.config.ts",
 		"vscode:prepublish": "npm run compile"
 	},

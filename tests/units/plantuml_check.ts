@@ -1,0 +1,494 @@
+#!/usr/bin/env bun
+/**
+ * Pure-logic check for the ported PlantUML markdown-preview rendering.
+ * Exercises the real shipped code in src/plantuml/* (fences.ts / diagram.ts /
+ * plantumlURL.ts / include.ts) against synthetic fragments that mimic exactly
+ * what the built-in markdown engine's fenced renderer produces for a
+ * `puml`/`plantuml`/`uml` block.
+ *
+ * Run with bun (no compile step — bun executes the TypeScript sources directly):
+ *   bun tests/units/plantuml_check.ts
+ *
+ * No dev host, no PlantUML server, no vscode API needed — the pure modules
+ * never import vscode by design (src/plantuml/fences.ts, diagram.ts, ...).
+ */
+import assert from 'node:assert';
+import * as zlib from 'node:zlib';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+import { rewritePumlFences } from '../../src/plantuml/fences';
+import { getDiagramURIComponent } from '../../src/plantuml/plantumlURL';
+import { saltInvocationLines } from '../../src/plantuml/invocations';
+
+const SERVER = 'http://localhost:9274';
+
+// markdown-it's escapeHtml escaped-set (used by the engine's highlight fallback)
+function escapeHtml(str: string): string {
+	return str.replace(/[&<>"]/g, (m) => {
+		if (m === '&') return '&amp;';
+		if (m === '<') return '&lt;';
+		if (m === '>') return '&gt;';
+		return '&quot;';
+	});
+}
+
+// Reproduces the built-in engine's fenced output (plus the source-map
+// data-line / code-line / hljs attrs the engine adds). Matches the real
+// engine: `data-line` ends up on the inner <code>, NOT the <pre>.
+function fenceHtml(lang: string, source: string): string {
+	return `<pre class="code-line hljs"><code data-line="7" class="code-line language-${lang}" dir="auto">${escapeHtml(source)}</code></pre>\n`;
+}
+
+// Independent decoder: reverse of the synchro.js encode64 + inflateRaw.
+const REV = new Map<number, number>();
+for (let b = 0; b < 10; b++) REV.set(48 + b, b);
+for (let b = 0; b < 26; b++) REV.set(65 + b, 10 + b);
+for (let b = 0; b < 26; b++) REV.set(97 + b, 36 + b);
+REV.set('-'.charCodeAt(0), 62);
+REV.set('_'.charCodeAt(0), 63);
+
+function decode64(data: string): Buffer {
+	const out: number[] = [];
+	for (let i = 0; i + 3 < data.length; i += 4) {
+		const c1 = REV.get(data.charCodeAt(i))!;
+		const c2 = REV.get(data.charCodeAt(i + 1))!;
+		const c3 = REV.get(data.charCodeAt(i + 2))!;
+		const c4 = REV.get(data.charCodeAt(i + 3))!;
+		const n = (c1 << 18) | (c2 << 12) | (c3 << 6) | c4;
+		out.push((n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff);
+	}
+	return Buffer.from(out);
+}
+
+function decodeDiagramUrl(url: string, srcBytes: Buffer): Buffer {
+	const component = url.split('/').pop()!;
+	const inflated = zlib.inflateRawSync(decode64(component));
+	const n = Math.min(inflated.length, srcBytes.length);
+	assert.strictEqual(inflated.subarray(0, n).equals(srcBytes.subarray(0, n)), true, 'URL does not round-trip source');
+	return inflated;
+}
+
+function run(label: string, fn: () => void): void {
+	fn();
+	console.log(`  ok - ${label}`);
+}
+
+let count = 0;
+function section(name: string): void {
+	count++;
+	console.log(`\n#${count} ${name}`);
+}
+
+section('fence infos rewritten, other fences untouched');
+run('puml', () => {
+	const src = '@startuml\nAlice -> Bob\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	assert.ok(!out.includes('<pre'), 'puml block not replaced');
+	const m = out.match(/<img style="background-color:#FFF;"[^>]*src="([^"]+)"\/?>/);
+	assert.ok(m, 'no img tag: ' + out);
+	assert.ok(m[1].startsWith(SERVER + '/svg/'), 'wrong url: ' + m[1]);
+	decodeDiagramUrl(m[1], Buffer.from(src));
+});
+run('plantuml', () => {
+	const src = '@startuml\nA -> B\n@enduml';
+	const out = rewritePumlFences(fenceHtml('plantuml', src), { server: SERVER, includePaths: [] });
+	assert.ok(!out.includes('<pre'), 'plantuml block not replaced');
+	assert.ok(out.includes('<img'), 'no img');
+});
+run('uml', () => {
+	const src = '@startuml\nA -> B\n@enduml';
+	const out = rewritePumlFences(fenceHtml('uml', src), { server: SERVER, includePaths: [] });
+	assert.ok(out.includes('<img'), 'no img');
+});
+run('mermaid fence untouched', () => {
+	const html = fenceHtml('mermaid', 'flowchart LR\n A --> B');
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	assert.strictEqual(out, html);
+});
+run('unrelated code fence untouched', () => {
+	const html = fenceHtml('python', 'def f():\n    return 1');
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	assert.strictEqual(out, html);
+});
+
+section('unwrapped fallback (PUML_UNWRAPPED_REG) — code-server mermaid extension strips <code>');
+run('raw @start..@end inside <pre> without <code> wrapper (salt mockup with <b>)', () => {
+	const src = '@startuml\n!procedure _form_empty()\n{+\n  ====<b>Speaker\n}\n!endprocedure\n@enduml';
+	const html = `<pre>${escapeHtml(src)}</pre>\n`;
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	assert.ok(!out.includes('<pre>'), 'pre not replaced: ' + out);
+	const m = out.match(/<img style="background-color:#FFF;"[^>]*src="([^"]+)"\/?>/);
+	assert.ok(m, 'no img tag: ' + out);
+	assert.ok(m[1].startsWith(SERVER + '/svg/'), 'wrong url: ' + m[1]);
+	decodeDiagramUrl(m[1], Buffer.from(src));
+});
+run('mermaid-extension wrapper: <pre style="all:unset;"><div class="mermaid-chart">', () => {
+	const src = '@startuml\nAlice -> Bob\n@enduml';
+	const html = `<pre style="all:unset;"><div class="mermaid-chart">${escapeHtml(src)}</div></pre>\n`;
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	assert.ok(!out.includes('<pre'), 'pre not replaced: ' + out);
+	const m = out.match(/<img[^>]*src="([^"]+)"\/?>/);
+	assert.ok(m, 'no img tag: ' + out);
+	decodeDiagramUrl(m[1], Buffer.from(src));
+});
+run('unwrapped: mermaid fence without @start..@end is untouched', () => {
+	const html = `<pre style="all:unset;"><div class="mermaid-chart">flowchart LR\n A --> B</div></pre>\n`;
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	assert.strictEqual(out, html);
+});
+run('unwrapped: non-puml <pre> without @start..@end untouched', () => {
+	const html = '<pre class="code-line">print(1)</pre>\n';
+	assert.strictEqual(rewritePumlFences(html, { server: SERVER, includePaths: [] }), html);
+});
+run('unwrapped: <pre> with @start but without @end does not match (not a puml block)', () => {
+	const html = '<pre>@startuml\nAlice -> Bob\n@end</pre>\n';
+	assert.strictEqual(rewritePumlFences(html, { server: SERVER, includePaths: [] }), html);
+});
+run('unwrapped: data-line on the <pre> becomes data-hmk-from/to', () => {
+	const src = '@startuml\nAlice -> Bob\n@enduml';
+	const html = `<pre data-line="42">${escapeHtml(src)}</pre>\n`;
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	const m = out.match(/data-hmk-from="(\d+)" data-hmk-to="(\d+)"/);
+	assert.ok(m, 'no data-hmk span: ' + out);
+	assert.strictEqual(m[1], '42', 'wrong from');
+	assert.strictEqual(m[2], '46', 'wrong to');
+});
+run('unwrapped: no server shows error notice', () => {
+	const src = '@startuml\nA -> B\n@enduml';
+	const html = `<pre>${escapeHtml(src)}</pre>\n`;
+	const out = rewritePumlFences(html, { server: '', includePaths: [] });
+	assert.ok(out.includes('class="hmk-puml-error"'), 'error notice missing: ' + out);
+	assert.ok(!out.includes('<pre class="code-line'), 'original pre not replaced: ' + out);
+});
+run('unwrapped: newpage produces one img per page', () => {
+	const src = '@startuml\nA\nnewpage\nB\n@enduml';
+	const html = `<pre>${escapeHtml(src)}</pre>\n`;
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	const imgs = [...out.matchAll(/<img[^>]*src="([^"]+)"/g)];
+	assert.strictEqual(imgs.length, 2, 'expected 2 imgs, got ' + out);
+});
+
+section('no server configured -> puml fences become an error notice');
+run('puml replaced with actionable error', () => {
+	const src = '@startuml\nA -> B\n@enduml';
+	const html = fenceHtml('puml', src);
+	const out = rewritePumlFences(html, { server: '', includePaths: [] });
+	assert.ok(out.includes('class="hmk-puml-error"'), 'error notice missing: ' + out);
+	assert.ok(out.includes('hackerMarkdown.plantuml.server'), 'message lacks the setting name');
+	assert.ok(out.includes('data-command="openPumlSettings"'), 'Open Settings button missing');
+	assert.ok(!out.includes('<pre class="code-line'), 'original fence block not replaced');
+});
+run('escaped source preserved under details', () => {
+	const src = '@startuml\nA <-> "B"\n@enduml';
+	const html = fenceHtml('puml', src);
+	const out = rewritePumlFences(html, { server: '', includePaths: [] });
+	const trimmed = out.replace(/\s+/g, ' ');
+	assert.ok(out.includes('<details'), 'no details element');
+	assert.ok(trimmed.includes('A &lt;-&gt; &quot;B&quot;'), 'escaped source not preserved: ' + out);
+});
+run('no server, non-puml content untouched', () => {
+	const html = fenceHtml('mermaid', 'flowchart LR\n A --> B') + '\n' + fenceHtml('python', 'print(1)');
+	assert.strictEqual(rewritePumlFences(html, { server: '', includePaths: [] }), html);
+});
+
+section('format selection');
+run('ditaa uses png', () => {
+	const src = '@startditaa\n+---+\n| A |\n+---+\n@endditaa';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	assert.ok(m[1].startsWith(SERVER + '/png/'), 'expected png url: ' + m[1]);
+	decodeDiagramUrl(m[1], Buffer.from(src));
+});
+run('salt uses svg', () => {
+	const src = '@startsalt\n{+\n "Hello"\n}\n@endsalt';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	assert.ok(m[1].startsWith(SERVER + '/svg/'), 'expected svg url: ' + m[1]);
+});
+
+section('newpage -> one img per page');
+run('two pages', () => {
+	const src = '@startuml\nA\nnewpage\nB\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const imgs = [...out.matchAll(/<img[^>]*src="([^"]+)"/g)];
+	assert.strictEqual(imgs.length, 2, 'expected 2 imgs, got ' + out);
+	assert.ok(imgs[0][1].endsWith('/svg/' + getDiagramURIComponent(src)), 'page 0 should omit index');
+	assert.ok(imgs[1][1].includes('/svg/1/'), 'page 1 should carry index: ' + imgs[1][1]);
+	decodeDiagramUrl(imgs[1][1], Buffer.from(src));
+});
+
+section('HTML escaping round-trip');
+run('cheapening of < > " in source', () => {
+	const src = '@startuml\nA <-> B\n"quoted" <C>\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	decodeDiagramUrl(m[1], Buffer.from(src));
+});
+run('literal &lt; in source stays literal', () => {
+	const src = '@startuml\nParticipant "A&B"\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	decodeDiagramUrl(m[1], Buffer.from(src));
+});
+run('unicode (salt glyphs) survives', () => {
+	const src = '@startsalt\n{+\n  ▁▂▃▂▁\n}\n@endsalt';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	decodeDiagramUrl(m[1], Buffer.from(src));
+});
+
+section('!include resolves relative to the markdown file folder');
+run('include expands', () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hmk-puml-'));
+	try {
+		// The included file carries its own @start/@end markers; those must be
+		// stripped so the server receives a single well-formed diagram.
+		fs.writeFileSync(path.join(dir, 'part.puml'), '@startuml\nAlice -> Bob\n@enduml\n');
+		const src = '@startuml\n!include ./part.puml\n@enduml';
+		const out = rewritePumlFences(fenceHtml('puml', src), {
+			server: SERVER,
+			includePaths: [],
+			docUri: { scheme: 'file', fsPath: path.join(dir, 'doc.md') },
+		});
+		const m = out.match(/src="([^"]+)"/);
+		assert.ok(m, 'no img: ' + out);
+		const inflated = zlib.inflateRawSync(decode64(m[1].split('/').pop()!));
+		const body = inflated.toString('utf8');
+		assert.ok(body.includes('Alice -> Bob'), 'include body missing: ' + body);
+		const starts = (body.match(/@startuml/g) || []).length;
+		const ends = (body.match(/@enduml/g) || []).length;
+		assert.strictEqual(starts, 1, `included file's @start marker not stripped: ${body}`);
+		assert.strictEqual(ends, 1, `included file's @end marker not stripped: ${body}`);
+		assert.ok(body.includes('\nAlice -> Bob'), 'included body misplaced: ' + body);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+run('missing include file falls back to the include line verbatim', () => {
+	const src = '@startuml\n!include ./does-not-exist.puml\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), {
+		server: SERVER,
+		includePaths: [],
+		docUri: { scheme: 'file', fsPath: '/nonexistent/doc.md' },
+	});
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	const inflated = zlib.inflateRawSync(decode64(m[1].split('/').pop()!));
+	assert.ok(inflated.toString('utf8').includes('!include ./does-not-exist.puml'), 'include line should stay verbatim');
+});
+
+section('multiple puml fences in one fragment');
+run('all replaced', () => {
+	const html = fenceHtml('puml', '@startuml\nA -> B\n@enduml') + '\n<h1>mid</h1>\n' + fenceHtml('puml', '@startuml\nC -> D\n@enduml');
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	const imgs = [...out.matchAll(/<img/g)];
+	assert.strictEqual(imgs.length, 2, 'expected 2 imgs');
+	assert.ok(out.includes('<h1>mid</h1>'), 'non-fence content lost');
+});
+
+section('cursor-sync source span (data-hmk-from/to)');
+run('single fence carries the fence source span (data-line on the code)', () => {
+	// fenceHtml puts data-line="7" on the <code> (where the real engine puts
+	// it); the source has 3 lines, so the span covers lines 7..11 (opening,
+	// 3 body lines, closing fence = 11).
+	const src = '@startuml\nAlice -> Bob\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const m = out.match(/<img[^>]*data-hmk-from="([^"]+)"[^>]*data-hmk-to="([^"]+)"[^>]*>/);
+	assert.ok(m, 'no data-hmk span on the img: ' + out);
+	assert.strictEqual(m[1], '7', 'wrong from: ' + out);
+	assert.strictEqual(m[2], '11', 'wrong to: ' + out);
+});
+run('span also read when data-line sits on the pre', () => {
+	const src = '@startuml\nA -> B\n@enduml';
+	const html = `<pre data-line="9" class="code-line hljs"><code class="language-puml">${escapeHtml(src)}</code></pre>\n`;
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	const m = out.match(/data-hmk-from="(\d+)" data-hmk-to="(\d+)"/);
+	assert.ok(m, 'no span when data-line is on the pre: ' + out);
+	assert.strictEqual(m[1], '9', 'wrong from: ' + out);
+	assert.strictEqual(m[2], '13', 'wrong to: ' + out); // 9 + 3 body + 1 closer
+});
+run('newpage imgs all carry the same span', () => {
+	const src = '@startuml\nA\nnewpage\nB\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const spans = [...out.matchAll(/data-hmk-from="(\d+)" data-hmk-to="(\d+)"/g)];
+	assert.strictEqual(spans.length, 2, 'expected 2 spanned imgs: ' + out);
+	assert.ok(spans.every((s) => s[1] === '7' && s[2] === '13'), 'spans differ: ' + out);
+});
+run('pre/code without data-line gets no span (graceful degrade)', () => {
+	const src = '@startuml\nA -> B\n@enduml';
+	const html = `<pre class="code-line"><code class="language-puml">${escapeHtml(src)}</code></pre>\n`;
+	const out = rewritePumlFences(html, { server: SERVER, includePaths: [] });
+	const m = out.match(/<img[^>]*src="([^"]+)"\/?>/);
+	assert.ok(m, 'no img: ' + out);
+	assert.ok(!/data-hmk-(?:from|to)=/.test(out), 'unexpected span without data-line: ' + out);
+	assert.ok(out.includes('data-hmk-puml'), 'marker attr missing: ' + out);
+});
+run('non-puml fences still untouched', () => {
+	const html = fenceHtml('mermaid', 'flowchart LR\n A --> B');
+	assert.strictEqual(rewritePumlFences(html, { server: SERVER, includePaths: [] }), html);
+});
+
+section('!pragma sourceFile injection (salt data-source-code support)');
+run('injected when a file docUri is present', () => {
+	const src = '@startuml\nAlice -> Bob\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), {
+		server: SERVER,
+		includePaths: [],
+		docUri: { scheme: 'file', fsPath: '/abs/doc.md' },
+	});
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	const body = zlib.inflateRawSync(decode64(m[1].split('/').pop()!)).toString('utf8');
+	assert.ok(body.includes('!pragma sourceFile /abs/doc.md'), 'pragma missing: ' + body);
+	assert.ok(body.startsWith('@startuml\n!pragma'), 'pragma not right after @start: ' + body);
+});
+run('not injected without a file docUri', () => {
+	const src = '@startuml\nAlice -> Bob\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), { server: SERVER, includePaths: [] });
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	const body = zlib.inflateRawSync(decode64(m[1].split('/').pop()!)).toString('utf8');
+	assert.ok(!body.includes('sourceFile'), 'unexpected pragma: ' + body);
+});
+run('user-supplied pragma is not duplicated', () => {
+	const src = '@startuml\n!pragma sourceFile /mine.puml\nAlice -> Bob\n@enduml';
+	const out = rewritePumlFences(fenceHtml('puml', src), {
+		server: SERVER,
+		includePaths: [],
+		docUri: { scheme: 'file', fsPath: '/abs/doc.md' },
+	});
+	const m = out.match(/src="([^"]+)"/);
+	assert.ok(m, 'no img: ' + out);
+	const body = zlib.inflateRawSync(decode64(m[1].split('/').pop()!)).toString('utf8');
+	const count = (body.match(/sourceFile/g) || []).length;
+	assert.strictEqual(count, 1, 'pragma duplicated: ' + body);
+});
+
+section('SALT invocation scan (procedure-rendered mockup click-to-source)');
+run('first occurrence per distinct target, in order', () => {
+	const doc = [
+		'not a fence',
+		'```plantuml',
+		'@startuml',
+		'(*) --> SALT(form_empty)',
+		'form_empty --> SALT(sample_row_empty)',
+		'sample_row_empty --> SALT(sample_recording)',
+		'sample_recording --> SALT(sample_done)',
+		'sample_done --> SALT(sample_recording)', // repeat: same target as line 5
+		'```',
+		'',
+	].join('\n');
+	const result = saltInvocationLines(doc);
+	const inv = result.invocations;
+	assert.strictEqual(inv.size, 1, 'expected one fence');
+	const entries = [...inv.values()][0];
+	assert.strictEqual(entries.length, 4, 'expected 4 unique entries');
+	assert.deepStrictEqual(entries.map(e => e.line), [3, 4, 5, 6], 'wrong lines: ' + JSON.stringify(entries));
+	assert.deepStrictEqual(entries.map(e => e.alias), ['form_empty', 'sample_row_empty', 'sample_recording', 'sample_done'], 'wrong aliases: ' + JSON.stringify(entries));
+});
+run('macro definition and comments do not count', () => {
+	const doc = [
+		'```plantuml',
+		'!unquoted procedure SALT($x)',
+		'"{{salt',
+		'%invoke_procedure("_"+$x)',
+		'}}" as $x',
+		'!endprocedure',
+		"' (*) --> SALT(commented_out)",
+		'(*) --> SALT(real)',
+		'```',
+	].join('\n');
+	const result = saltInvocationLines(doc);
+	assert.deepStrictEqual([...result.invocations.values()][0].map(e => e.line), [7], 'definition/comments leaked: ' + JSON.stringify(result.invocations));
+});
+run('per-fence lists, keyed by fence opening line', () => {
+	const doc = [
+		'```plantuml',
+		'(*) --> SALT(a)',
+		'```',
+		'',
+		'```puml',
+		'(*) --> SALT(b)',
+		'(*) --> SALT(c)',
+		'```',
+	].join('\n');
+	const result = saltInvocationLines(doc);
+	assert.deepStrictEqual([...result.invocations.entries()].map(([k, v]) => [k, v.map(e => e.line)]), [[0, [1]], [4, [5, 6]]]);
+});
+run('non-puml fences ignored', () => {
+	const doc = ['```python', 'x = SALT(not_a_diagram)', '```'].join('\n');
+	assert.strictEqual(saltInvocationLines(doc).invocations.size, 0);
+});
+
+section('!procedure body ranges (cursor on proc definition highlights mockup)');
+run('procedure body captured, alias derived from leading underscore', () => {
+	const doc = [
+		'```plantuml',
+		'!procedure _form_empty()',
+		'{+',
+		'  Some salt mockup content',
+		'}',
+		'!endprocedure',
+		'',
+		'(*) --> SALT(form_empty)',
+		'(*) --> SALT(sample_row_empty)',
+		'```',
+	].join('\n');
+	const result = saltInvocationLines(doc);
+	assert.strictEqual(result.invocations.size, 1);
+	assert.strictEqual(result.procRanges.size, 1);
+	const procs = [...result.procRanges.values()][0];
+	assert.strictEqual(procs.length, 1);
+	assert.strictEqual(procs[0].alias, 'form_empty');
+	assert.strictEqual(procs[0].from, 1);
+	assert.strictEqual(procs[0].to, 5);
+});
+run('multiple procedures in one fence', () => {
+	const doc = [
+		'```plantuml',
+		'!procedure _form_empty()',
+		'{+}',
+		'!endprocedure',
+		'!procedure _sample_row_empty()',
+		'{+}',
+		'!endprocedure',
+		'',
+		'(*) --> SALT(form_empty)',
+		'(*) --> SALT(sample_row_empty)',
+		'```',
+	].join('\n');
+	const result = saltInvocationLines(doc);
+	const procs = [...result.procRanges.values()][0];
+	assert.strictEqual(procs.length, 2);
+	assert.deepStrictEqual(procs.map(p => p.alias), ['form_empty', 'sample_row_empty']);
+	assert.deepStrictEqual(procs.map(p => p.from), [1, 4]);
+	assert.deepStrictEqual(procs.map(p => p.to), [3, 6]);
+});
+run('!endprocedure closes the current proc; unclosed at fence end closes on last line', () => {
+	const doc = [
+		'```plantuml',
+		'!procedure _open()',
+		'{+}',
+		'```',
+	].join('\n');
+	const result = saltInvocationLines(doc);
+	const procs = [...result.procRanges.values()][0];
+	assert.strictEqual(procs.length, 1);
+	assert.strictEqual(procs[0].alias, 'open');
+	assert.strictEqual(procs[0].from, 1);
+	assert.strictEqual(procs[0].to, 2);
+});
+run('no proc ranges without !procedure', () => {
+	const doc = ['```plantuml', '@startuml', '(*) --> SALT(x)', '@enduml', '```'].join('\n');
+	const result = saltInvocationLines(doc);
+	assert.strictEqual([...result.procRanges.values()][0].length, 0);
+});
+
+console.log('\nplantuml_check: all checks passed');

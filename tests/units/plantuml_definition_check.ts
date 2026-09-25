@@ -1,53 +1,30 @@
-#!/usr/bin/env node
-'use strict';
+#!/usr/bin/env bun
 /**
  * Pure-logic check for the PlantUML go-to-definition feature
  * (src/completions/definitions.ts + src/plantuml/invocations.ts).
- * Exercises the real shipped code in out/plantuml/invocations.js
+ * Exercises the real shipped code in src/plantuml/invocations.ts
  * against synthetic markdown documents — no dev host, no vscode API needed.
  *
- * Run after a compile:
- *   npm run compile && node tests/plantuml_definition_check.cjs
+ * Run with bun (no compile step — bun executes the TypeScript sources directly):
+ *   bun tests/units/plantuml_definition_check.ts
  */
-const assert = require('assert');
+import assert from 'node:assert';
 
-const { aliasDefinitions, aliasOccurrences, invocationReferences, procedureFoldRanges, procedureNames } = require('../../out/plantuml/invocations.js');
+import { aliasDefinitions, aliasOccurrences, invocationReferences, procedureFoldRanges, procedureNames } from '../../src/plantuml/invocations';
 
-function run(label, fn) {
+function run(label: string, fn: () => void): void {
 	fn();
 	console.log(`  ok - ${label}`);
 }
 
 let count = 0;
-function section(name) {
+function section(name: string): void {
 	count++;
 	console.log(`\n#${count} ${name}`);
 }
 
 section('basic alias mapping');
 
-//           0: # Title
-//           1: (empty)
-// fence->   2: ```plantuml
-//           3: @startuml
-//           4: (empty)
-//           5: !procedure _form_empty()
-//           6: {+
-//           7:   "form text"
-//           8: }
-//           9: !endprocedure
-//          10: (empty)
-//          11: !procedure _sample_recording()
-//          12: {+
-//          13:   "recording"
-//          14: }
-//          15: !endprocedure
-//          16: (empty)
-//          17: (*) --> SALT(form_empty)
-//          18: form_empty --> SALT(sample_recording)
-//          19: (empty)
-//          20: @enduml
-// fclose->  21: ```
 //           0: # Title
 //           1: (empty)
 // fence->   2: ```plantuml

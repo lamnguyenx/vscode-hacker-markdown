@@ -130,7 +130,7 @@ details underneath the feature list, and the product limitations.
   self-filter pattern). The pure `aliasDefinitions()` function in
   `src/plantuml/invocations.ts` reuses the existing `PROC_OPEN_REG` scanner to
   produce the alias→line map. Same-fence only (no `!include`
-  resolution yet); covered by `tests/units/plantuml_definition_check.cjs`.
+  resolution yet); covered by `tests/units/plantuml_definition_check.ts`.
 - **PlantUML find-references inside markdown fences.** Shift+F12 on a procedure
   alias or `SALT(alias)` shows all call sites plus the definition line. The
   `ReferenceProvider` (`src/completions/definitions.ts`) uses the pure

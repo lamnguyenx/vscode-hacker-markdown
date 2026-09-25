@@ -1,7 +1,7 @@
 # Quirks: Testing Webview Extensions via CDP
 
 Reusable knowledge for working with this repo's test pipeline
-(`tests/*/*.cjs`, `exp/*.cjs`, the harnesses in `exp/scroll-anchor-test*.html`)
+(`tests/*/*.ts`, `exp/*.cjs`, the harnesses in `exp/scroll-anchor-test*.html`)
 and for debugging webview extensions in general. These are generalized
 behaviors of the tools, not bugs in this extension — each entry says what the
 quirk is, why it bites, and the workaround.
@@ -200,13 +200,13 @@ Knowledge for anyone adding IntelliSense (or other language features) to an
   of replace).
 - **The completions themselves are served by the extension host, not the
   preview webview.** They are therefore **outside the webview OOPIF CDP
-  harness** used by `tests/*/*.cjs` (which can only reach the browser page, not
+  harness** used by `tests/*/*.ts` (which can only reach the browser page, not
   the extension host). To assert suggestions programmatically you must invoke
   the *command* `vscode.executeCompletionItemProvider` from the **workbench**
   CDP target (the `document` page, not a `vscode-webview://` iframe) with a
   position inside the fence — the returned `isIncomplete`/items live in the
   extension host. This repo leaves completions to a pure-logic check
-  (`tests/units/plantuml_completion_check.cjs`) plus manual dev-host verification
+  (`tests/units/plantuml_completion_check.ts`) plus manual dev-host verification
   (see how-to-test.md §3g).
 - **A shared cached `CompletionItem[]` cannot be returned directly.** VS Code
   mutates `item.range` per request, so returning module-level cached items
@@ -249,7 +249,7 @@ Knowledge for anyone adding IntelliSense (or other language features) to an
 
 - **Trusted input only.** VS Code's keybinding service ignores synthetic
   DOM events; use `Input.dispatchKeyEvent` / `Input.dispatchMouseEvent` /
-  `Input.insertText` (see `test_preview.cjs`).
+  `Input.insertText` (see `test_preview.ts`).
 - **`Input.insertText` dies on `editor.editContext` (Chromium EditContext).**
   VS Code ≥ 1.13x routes editor input through Chromium's `EditContext` API
   (`div.native-edit-context` + a 1×1 readonly `textarea.ime-text-area`) when
@@ -423,7 +423,7 @@ integrates with:
   bogus failures (stray TypeErrors in probes, missing elements). Restart the
   host between runs; before debugging any failure, re-run once fresh.
 - **The onboarding overlay swallows input.** Fresh profiles show a one-time
-  modal that intercepts all CDP events; dismiss it first (`open_view.cjs`
+  modal that intercepts all CDP events; dismiss it first (`open_view.ts`
   step 1). It is persisted afterwards.
 - **The panel switcher renders lazily.** After launch the panel tab list may
   be empty; toggle the panel (`Cmd+J`) and poll for the tab before clicking.

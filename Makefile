@@ -22,22 +22,22 @@ vsix:
 	mkdir -p build
 	npx --yes @vscode/vsce pack -o $(VSIX)
 
-## Compile, run pure-logic + CDP + Playwright tests.
-test: test-unit test-cdp test-e2e
+## Pure-logic checks only (safe default — no host needed).
+test: test-unit
 
-## Pure-logic checks (no host, no server).
-test-unit: compile
-	node tests/plantuml_check.cjs
-	node tests/plantuml_inline_check.cjs
-	node tests/plantuml_completion_check.cjs
-	node tests/plantuml_definition_check.cjs
-	node tests/mermaid_check.cjs
+## Pure-logic checks (no host, no server, no compile — bun runs the TS sources).
+test-unit:
+	bun tests/units/plantuml_check.ts
+	bun tests/units/plantuml_inline_check.ts
+	bun tests/units/plantuml_completion_check.ts
+	bun tests/units/plantuml_definition_check.ts
+	bun tests/units/mermaid_check.ts
 
 ## CDP integration checks (needs code-server or dev host on CDP_PORT).
 test-cdp: compile
-	node tests/plantuml_note_highlight_check.cjs
-	node tests/mermaid_stale_check.cjs
-	node tests/test_preview.cjs
+	bun tests/integration/plantuml_note_highlight_check.ts
+	bun tests/integration/mermaid_stale_check.ts
+	bun tests/integration/test_preview.ts
 
 ## Playwright E2E tests (connects to the browser on CDP_PORT).
 test-e2e: compile

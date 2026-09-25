@@ -14,7 +14,7 @@
  * `src/plantuml/fences.ts`, which reads `data-line` off the rendered fence.
  *
  * Pure module (no `vscode` import) so the real shipped code is unit-testable
- * in plain Node (`tests/mermaid_check.cjs`).
+ * with bun in plain TypeScript (`tests/units/mermaid_check.ts`).
  */
 
 export interface MermaidSpan {

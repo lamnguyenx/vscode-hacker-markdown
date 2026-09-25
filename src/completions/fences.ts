@@ -7,7 +7,7 @@
  * line lies inside a `plantuml`/`puml`/`uml` fenced code block.
  *
  * Pure module (no `vscode` import) so the real shipped code is unit-testable
- * in plain Node (`tests/plantuml_completion_check.cjs`).
+ * with bun in plain TypeScript (`tests/units/plantuml_completion_check.ts`).
  */
 
 /**

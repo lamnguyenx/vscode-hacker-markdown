@@ -9,7 +9,7 @@
  * output; this extension ships the static list only, no jar dependency).
  *
  * Pure module (no `vscode` import) so the real shipped code is unit-testable
- * in plain Node (`tests/plantuml_completion_check.cjs`).
+ * with bun in plain TypeScript (`tests/units/plantuml_completion_check.ts`).
  */
 
 export const PLANTUML_TYPE_WORDS: readonly string[] = [

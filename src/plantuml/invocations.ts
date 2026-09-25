@@ -14,7 +14,7 @@
  * lines (0-based, absolute document lines) and the procedure-body line ranges.
  *
  * Pure module (no `vscode` import) so the real shipped code is unit-testable
- * in plain Node (`tests/plantuml_check.cjs`).
+ * with bun in plain TypeScript (`tests/units/plantuml_check.ts`).
  */
 
 /** A `SALT(x)` invocation line, `SALT($x)` inside the macro definition excluded. */

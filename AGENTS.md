@@ -17,16 +17,37 @@
 
 ## Testing
 
+### Pure-logic unit checks (no host, no server, no compile)
+
+```bash
+bun tests/units/plantuml_check.ts           # fence rewrite, escaping, !include, SALT scan
+bun tests/units/plantuml_inline_check.ts    # SVG inlining (stub fetcher)
+bun tests/units/plantuml_completion_check.ts
+bun tests/units/plantuml_definition_check.ts
+bun tests/units/mermaid_check.ts
+npm run test:units                           # all five at once
+npm run typecheck:tests                      # typecheck the suite
+```
+
+### CDP integration tests (need a running code-server or dev host)
+
+**Option A — code-server in Docker (preferred, port 9024):**
+
+```bash
+# code-server is started via /home/lamnt45/git/vscode-hacker-meta/docker-compose.yml
+npm run compile                              # only needed for CDP tests (extension out/ + build/)
+bun tests/integration/open_view.ts 9024      # ensure the preview is visible
+bun tests/integration/test_preview.ts 9024   # 16/21 checks under code-server (keyboard-based
+                                             # palette/open/save tests limited in browser)
+```
+
+**Option B — Extension Development Host (local VS Code, port 9335):**
+
 ```bash
 npm run compile
 vscode_cdp --profile "$PWD/exp/devhost" --file "$PWD/tests/samples/workspace/test.md"
-node tests/integration/open_view.cjs 9335
-node tests/integration/test_preview.cjs 9335
-node tests/units/plantuml_check.cjs           # pure-logic checks (no dev host)
-node tests/units/plantuml_inline_check.cjs
-node tests/units/plantuml_completion_check.cjs
-node tests/units/plantuml_definition_check.cjs
-node tests/units/mermaid_check.cjs
+bun tests/integration/open_view.ts 9335
+bun tests/integration/test_preview.ts 9335
 ```
 
 `vscode_cdp` first gracefully kills any prior host on the same CDP port
