@@ -1,4 +1,4 @@
-// CDP integration test for PlantUML IntelliSense inside markdown fences.
+// Integration test for PlantUML IntelliSense inside markdown fences.
 //
 // Verifies that the Language Feature providers registered on `markdown` are
 // active in the editor:
@@ -6,159 +6,98 @@
 //   - Folding: !procedure/!endprocedure blocks are foldable.
 //   - Go-to-definition: F12 on SALT(alias) moves the cursor.
 //
-// Uses the editor DOM (not vscode.commands — unavailable via CDP in
-// code-server). Opens enroll-flow.puml.md which has 16 procedures + many
-// SALT() calls.
+// Uses REST API exclusively — `vscode.executeCodeLensProvider`,
+// `vscode.executeFoldingRangeProvider`, and `vscode.executeDefinitionProvider`
+// are all called directly in the extension host. No monaco virtualization
+// issues, no F12 timing, no viewport-wait SKIP.
 //
-// Usage: bun tests/integration/plantuml_intellisense_ix.ts [port]
-import { connectPreview, getTargets, openCdpSession, sleep, type CdpSession } from './cdp';
+// Usage: bun tests/integration/plantuml_intellisense_ix.ts [cdp-port]
+import { restOpenFile, restEval } from './rest';
+import { createSuite } from './test_utils';
 
-const FIXTURE = 'enroll-flow.puml.md';
+const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples';
+const FIXTURE = `${WS}/enroll-flow.puml.md`;
 
 async function main(): Promise<void> {
-	const port = process.env.CDP_PORT || process.argv[2] || '9024';
+	const { check, finish } = createSuite();
 
-	const targets = await getTargets(port);
-	const pageTarget = targets.find((t) => t.type === 'page')!;
-	const page = await openCdpSession(pageTarget.webSocketDebuggerUrl);
-
-	// Open the fixture via Quick Open.
-	await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'p', code: 'KeyP', modifiers: 2 });
-	await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'p', code: 'KeyP', modifiers: 2 });
-	await sleep(500);
-	await page.send('Input.insertText', { text: FIXTURE });
-	await sleep(600);
-	await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
-	await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
-	await sleep(2000);
-
-	// Focus the editor.
-	const editorRect = await page.eval(`(() => {
-		const e = document.querySelector('.monaco-editor .overflow-guard') || document.querySelector('.monaco-editor');
-		if (!e) return null;
-		const r = e.getBoundingClientRect();
-		return { x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2) };
-	})()`);
-	if (!editorRect) {
-		console.error('NO_EDITOR: cannot find .monaco-editor');
-		process.exit(2);
-	}
-	await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...editorRect });
-	await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...editorRect, button: 'left', clickCount: 1 });
-	await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...editorRect, button: 'left', clickCount: 1 });
-	await sleep(500);
-
-	const results: { name: string; ok: boolean; skip: boolean }[] = [];
-	const check = (name: string, ok: boolean, extra = '', skip = false) => {
-		results.push({ name, ok, skip });
-		console.log(`${skip ? 'SKIP' : ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`);
-	};
-
-	const gotoLine = async (line: number) => {
-		await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'g', code: 'KeyG', modifiers: 2 });
-		await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'g', code: 'KeyG', modifiers: 2 });
-		await sleep(400);
-		await page.send('Input.insertText', { text: String(line) });
-		await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
-		await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
-		await sleep(600);
-	};
+	// Open the fixture via REST.
+	await restOpenFile(FIXTURE);
+	await new Promise(r => setTimeout(r, 3000));
 
 	// -----------------------------------------------------------------------
-	// 1. Code lens: go to the first !procedure line (line 13) and check
-	//    for codelens-decoration text containing "references".
+	// 1. Code lens: count lenses via the language provider.
 	// -----------------------------------------------------------------------
-	await gotoLine(13);
-	await sleep(1000);
-	const codeLensInfo = await page.eval(`(() => {
-		// Code lens decorations render as .codelens-decoration above lines.
-		const lenses = document.querySelectorAll('.codelens-decoration');
-		if (!lenses.length) {
-			// Try alternate: .conflict-codelens-widget or inline codelens
-			const widgets = document.querySelectorAll('[class*="codelens"]');
-			return { count: widgets.length, texts: [...widgets].slice(0,5).map(w => w.textContent?.trim().slice(0,60)) };
-		}
-		return { count: lenses.length, texts: [...lenses].slice(0,5).map(l => l.textContent?.trim().slice(0,60)) };
-	})()`);
-	check('code lens registered (N references above procedures)', codeLensInfo.count > 0,
-		`found ${codeLensInfo.count} codelens elements`);
-	if (codeLensInfo.count > 0) {
-		console.log(`    texts: ${codeLensInfo.texts.join(' | ')}`);
+	const codeLenses = await restEval<{
+		count: number;
+		samples: { line: number; title: string }[];
+	}>(`
+		(async () => {
+			const uri = vscode.window.activeTextEditor.document.uri;
+			const lenses = await vscode.commands.executeCommand('vscode.executeCodeLensProvider', uri);
+			if (!Array.isArray(lenses)) return { count: 0, samples: [] };
+			const samples = lenses.slice(0, 5).map(l => ({
+				line: l.range.start.line,
+				title: l.command?.title || ''
+			}));
+			return { count: lenses.length, samples };
+		})()
+	`);
+	check('code lens registered (N references above procedures)', codeLenses.count > 0,
+		`found ${codeLenses.count} codelens elements`);
+	if (codeLenses.count > 0) {
+		console.log(`    samples: ${codeLenses.samples.map(s => s.title).join(' | ')}`);
 	}
 
 	// -----------------------------------------------------------------------
-	// 2. Folding: !procedure blocks should be foldable.
-	//    Check for folding region indicators in the glyph margin.
+	// 2. Folding: call `vscode.executeFoldingRangeProvider`.
 	// -----------------------------------------------------------------------
-	// Navigate to procedure body and look for collapse/expand controls.
-	// In VS Code, foldable ranges are shown as small arrows in the left margin
-	// when hovering, and folding decorations are on .margin-view-overlays.
-	const foldInfo = await page.eval(`(() => {
-		// The folding controller adds ranges to the editor model. We can't
-		// directly query the folding model from DOM. Instead, trigger a fold
-		// via keyboard shortcut and see if the view changes.
-		// Alternative: check if "Fold" command is available by looking for
-		// folding decorations in the line numbers gutter.
-		const gutter = document.querySelector('.margin-view-overlays');
-		if (!gutter) return { gutter: false };
-		// Folding decorations appear as .cldr decorations on line number elements
-		const cldr = document.querySelectorAll('.cldr');
-		return { gutter: true, foldDecorations: cldr.length };
-	})()`);
-	// We check >0 to confirm folding ranges are being computed by our provider.
-	// (VS Code may add other foldable ranges too, but our !procedure ranges
-	// should be a superset.)
-	check('folding range provider active (fold decorations present)', foldInfo.foldDecorations > 0,
-		`fold decorations: ${foldInfo.foldDecorations ?? 'no gutter'}`);
+	const foldRanges = await restEval<{ count: number }>(`
+		(async () => {
+			const uri = vscode.window.activeTextEditor.document.uri;
+			const ranges = await vscode.commands.executeCommand('vscode.executeFoldingRangeProvider', uri);
+			return { count: Array.isArray(ranges) ? ranges.length : 0 };
+		})()
+	`);
+	check('folding range provider active (foldable ranges present)',
+		foldRanges.count > 0, `fold ranges: ${foldRanges.count}`);
 
 	// -----------------------------------------------------------------------
-	// 3. Go-to-definition: position on SALT(form_empty) at line ~307,
-	//    press F12, check the cursor moves to !procedure _form_empty() at line 13.
-	//    We need to scroll line 307 into view first (monaco virtualizes lines).
+	// 3. Go-to-definition: find a SALT(alias) call and resolve its definition.
+	//    All done inside a single REST eval — the alias position and definition
+	//    result are both computed in the extension host.
 	// -----------------------------------------------------------------------
-	// Go to the SALT(form_empty) line.
-	await gotoLine(307);
-	await sleep(2000); // Wait for monaco to render the virtualized line.
+	const defResult = await restEval<{ found: boolean; line: number; text: string } | null>(`
+		(async () => {
+			const doc = vscode.window.activeTextEditor.document;
+			const text = doc.getText();
+			const lines = text.split('\\n');
+			// Find first SALT(alias) — measure the column of the alias word.
+			let saltLine = -1, saltCol = -1, alias = '';
+			for (let i = 0; i < lines.length; i++) {
+				const m = lines[i].match(/SALT\\((\\w+)/);
+				if (m) { saltLine = i; saltCol = lines[i].indexOf(m[1]); alias = m[1]; break; }
+			}
+			if (saltLine < 0) return null;
+			const pos = new vscode.Position(saltLine, saltCol);
+			const result = await vscode.commands.executeCommand('vscode.executeDefinitionProvider', doc.uri, pos);
+			if (!result || !result.length) return { found: false, line: -1, text: '' };
+			const loc = Array.isArray(result) ? result[0] : result;
+			const range = loc.range || loc;
+			const defLine = range.start ? range.start.line : loc.line;
+			return { found: true, line: defLine, text: doc.lineAt(defLine).text };
+		})()
+	`);
 
-	// Verify the SALT(form_empty) line is visible by checking rendered lines.
-	const lineText = await page.eval(`(() => {
-		const lines = [...document.querySelectorAll('.view-lines .view-line')];
-		const saltLine = lines.find(l => (l.textContent || '').includes('SALT(form_empty)'));
-		return saltLine ? saltLine.textContent.trim() : null;
-	})()`);
-	if (lineText) {
-		// Move cursor right to land on "form_empty".
-		for (let i = 0; i < 4; i++) {
-			await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'ArrowRight', code: 'ArrowRight', modifiers: 2 });
-			await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', modifiers: 2 });
-			await sleep(50);
-		}
-		await sleep(200);
-
-		// Press F12 (go to definition).
-		await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'F12', code: 'F12', modifiers: 0 });
-		await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'F12', code: 'F12', modifiers: 0 });
-		await sleep(2000);
-
-		// Check visible lines — should contain "!procedure" after jump.
-		const currentLine = await page.eval(`(() => {
-			const lines = [...document.querySelectorAll('.view-lines .view-line')];
-			const procLine = lines.find(l => (l.textContent || '').includes('!procedure'));
-			return procLine ? procLine.textContent.trim().slice(0, 80) : null;
-		})()`);
-		check('go-to-definition: F12 on SALT(alias) jumps to !procedure',
-			!!currentLine && currentLine.includes('!procedure'),
-			currentLine ? `"${currentLine}"` : 'no !procedure line visible');
+	if (!defResult) {
+		check('go-to-definition: SALT(alias) found in fixture', false, 'no SALT() calls found', true);
 	} else {
-		check('go-to-definition: F12 on SALT(alias) jumps to !procedure', false,
-			'SALT(form_empty) line not in viewport (code-server viewport limit)', true);
+		check('go-to-definition: SALT(alias) resolves to !procedure line',
+			defResult.found && !!defResult.text && defResult.text.includes('!procedure'),
+			defResult.found ? `"${defResult.text}"` : 'no definition found');
 	}
 
-	page.close();
-	const failed = results.filter((r) => !r.ok && !r.skip);
-	const skipped = results.filter((r) => r.skip);
-	console.log(`\n${results.length - failed.length - skipped.length}/${results.length} checks passed (${skipped.length} skipped)`);
-	process.exit(failed.length ? 1 : 0);
+	finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

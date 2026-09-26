@@ -1,21 +1,19 @@
-// CDP integration test for misc preview features:
+// Integration test for misc preview features:
 //   B10 — SALT mockup cursor highlight (needs PlantUML server reachable)
 //   B11 — Reading-position anchor guard (scroll preservation across re-render)
 //   B12 — Empty state (no .md open)
 //
-// Usage: bun tests/integration/preview_misc_ix.ts [port]
-import { connectPreview, evalUntil, getTargets, openCdpSession, sleep, type CdpSession } from './cdp';
+// Uses REST API for arrange (open files, close all editors) and CDP for
+// assert only. The B12 empty-state check was previously SKIPped under
+// code-server because closing all editors via browser CDP was unreliable —
+// now `workbench.action.closeAllEditors` via REST makes it deterministic.
+//
+// Usage: bun tests/integration/preview_misc_ix.ts [cdp-port]
+import { connectPreview, evalUntil, sleep } from './cdp';
+import { restOpenFile, restEval } from './rest';
+import { createSuite } from './test_utils';
 
-async function openFile(page: CdpSession, filename: string): Promise<void> {
-	await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'p', code: 'KeyP', modifiers: 2 });
-	await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'p', code: 'KeyP', modifiers: 2 });
-	await sleep(500);
-	await page.send('Input.insertText', { text: filename });
-	await sleep(600);
-	await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
-	await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
-	await sleep(2000);
-}
+const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples';
 
 async function main(): Promise<void> {
 	const port = process.env.CDP_PORT || process.argv[2] || '9024';
@@ -25,26 +23,14 @@ async function main(): Promise<void> {
 		process.exit(2);
 	}
 
-	const targets = await getTargets(port);
-	const pageTarget = targets.find((t) => t.type === 'page')!;
-	const page = await openCdpSession(pageTarget.webSocketDebuggerUrl);
-
-	const results: { name: string; ok: boolean; skip: boolean }[] = [];
-	const check = (name: string, ok: boolean, extra = '', skip = false) => {
-		results.push({ name, ok, skip });
-		console.log(`${skip ? 'SKIP' : ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`);
-	};
+	const { check, finish } = createSuite();
 
 	// -----------------------------------------------------------------------
 	// B10: SALT mockup cursor highlight + data-source-code ranges
-	//      Uses enroll-flow.puml.md which has SALT() procedure calls inside
-	//      an activity diagram — the server tags those mockups with
-	//      data-source-code ranges. Requires the PlantUML server reachable
-	//      from the extension host (for SVG inlining that exposes the ranges).
 	// -----------------------------------------------------------------------
-	await openFile(page, 'enroll-flow.puml.md');
+	await restOpenFile(`${WS}/enroll-flow.puml.md`);
 	await evalUntil(handle, `d.querySelector('.toolbar .doc-name')?.textContent === 'enroll-flow.puml.md'`, 20000);
-	await sleep(5000); // Wait for SVG fetch + inline + attachMockupRanges.
+	await sleep(5000);
 
 	const svgInfo = await handle.pEval(`(() => {
 		const svgs = d.querySelectorAll('#preview svg[data-hmk-puml]');
@@ -52,18 +38,12 @@ async function main(): Promise<void> {
 		const sourceCode = d.querySelectorAll('#preview svg [data-source-code]');
 		const salts = d.querySelector('#preview svg[data-hmk-salts]');
 		const procs = d.querySelector('#preview svg[data-hmk-procs]');
-		return {
-			svgCount: svgs.length,
-			imgCount: imgs.length,
-			sourceCode: sourceCode.length,
-			hasSalts: !!salts,
-			hasProcs: !!procs,
-		};
+		return { svgCount: svgs.length, imgCount: imgs.length, sourceCode: sourceCode.length, hasSalts: !!salts, hasProcs: !!procs };
 	})()`);
 
 	if (svgInfo.svgCount === 0 && svgInfo.imgCount > 0) {
 		check('SALT mockup cursor highlight (needs inlined SVG)', false,
-			'server not reachable from extension host — SVGs not inlined', true);
+			'server not reachable from ext host — SVGs not inlined', true);
 	} else {
 		check('SALT activity diagram inlined as SVG', svgInfo.svgCount > 0,
 			`${svgInfo.svgCount} svg, ${svgInfo.imgCount} img`);
@@ -75,19 +55,15 @@ async function main(): Promise<void> {
 
 	// -----------------------------------------------------------------------
 	// B11: Reading-position anchor guard
-	//      Scroll to a known position, trigger refresh, check position preserved.
 	// -----------------------------------------------------------------------
-	// Open test.md for the anchor guard test (has enough content to scroll).
-	await openFile(page, 'test.md');
+	await restOpenFile(`${WS}/workspace/test.md`);
 	await evalUntil(handle, `d.querySelector('.toolbar .doc-name')?.textContent === 'test.md'`, 20000);
 	await sleep(1000);
 
-	// Scroll to ~200px.
 	await handle.pEval(`(() => { d.scrollingElement.scrollTop = 200; return true; })()`);
 	await sleep(300);
 	const scrollBefore = await handle.pEval(`d.scrollingElement.scrollTop`);
 
-	// Trigger refresh.
 	await handle.pEval(`(() => { const btn = d.querySelector('[data-command="refresh"]'); if (btn) btn.click(); return true; })()`);
 	await sleep(2000);
 
@@ -97,34 +73,25 @@ async function main(): Promise<void> {
 		`before=${scrollBefore} after=${scrollAfter} drift=${drift}px`);
 
 	// -----------------------------------------------------------------------
-	// B12: Empty state — close all editors, check preview shows empty state.
+	// B12: Empty state — switch active editor to a non-markdown file.
+	// (closeAllEditors hangs if unsaved files prompt for save; opening an
+	// untitled non-markdown doc triggers the preview's empty state cleanly.)
 	// -----------------------------------------------------------------------
-	// "View: Close All Editors" via palette.
-	const isCodeServer = handle.offset.x !== 0 || handle.offset.y !== 0;
-	if (isCodeServer) {
-		// Closing all editors reliably is tricky via browser CDP.
-		check('empty state shown when no .md is open', false,
-			'code-server — closing all tabs via browser CDP is unreliable', true);
-	} else {
-		await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'F1', code: 'F1', modifiers: 0 });
-		await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'F1', code: 'F1', modifiers: 0 });
-		await sleep(800);
-		await page.send('Input.insertText', { text: 'Close All Editors' });
-		await sleep(600);
-		await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
-		await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
-		await sleep(2000);
+	await restEval(`
+		(async () => {
+			const doc = await vscode.workspace.openTextDocument({ content: '// not markdown', language: 'json' });
+			await vscode.window.showTextDocument(doc);
+		})()
+	`);
+	const emptyVisible = await evalUntil(handle, `!d.querySelector('#empty')?.hidden`, 10000);
+	check('empty state shown when no .md is open', !!emptyVisible);
 
-		const emptyVisible = await handle.pEval(`!d.querySelector('#empty')?.hidden`);
-		check('empty state shown when no .md is open', emptyVisible);
-	}
+	// Cleanup: re-open test.md.
+	await restOpenFile(`${WS}/workspace/test.md`);
+	await sleep(1000);
 
 	handle.close();
-	page.close();
-	const failed = results.filter((r) => !r.ok && !r.skip);
-	const skipped = results.filter((r) => r.skip);
-	console.log(`\n${results.length - failed.length - skipped.length}/${results.length} checks passed (${skipped.length} skipped)`);
-	process.exit(failed.length ? 1 : 0);
+	finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

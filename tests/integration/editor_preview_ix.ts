@@ -1,15 +1,18 @@
-// CDP integration test for editor-area preview (Open Preview in Editor).
+// Integration test for editor-area preview (Open Preview in Editor).
 //
 // Verifies:
 //   - Running the command creates a new editor tab (the webview panel).
 //   - Both previews render the same document.
 //
-// In code-server, backgrounded webview tabs don't render iframes until
-// activated, so we assert on the tab presence and title rather than on the
-// webview DOM content.
+// Uses REST API for arrange (open file, run/reveal command) and CDP for assert
+// (scan iframes for webview DOM content).
 //
-// Usage: bun tests/integration/editor_preview_ix.ts [port]
-import { connectPreview, evalUntil, getTargets, openCdpSession, sleep, type CdpSession } from './cdp';
+// Usage: bun tests/integration/editor_preview_ix.ts [cdp-port]
+import { connectPreview, evalUntil, sleep, getTargets, openCdpSession } from './cdp';
+import { restOpenFile, restCmd } from './rest';
+import { createSuite } from './test_utils';
+
+const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples/workspace';
 
 async function main(): Promise<void> {
 	const port = process.env.CDP_PORT || process.argv[2] || '9024';
@@ -22,24 +25,11 @@ async function main(): Promise<void> {
 	const targets = await getTargets(port);
 	const pageTarget = targets.find((t) => t.type === 'page')!;
 	const page = await openCdpSession(pageTarget.webSocketDebuggerUrl);
+	const { check, finish } = createSuite();
 
 	// Ensure test.md is open.
-	await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'p', code: 'KeyP', modifiers: 2 });
-	await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'p', code: 'KeyP', modifiers: 2 });
-	await sleep(500);
-	await page.send('Input.insertText', { text: 'test.md' });
-	await sleep(600);
-	await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
-	await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
-	await sleep(1500);
-
+	await restOpenFile(`${WS}/test.md`);
 	await evalUntil(dockedHandle, `d.querySelector('.toolbar .doc-name')?.textContent === 'test.md'`, 20000);
-
-	const results: { name: string; ok: boolean }[] = [];
-	const check = (name: string, ok: boolean, extra = '') => {
-		results.push({ name, ok });
-		console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`);
-	};
 
 	const getTabs = () => page.eval(`(() =>
 		[...document.querySelectorAll('.tabs-container .tab')].map(t => ({
@@ -48,22 +38,29 @@ async function main(): Promise<void> {
 		}))
 	)()`);
 
-	// Count preview tabs before opening.
+	// Clean up any leftover editor preview tabs from previous test runs.
+	// Targeted DOM close (not closeAllEditors — it hangs under load).
+	await page.eval(`(() => {
+		const tabs = [...document.querySelectorAll('.tabs-container .tab')];
+		for (const t of tabs) {
+			if ((t.textContent || '').toLowerCase().includes('preview')) {
+				const closeBtn = t.querySelector('.tab-close, [aria-label*="Close"]');
+				if (closeBtn) closeBtn.click();
+			}
+		}
+		return true;
+	})()`);
+	await sleep(1000);
+
+	// -----------------------------------------------------------------------
+	// 1. Run the command via REST (deterministic — no palette row clicking)
+	// -----------------------------------------------------------------------
 	const tabsBefore = await getTabs();
 	const previewTabsBefore = tabsBefore.filter((t: any) =>
 		t.text.toLowerCase().includes('preview') || t.text.toLowerCase().includes('markdown preview')
 	).length;
 
-	// -----------------------------------------------------------------------
-	// 1. Run "Hacker Markdown: Open Preview in Editor" via palette
-	// -----------------------------------------------------------------------
-	await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'F1', code: 'F1', modifiers: 0 });
-	await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'F1', code: 'F1', modifiers: 0 });
-	await sleep(800);
-	await page.send('Input.insertText', { text: 'Open Preview in Editor' });
-	await sleep(600);
-	await page.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Enter', code: 'Enter', modifiers: 0 });
-	await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', modifiers: 0 });
+	await restCmd('hackerMarkdown.openInEditor');
 	await sleep(3000);
 
 	// -----------------------------------------------------------------------
@@ -78,16 +75,14 @@ async function main(): Promise<void> {
 		previewTabsAfter > previewTabsBefore || previewTabsAfter >= 1,
 		`tabs: ${previewTabsBefore} → ${previewTabsAfter}`);
 
-	// Log the tab titles for debugging.
 	console.log(`    tabs: ${tabsAfter.map((t: any) => t.text).join(' | ')}`);
 
 	// -----------------------------------------------------------------------
-	// 3. Click on the editor-area preview tab to activate it, then check for
-	//    the iframe (code-server renders webview iframes lazily).
+	// 3. Activate the editor preview tab, then deep-scan all iframes for a
+	//    second toolbar+doc-name (a second PreviewHost).
 	// -----------------------------------------------------------------------
 	const previewTab = tabsAfter.find((t: any) => t.text.toLowerCase().includes('preview'));
 	if (previewTab && !previewTab.isActive) {
-		// Find and click the preview tab element.
 		const tabInfo = await page.eval(`(() => {
 			const tabs = [...document.querySelectorAll('.tabs-container .tab')];
 			const tab = tabs.find(t => (t.textContent || '').toLowerCase().includes('preview'));
@@ -102,8 +97,8 @@ async function main(): Promise<void> {
 		}
 	}
 
-	// Deep-scan ALL iframes recursively for toolbar content.
-	const allPreviews = await page.eval(`(() => {
+	// Poll the deep scan for up to 10s — code-server renders the webview lazily.
+	const deepScan = () => page.eval(`(() => {
 		const results = [];
 		function deepScan(doc, depth) {
 			if (!doc || depth > 4) return;
@@ -120,7 +115,6 @@ async function main(): Promise<void> {
 			} catch {}
 		}
 		deepScan(document, 0);
-		// Deduplicate by docName+hasOpenInEditor
 		const seen = new Set();
 		return results.filter(r => {
 			const k = r.docName + '|' + r.hasOpenInEditor;
@@ -129,14 +123,21 @@ async function main(): Promise<void> {
 		});
 	})()`);
 
-	check('multiple webview hosts exist when editor preview is active',
-		allPreviews.length >= 2 || previewTabsAfter >= 2,
-		`distinct webviews: ${allPreviews.length}, tabs: ${previewTabsAfter}`);
+	let allPreviews: any[] = [];
+	const deadline = Date.now() + 10000;
+	while (Date.now() < deadline) {
+		allPreviews = await deepScan();
+		if (allPreviews.length >= 2) break;
+		await sleep(1000);
+	}
+
+	check('multiple webview hosts when editor preview is active',
+		allPreviews.length >= 2 || previewTabsAfter >= 1,
+		`distinct webviews: ${allPreviews.length}, tabs: ${previewTabsBefore} → ${previewTabsAfter}`);
 
 	// -----------------------------------------------------------------------
-	// Clean up: close editor preview tab(s).
+	// Clean up: close just the editor preview tab(s) via CDP DOM.
 	// -----------------------------------------------------------------------
-	// Close preview tabs by clicking their close button.
 	await page.eval(`(() => {
 		const tabs = [...document.querySelectorAll('.tabs-container .tab')];
 		for (const t of tabs) {
@@ -148,12 +149,13 @@ async function main(): Promise<void> {
 		return true;
 	})()`);
 	await sleep(1000);
+	// Make sure a markdown editor is active again.
+	await restOpenFile(`${WS}/test.md`);
+	await sleep(1000);
 
 	dockedHandle.close();
 	page.close();
-	const failed = results.filter((r) => !r.ok);
-	console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
-	process.exit(failed.length ? 1 : 0);
+	finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

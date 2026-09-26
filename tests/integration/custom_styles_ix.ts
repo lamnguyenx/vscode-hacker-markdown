@@ -1,13 +1,21 @@
-// CDP integration test for custom styles loading.
+// Integration test for custom styles loading.
 //
 // Verifies:
 //   - The preview head contains the core stylesheets (main.css, markdown.css,
 //     highlight.css, media.css).
 //   - User styles (markdown.styles / hackerMarkdown.styles) load as
 //     <link class="code-user-style"> if any are configured.
+//   - Font setting overrides applied as CSS custom properties.
 //
-// Usage: bun tests/integration/custom_styles_ix.ts [port]
+// Uses REST API to open a document (so the preview has something to render)
+// and CDP for assert only (read webview DOM).
+//
+// Usage: bun tests/integration/custom_styles_ix.ts [cdp-port]
 import { connectPreview, evalUntil } from './cdp';
+import { restOpenFile } from './rest';
+import { createSuite } from './test_utils';
+
+const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples/workspace';
 
 async function main(): Promise<void> {
 	const port = process.env.CDP_PORT || process.argv[2] || '9024';
@@ -17,13 +25,10 @@ async function main(): Promise<void> {
 		process.exit(2);
 	}
 
+	await restOpenFile(`${WS}/test.md`);
 	await evalUntil(handle, `!!d.querySelector('#preview > *')`, 30000);
 
-	const results: { name: string; ok: boolean }[] = [];
-	const check = (name: string, ok: boolean, extra = '') => {
-		results.push({ name, ok });
-		console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? '  ' + extra : ''}`);
-	};
+	const { check, finish } = createSuite();
 
 	// -----------------------------------------------------------------------
 	// 1. Core extension stylesheets are present
@@ -47,14 +52,10 @@ async function main(): Promise<void> {
 	check('highlight.css loaded', hasHighlight);
 	check('media.css loaded', hasMedia);
 
-	// -----------------------------------------------------------------------
-	// 2. User style container exists (even if empty)
-	// -----------------------------------------------------------------------
-	// The count depends on settings — just verify the mechanism is wired.
 	console.log(`  (user styles configured: ${styleInfo.userStyles})`);
 
 	// -----------------------------------------------------------------------
-	// 3. Font setting overrides applied as CSS custom properties
+	// 2. CSS custom properties for font/zoom settings
 	// -----------------------------------------------------------------------
 	const cssVars = await handle.pEval(`(() => {
 		const html = d.documentElement;
@@ -68,9 +69,7 @@ async function main(): Promise<void> {
 	check('--hmk-zoom CSS var is set', !!cssVars.zoom, `value="${cssVars.zoom}"`);
 
 	handle.close();
-	const failed = results.filter((r) => !r.ok);
-	console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
-	process.exit(failed.length ? 1 : 0);
+	finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });
