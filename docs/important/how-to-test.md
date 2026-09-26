@@ -998,6 +998,15 @@ running window gets a live install that still needs a reload to activate.
 | Keybinding override / serializer / cross-window move | section 3h (`Developer: Toggle Keyboard Shortcuts Troubleshooting` + `Move Editor into New Window`) |
 | Evaluate in webview | `bun tests/integration/cdp_eval.ts $CHROME_CDP_PORT$ iframe vscode-webview:// "<expr>"` |
 | PlantUML note-highlight check (start host with `tests/samples/enroll-flow.puml.md`) | `bun tests/integration/plantuml_note_highlight_check.ts $VSCODE_CDP_PORT$` (also works on `--with-extensions` hosts) |
+| PlantUML render check (server → SVG inline, `data-hmk-from`/`data-hmk-to`) | `bun tests/integration/plantuml_render_check.ts $VSCODE_CDP_PORT$` |
+| PlantUML IntelliSense (code lens, folding, F12 go-to-definition) | `bun tests/integration/plantuml_intellisense_ix.ts $VSCODE_CDP_PORT$` |
+| Pin lifecycle (pin → editor switch → unpin) | `bun tests/integration/pin_lifecycle_ix.ts $VSCODE_CDP_PORT$` |
+| Media toolbar dropdowns (invert / tables / column width) | `bun tests/integration/media_controls_ix.ts $VSCODE_CDP_PORT$` |
+| Link navigation (relative `.md` link, `#fragment`) | `bun tests/integration/link_nav_ix.ts $VSCODE_CDP_PORT$` |
+| renderOnSave gate (typing doesn't re-render) | `bun tests/integration/render_on_save_ix.ts $VSCODE_CDP_PORT$` |
+| Editor-area preview (palette command creates tab) | `bun tests/integration/editor_preview_ix.ts $VSCODE_CDP_PORT$` |
+| Custom styles (CSS files + CSS custom properties) | `bun tests/integration/custom_styles_ix.ts $VSCODE_CDP_PORT$` |
+| SALT mockup ranges + anchor guard + empty state | `bun tests/integration/preview_misc_ix.ts $VSCODE_CDP_PORT$` |
 | Inspect editor tokens & scopes | `Ctrl+Shift+P` → `Developer: Inspect Editor Tokens and Scopes` (section 3f) |
 | Build only the grammar (skip full `npm run compile`) | `npm run build:syntax` (section 5) |
 | Launch with a single extension excluded (A/B test) | `vscode_cdp_kill $VSCODE_CDP_PORT$` then call `code` directly with `--disable-extension vue.volar` (section 1) |
@@ -1187,7 +1196,118 @@ const innerDoc = webviewIframe.contentDocument
 const preview = innerDoc.getElementById('preview');
 ```
 
-### Mermaid extension highlight override (code-server)
+### Running multiple integration tests against code-server
+
+Running more than 3–4 CDP integration tests **sequentially against the same
+code-server session** destabilizes the workbench:
+
+- Each test opens files, dispatches palette commands, creates editor tabs —
+  the workbench accumulates state (open tabs, webview panels, cursor
+  positions) that is never cleaned up.
+- After ~6 tests, symptoms include: `connectPreview()` timing out (the
+  preview iframe is hidden behind accumulated editor groups), the command
+  palette not rendering (`.quick-input-widget` never appears), CDP
+  `Runtime.evaluate` calls hanging indefinitely, and the MCP browser tools
+  timing out (`Request timed out -32001`).
+- The **only reliable recovery** is `docker restart
+  vscode-hacker-meta-code-server-1`, wait 15s for the CDP endpoint, open a
+  fresh browser tab (`new_page`), close the old one, and re-run
+  `open_view.ts`.
+
+**Rules for batch testing via code-server:**
+
+1. Run tests **one at a time**, not as a long sequential `for` loop.
+2. Between groups of 3–4 tests, restart code-server and re-run
+   `open_view.ts`.
+3. After each test, close any editor-area preview tabs it may have created
+   (the test should do this in its cleanup, but verified-clean is better).
+4. If a test hangs (no output for 60s+), the CDP session is likely dead —
+   kill the bun process, restart code-server, start fresh.
+5. For MCP tool calls (chrome-devtools), prefer `evaluate_script` over
+   `navigate`/`reload` — less state churn, no `beforeunload` dialogs.
+
+### Ctrl+S not forwarded by browser CDP (code-server)
+
+In a browser-based code-server session, **`Ctrl+S` is intercepted by the
+browser** (Save Page dialog) and never reaches VS Code's keybinding
+service. Any test that types text, then sends `Ctrl+S` to trigger a
+save-render, will fail on code-server — the save never happens.
+
+Workarounds:
+- Run the save-dependent check on a **dev host** (Option B) where Electron
+  forwards `Ctrl+S` to VS Code's keybinding service.
+- On code-server, mark save-dependent checks as SKIP with a clear message
+  (e.g. `code-server — Ctrl+S not reliable via browser CDP`).
+- The "typing does NOT re-render" half of `renderOnSave` tests works on
+  both topologies (it asserts no change, not a change).
+
+### ConnectPreview returns whichever preview it finds first
+
+`connectPreview()` scans for `.toolbar .doc-name` across all webview
+iframes and returns the **first** match. If both a docked view and an
+editor-area panel are alive (e.g. after running B8's `Open Preview in
+Editor`), the test may attach to the **editor panel** instead of the
+docked view.
+
+This matters because:
+- The docked view has the `openInEditor` button (`showOpenInEditor: true`);
+  the editor panel does not.
+- The editor panel's webview may be backgrounded (tab not active) — no
+  iframe is rendered until activated, so `pEval` returns null.
+
+**Fix:** Tests that need the docked view specifically should close all
+editor preview tabs before connecting (`View: Close All Editors` via
+palette, or click the `×` on preview tabs). Tests that just need any
+preview should tolerate both topologies.
+
+### Code-server webview tabs are lazily rendered
+
+In code-server, a webview tab that is not the **active tab in its editor
+group** has **no iframe in the DOM** — the webview content is disposed to
+save memory. This means:
+
+- After `Open Preview in Editor`, the second preview tab exists but its
+  iframe is not rendered until clicked/activated.
+- Deep-scanning all iframes for `.toolbar` content may find only one
+  preview even when two tabs exist.
+- To verify an editor-area preview was created, assert on **tab presence**
+  (`.tabs-container .tab` text), not on webview DOM content.
+
+### Inline `bun -e` breaks on complex template strings
+
+Running CDP probe code via `bun -e '...'` with template-literal strings
+(that contain backticks, `${...}`, or nested quotes) causes
+`SyntaxError: missing ) after argument list` in `cdp.ts:71`. The shell
+quoting layer mangles the template delimiters.
+
+**Fix:** Write a temporary `.ts` file and run `bun that-file.ts`, or use
+the chrome-devtools MCP `evaluate_script` tool (no shell quoting).
+
+### PlantUML server must be reachable from the container
+
+The SVG inlining step (`src/plantuml/inlineSvg.ts`) fetches diagram SVGs
+from the **extension host process** — which runs inside the Docker
+container for code-server. If the PlantUML server is bound to `127.0.0.1`
+on the host (SSH tunnel, `--bind-addr 127.0.0.1`), the container cannot
+reach it on a bridge network.
+
+Symptoms (silent):
+- Diagrams render as `<img>` in the preview (the **browser** can reach
+  the server) but are NOT inlined to `<svg>`.
+- `data-source-code` ranges never appear → SALT cursor highlight and
+  click-to-source silently don't work.
+- The `<img>` renders fine, and no error is logged — the inline fetch
+  silently fails and falls back gracefully.
+
+**Fix:** Use `network_mode: host` in the code-server Docker compose, or
+bind the PlantUML server to `0.0.0.0`, or configure `hackerMarkdown.plantuml.server`
+to point at a host-reachable address.
+
+To verify: `docker exec <container> curl -s -o /dev/null -w "%{http_code}"
+http://localhost:9274/svg/SoWkIImgAStDuNBAJrBGjLDmpCbCJbMmLRtS51Gg00`
+— should be `200`.
+
+
 
 The `mermaidchart.vscode-mermaid-chart` extension (and similar mermaid
 extensions) override `options.highlight` on the markdown-it instance via
