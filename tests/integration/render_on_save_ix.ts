@@ -100,7 +100,7 @@ async function main(): Promise<void> {
 	await restEval(`vscode.workspace.fs.delete(vscode.Uri.file(${JSON.stringify(tmpPath)}))`);
 
 	handle.close();
-	finish();
+	await finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

@@ -70,7 +70,7 @@ async function main(): Promise<void> {
 		docNameAfterFragment === 'test.md', `got "${docNameAfterFragment}"`);
 
 	handle.close();
-	finish();
+	await finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

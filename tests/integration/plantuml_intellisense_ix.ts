@@ -97,7 +97,7 @@ async function main(): Promise<void> {
 			defResult.found ? `"${defResult.text}"` : 'no definition found');
 	}
 
-	finish();
+	await finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

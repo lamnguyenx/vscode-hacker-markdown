@@ -157,6 +157,54 @@ export async function restCloseAll(): Promise<void> {
 	await restCmd('workbench.action.closeAllEditors');
 }
 
+/**
+ * Restore a clean workbench after a test:
+ *
+ *   1. discard + close every dirty editor (works for untitled docs too —
+ *      force-closing a tab via the tab-groups API still pops the "Do you want
+ *      to save?" dialog for a dirty *untitled* doc under code-server);
+ *   2. close every remaining non-webview tab (clean/duplicate text editors);
+ *      webview panels are kept — that is the preview the next test attaches to;
+ *   3. delete the `/tmp/hmk-*` fixtures the tests create.
+ *
+ * Best-effort and never throws — safe to call from a suite's `finish()`.
+ */
+export async function restCleanup(opts: RestOptions = {}): Promise<void> {
+	try {
+		await restEval(`
+			(async () => {
+				// 1. Dirty editors: revert + close. The command acts on the
+				//    active editor, so reveal the doc first.
+				for (const doc of [...vscode.workspace.textDocuments]) {
+					if (!doc.isDirty) continue;
+					try {
+						await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: true });
+						await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+					} catch {}
+				}
+				// 2. Close remaining text/diff tabs (now clean — force-close
+				//    won't prompt), but keep webview panels (the preview).
+				const tabs = vscode.window.tabGroups.all.flatMap(g => g.tabs);
+				const closeable = tabs.filter(t => !(t.input instanceof vscode.TabInputWebview));
+				if (closeable.length) {
+					try { await vscode.window.tabGroups.close(closeable, true); } catch {}
+				}
+				// 3. Leftover temp fixtures from createTempFile().
+				try {
+					const dir = vscode.Uri.file('/tmp');
+					for (const [name, type] of await vscode.workspace.fs.readDirectory(dir)) {
+						if (type === vscode.FileType.File && name.startsWith('hmk-')) {
+							try { await vscode.workspace.fs.delete(vscode.Uri.joinPath(dir, name)); } catch {}
+						}
+					}
+				} catch {}
+			})()
+		`, opts);
+	} catch {
+		// REST unavailable — nothing to clean up.
+	}
+}
+
 /** Undo the last edit in the active editor. */
 export async function restUndo(): Promise<void> {
 	await restCmd('undo');

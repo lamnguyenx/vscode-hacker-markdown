@@ -155,7 +155,7 @@ async function main(): Promise<void> {
 
 	dockedHandle.close();
 	page.close();
-	finish();
+	await finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

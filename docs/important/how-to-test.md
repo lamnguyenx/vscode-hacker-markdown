@@ -53,6 +53,8 @@ without worrying about the topology.
 | `tests/integration/open_view.ts` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
 | `tests/integration/test_preview.ts` | Full functional smoke test — 15 checks under code-server, 21 under dev host (eval-based checks across both; keyboard/palette tests limited under browser CDP) |
 | `tests/integration/cdp_eval.ts` | Evaluate an expression in the webview OOPIF (debugging) |
+| `tests/integration/rest.ts` | REST Control helper (port 47067): arrange/act via the `vscode` API — open/type/save/settings — plus `restCleanup()` used by every `*_ix.ts` suite's `finish()` |
+| `tests/integration/test_utils.ts` | Shared suite runner: `createSuite()` (`check()` + `finish()`; `finish()` auto-runs `restCleanup()`) |
 | `tests/units/plantuml_check.ts` | Pure-logic check of the PlantUML preview rendering (fence rewrite, `!pragma sourceFile` injection, svg/png, newpage, escaping, `!include` — no dev host, no server) |
 | `tests/units/plantuml_inline_check.ts` | Pure-logic check of the PlantUML SVG inlining (img→svg replacement, span copy, graceful failure — stubbed fetcher, no dev host, no server) |
 | `tests/units/mermaid_check.ts` | Pure-logic check of the mermaid source-span rewrite (no dev host) |
@@ -928,17 +930,25 @@ After changing grammar files (`syntaxes/*`) or `package.json#contributes.*`
   its cached tokens** — close and reopen `test.md` (or open the sample in
   section 3d) before asserting highlighting (see 3f);
 
-**The suite is not idempotent.** `test_preview.ts` mutates the dev host
-state as it goes (opens files, creates panels, switches editors), so
+**The legacy smoke suite is not idempotent.** `test_preview.ts` mutates the
+dev host state as it goes (opens files, creates panels, switches editors), so
 re-running it against a live host without a fresh launch produces bogus
 failures (observed: checks 6/7/11 fail with a stray `scrollIntoView`
 TypeError). Always restart the dev host between runs — and before
 troubleshooting a failure, re-run once on a fresh host to rule out
-contamination. It also **dirties tracked fixtures by design**: the live-edit
-check types into `sub.md` and saves it, and any failed palette input leaks
-typed text into the open buffer — `git checkout` the fixtures after a run
+contamination. Historically it also dirtied tracked fixtures by typing and
+saving into `sub.md`; the current version no longer does, but any failed
+palette input can still leak typed text into the open buffer — `git checkout`
+the fixtures after a run if needed
 (`tests/samples/workspace/sub.md`, `tests/samples/workspace/e2e-anchor.md`, any sample file
 you opened).
+
+**The REST-based `*_ix.ts` suites clean up after themselves.** Each one's
+`finish()` runs `restCleanup()` (revert + close every dirty editor, close
+leftover text tabs, delete `/tmp/hmk-*`), so they leave no unsaved files
+behind and can be run back-to-back without re-running `open_view.ts` between
+them (only the temperature of the workbench, not file state, limits batching —
+see [Running multiple integration tests](#running-multiple-integration-tests-against-code-server)).
 
 **The suite is load-sensitive.** Several checks have short windows (cursor
 sync: 8s; save-triggered re-render: 10–20s), and under machine pressure
@@ -1204,11 +1214,23 @@ code-server session** destabilizes the workbench:
 - Each test opens files, dispatches palette commands, creates editor tabs —
   the workbench accumulates state (open tabs, webview panels, cursor
   positions) that is never cleaned up.
+- The REST-based `tests/integration/*_ix.ts` suites **clean up after
+  themselves**: their `finish()` calls `restCleanup()` (see
+  [`tests/integration/rest.ts`](../../tests/integration/rest.ts)), which
+  discards every dirty editor, closes leftover text tabs (keeping webview
+  panels, so the preview survives), and deletes the `/tmp/hmk-*` fixtures.
+  Closing a dirty editor uses `workbench.action.revertAndCloseActiveEditor`
+  because `tabGroups.close(tab, true)` still pops the "Do you want to save?"
+  dialog for a dirty *untitled* doc under code-server.
+- `test_preview.ts` does **not** use `restCleanup()` (it does not import the
+  REST helper) and remains the main source of leftover tabs.
 - After ~6 tests, symptoms include: `connectPreview()` timing out (the
   preview iframe is hidden behind accumulated editor groups), the command
   palette not rendering (`.quick-input-widget` never appears), CDP
   `Runtime.evaluate` calls hanging indefinitely, and the MCP browser tools
   timing out (`Request timed out -32001`).
+- A **stuck "Do you want to save?" dialog blocks everything** — REST evals
+  time out too. Dismiss it (`Don't Save`) in the browser before continuing.
 - The **only reliable recovery** is `docker restart
   vscode-hacker-meta-code-server-1`, wait 15s for the CDP endpoint, open a
   fresh browser tab (`new_page`), close the old one, and re-run
@@ -1220,7 +1242,8 @@ code-server session** destabilizes the workbench:
 2. Between groups of 3–4 tests, restart code-server and re-run
    `open_view.ts`.
 3. After each test, close any editor-area preview tabs it may have created
-   (the test should do this in its cleanup, but verified-clean is better).
+   (`restCleanup()` already handles the `*_ix.ts` suites; verify manually for
+   `test_preview.ts`).
 4. If a test hangs (no output for 60s+), the CDP session is likely dead —
    kill the bun process, restart code-server, start fresh.
 5. For MCP tool calls (chrome-devtools), prefer `evaluate_script` over

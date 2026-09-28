@@ -10,7 +10,7 @@
 //
 // Usage: bun tests/integration/preview_misc_ix.ts [cdp-port]
 import { connectPreview, evalUntil, sleep } from './cdp';
-import { restOpenFile, restEval } from './rest';
+import { restOpenFile } from './rest';
 import { createSuite } from './test_utils';
 
 const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples';
@@ -73,16 +73,12 @@ async function main(): Promise<void> {
 		`before=${scrollBefore} after=${scrollAfter} drift=${drift}px`);
 
 	// -----------------------------------------------------------------------
-	// B12: Empty state — switch active editor to a non-markdown file.
-	// (closeAllEditors hangs if unsaved files prompt for save; opening an
-	// untitled non-markdown doc triggers the preview's empty state cleanly.)
+	// B12: Empty state — switch the active editor to a non-Markdown file.
+	// Use a real file on disk, not an untitled doc: an untitled doc stays
+	// dirty and `tabGroups.close(..., true)` still prompts to save it under
+	// code-server, leaving a modal dialog that blocks the next test.
 	// -----------------------------------------------------------------------
-	await restEval(`
-		(async () => {
-			const doc = await vscode.workspace.openTextDocument({ content: '// not markdown', language: 'json' });
-			await vscode.window.showTextDocument(doc);
-		})()
-	`);
+	await restOpenFile(`${WS}/custom.css`);
 	const emptyVisible = await evalUntil(handle, `!d.querySelector('#empty')?.hidden`, 10000);
 	check('empty state shown when no .md is open', !!emptyVisible);
 
@@ -91,7 +87,7 @@ async function main(): Promise<void> {
 	await sleep(1000);
 
 	handle.close();
-	finish();
+	await finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

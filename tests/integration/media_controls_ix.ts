@@ -125,7 +125,7 @@ async function main(): Promise<void> {
 	await sleep(500);
 
 	handle.close();
-	finish();
+	await finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

@@ -69,7 +69,7 @@ async function main(): Promise<void> {
 	check('--hmk-zoom CSS var is set', !!cssVars.zoom, `value="${cssVars.zoom}"`);
 
 	handle.close();
-	finish();
+	await finish();
 }
 
 main().catch((e: Error) => { console.error('ERR', e.message); process.exit(1); });

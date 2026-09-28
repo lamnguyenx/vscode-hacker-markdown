@@ -16,8 +16,12 @@ export interface CheckResult {
 export interface TestSuite {
 	check: (name: string, ok: boolean, extra?: string, skip?: boolean) => void;
 	results: CheckResult[];
-	/** Print summary, `process.exit(1)` if any non-skipped check failed. */
-	finish: () => void;
+	/**
+	 * Print summary, run best-effort REST cleanup (revert + close every editor,
+	 * delete temp fixtures — see {@link restCleanup}), then `process.exit(1)`
+	 * if any non-skipped check failed. Await it from `main()`.
+	 */
+	finish: () => Promise<void>;
 }
 
 export function createSuite(): TestSuite {
@@ -27,11 +31,17 @@ export function createSuite(): TestSuite {
 		const tag = skip ? 'SKIP' : ok ? 'PASS' : 'FAIL';
 		console.log(`${tag}  ${name}${extra ? '  ' + extra : ''}`);
 	};
-	const finish = (): void => {
+	const finish = async (): Promise<void> => {
 		const failed = results.filter((r) => !r.ok && !r.skip);
 		const skipped = results.filter((r) => r.skip);
 		const passedC = results.length - failed.length - skipped.length;
 		console.log(`\n${passedC}/${results.length} checks passed${skipped.length ? ` (${skipped.length} skipped)` : ''}`);
+		try {
+			const { restCleanup } = await import('./rest');
+			await restCleanup();
+		} catch (e) {
+			console.warn(`WARN: cleanup failed: ${(e as Error).message}`);
+		}
 		process.exit(failed.length ? 1 : 0);
 	};
 	return { check, results, finish };
