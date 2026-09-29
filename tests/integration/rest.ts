@@ -1,10 +1,12 @@
 /**
  * REST API helper for integration tests.
  *
- * Uses `vscode-hacker-rest-control` (port 47067 by default) to execute code in
- * the VS Code extension host via plain HTTP. This replaces fragile CDP keyboard
- * gymnastics (Ctrl+P, palette row clicks, Ctrl+S, Ctrl+G…) with deterministic
- * vscode API calls — works identically under code-server and dev host.
+ * Uses `vscode-hacker-rest-control` to execute code in the extension host via
+ * plain HTTP. The port resolves from the `HACKER_REST_CONTROL_PORT` environment
+ * variable (set in `docker-compose.yml`), with a local fallback. This replaces
+ * fragile CDP keyboard gymnastics (Ctrl+P, palette row clicks, Ctrl+S, Ctrl+G…)
+ * with deterministic vscode API calls — works identically under code-server and
+ * dev host.
  *
  * **Test model:**
  *
@@ -21,12 +23,12 @@
  */
 import * as http from 'node:http';
 
-const DEFAULT_PORT = 47067;
+const DEFAULT_PORT = Number(process.env.HACKER_REST_CONTROL_PORT) || 40620;
 
 const REVIVE_MARKER = '__hmk_rest_revive__';
 
 export interface RestOptions {
-	/** Port the REST Control server is listening on (default 47067). */
+	/** Port the REST Control server is listening on (from `HACKER_REST_CONTROL_PORT`). */
 	port?: number;
 	/** Request timeout in ms (default 30 000). */
 	timeout?: number;
@@ -34,7 +36,7 @@ export interface RestOptions {
 
 let _globalPort: number = DEFAULT_PORT;
 
-/** Set the default port used by all helpers, overriding the 47067 default. */
+/** Set the default port used by all helpers, overriding the environment/default. */
 export function setRestPort(port: number): void {
 	_globalPort = port;
 }
