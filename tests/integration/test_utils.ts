@@ -5,6 +5,37 @@
  * summary and `process.exit`s with the right code — replaces the duplicated
  * boilerplate that was at the top of every test file.
  */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+/**
+ * Absolute path to this extension's checkout **as seen by the extension host**.
+ *
+ * The REST helpers run commands inside the extension host, so fixture paths
+ * passed to `restOpenFile()` must be valid there — which is not necessarily the
+ * same filesystem the test process runs on (code-server runs in a container; a
+ * dev host may run natively on a different machine). Resolution order:
+ *
+ *   1. `HMK_EXT_ROOT` env override (for split runner/host setups where the host
+ *      path cannot be probed from the runner);
+ *   2. the canonical code-server mount `/home/lamnt45/git/vscode-hacker-markdown`
+ *      if it exists locally (Option A);
+ *   3. this repo, derived from the test file location — `tests/integration` →
+ *      repo root (Option B dev host, or a plain checkout such as `_submodules/`).
+ */
+export const EXT_ROOT: string = (() => {
+	const override = process.env.HMK_EXT_ROOT;
+	if (override) return override;
+	const canonical = '/home/lamnt45/git/vscode-hacker-markdown';
+	if (existsSync(join(canonical, 'tests', 'samples'))) return canonical;
+	return join(import.meta.dirname, '..', '..');
+})();
+
+/** Absolute `tests/samples` directory (extension-host view). */
+export const SAMPLES: string = join(EXT_ROOT, 'tests', 'samples');
+
+/** Absolute `tests/samples/workspace` directory (extension-host view). */
+export const WORKSPACE: string = join(SAMPLES, 'workspace');
 
 export interface CheckResult {
 	name: string;

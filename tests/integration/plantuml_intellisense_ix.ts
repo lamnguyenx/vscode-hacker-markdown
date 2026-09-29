@@ -13,9 +13,8 @@
 //
 // Usage: bun tests/integration/plantuml_intellisense_ix.ts [cdp-port]
 import { restOpenFile, restEval } from './rest';
-import { createSuite } from './test_utils';
+import { createSuite, SAMPLES as WS } from './test_utils';
 
-const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples';
 const FIXTURE = `${WS}/enroll-flow.puml.md`;
 
 async function main(): Promise<void> {

@@ -73,6 +73,16 @@ a running environment (code-server or dev host). The [`cdp.ts`](../tests/integra
 shared helper detects the topology (OOPIF vs nested-iframe) automatically and
 adapts `pEval`/`pClick` accordingly.
 
+**Fixture paths (`tests/samples/…`) are resolved, not hardcoded.** The
+`*_ix.ts` suites that open fixtures go through `SAMPLES`/`WORKSPACE` from
+[`tests/integration/test_utils.ts`](../../tests/integration/test_utils.ts),
+which picks the extension root as the extension host sees it: `HMK_EXT_ROOT`
+if set, else the canonical code-server mount
+`/home/lamnt45/git/vscode-hacker-markdown` when it exists, else the checkout
+derived from the test file's own location. Set `HMK_EXT_ROOT=/path/on/host`
+when the runner and the extension host don't share a filesystem (e.g. a
+remote dev host).
+
 ## Prerequisites
 
 - [Bun](https://bun.sh) (runs the TypeScript test suite directly — `bun tests/...`)
@@ -1330,7 +1340,7 @@ To verify: `docker exec <container> curl -s -o /dev/null -w "%{http_code}"
 http://localhost:9274/svg/SoWkIImgAStDuNBAJrBGjLDmpCbCJbMmLRtS51Gg00`
 — should be `200`.
 
-
+### Mermaid extension highlight override (code-server)
 
 The `mermaidchart.vscode-mermaid-chart` extension (and similar mermaid
 extensions) override `options.highlight` on the markdown-it instance via

@@ -13,9 +13,7 @@
 // Usage: bun tests/integration/custom_styles_ix.ts [cdp-port]
 import { connectPreview, evalUntil } from './cdp';
 import { restOpenFile } from './rest';
-import { createSuite } from './test_utils';
-
-const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples/workspace';
+import { createSuite, WORKSPACE as WS } from './test_utils';
 
 async function main(): Promise<void> {
 	const port = process.env.CDP_PORT || process.argv[2] || '9024';

@@ -10,9 +10,8 @@
 // Usage: bun tests/integration/plantuml_render_check.ts [cdp-port]
 import { connectPreview, evalUntil, sleep } from './cdp';
 import { restOpenFile, restCmd } from './rest';
-import { createSuite } from './test_utils';
+import { createSuite, WORKSPACE as WS } from './test_utils';
 
-const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples/workspace';
 const FIXTURE = `${WS}/plantuml-render.md`;
 
 const FENCE1 = { from: '4', to: '9' };

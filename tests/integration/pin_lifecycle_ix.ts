@@ -10,9 +10,7 @@
 // Usage: bun tests/integration/pin_lifecycle_ix.ts [cdp-port]
 import { connectPreview, evalUntil, sleep } from './cdp';
 import { restOpenFile, restEval } from './rest';
-import { createSuite } from './test_utils';
-
-const WS = '/home/lamnt45/git/vscode-hacker-markdown/tests/samples/workspace';
+import { createSuite, WORKSPACE as WS } from './test_utils';
 
 async function main(): Promise<void> {
 	const port = process.env.CDP_PORT || process.argv[2] || '9024';
