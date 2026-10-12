@@ -6,6 +6,7 @@
 //
 // Usage: bun tests/integration/test_preview.ts [port]
 import { connectPreview, evalUntil, getTargets, openCdpSession, sleep, type CdpSession } from './cdp';
+import { restEval } from './rest';
 
 async function openTestMd(page: CdpSession): Promise<void> {
 	// If no markdown file is open (fresh workspace), open test.md via the
@@ -172,6 +173,19 @@ async function main(): Promise<void> {
 				await pageCursor.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
 				await pageCursor.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
 				await sleep(300);
+				// The preview webview panel can hold focus, and webview panels
+				// are not text editors — `activeTextEditor` is then undefined and
+				// the CDP keyboard path below never reaches the editor. Activate
+				// the visible text editor through the API to guarantee it.
+				await restEval(
+					`(async () => {
+						const e = vscode.window.visibleTextEditors[0];
+						if (!e) return false;
+						await vscode.window.showTextDocument(e.document, { preview: false, preserveFocus: false });
+						return !!vscode.window.activeTextEditor;
+					})()`
+				).catch(() => undefined);
+				await sleep(200);
 				return true;
 			}
 			await sleep(1000);

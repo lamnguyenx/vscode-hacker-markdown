@@ -39,14 +39,22 @@ export function snapshotStaleBlocks(): StaleBlock[] {
 			// Mermaid's own library handles its re-render lifecycle (it does
 			// `replaceWith` on the wrapper + re-renders into the new node), and
 			// the positional keying here is broken for it: the rendered
-			// `.mermaid-wrapper` loses `data-line` so it lands in an anonymous
-			// gap slot, but the new fragment's `<pre class="mermaid">` keeps
-			// `data-line` (engine source map) so it is NOT a gap block — the
-			// old wrapper then pairs with a sibling SPAN at the same gap slot,
-			// wraps it in a holder, and waits 8 s for an SVG that never lands
-			// inside it (leaving a persistent "Re-rendering…" badge + blank
-			// space). The anchor guard covers the scroll position for mermaid.
-			if (child.closest('.mermaid-wrapper')) {
+			// wrapper loses `data-line` so it lands in an anonymous gap slot,
+			// but the new fragment's mermaid fence keeps `data-line` (engine
+			// source map) so it is NOT a gap block — the old wrapper then pairs
+			// with a sibling SPAN at the same gap slot, wraps it in a holder,
+			// and waits 8 s for an SVG that never lands inside it (leaving a
+			// persistent "Re-rendering…" badge + blank space). The anchor guard
+			// covers the scroll position for mermaid.
+			//
+			// Match every renderer and both spellings of the block: the
+			// dev-host `.mermaid-wrapper`, and the code-server `.mermaid-chart`
+			// / `#markdown-mermaid` (bierner / MermaidChart). The code-server
+			// chart sits *inside* a `<pre class="…">` (`pre > div.mermaid-chart
+			// > … > svg`), so the block is the `pre` — a `closest()`-only check
+			// misses it; also test descendants.
+			const MERMAID_SEL = '.mermaid-wrapper, .mermaid-chart, #markdown-mermaid';
+			if (child.closest(MERMAID_SEL) || child.querySelector(MERMAID_SEL)) {
 				continue;
 			}
 			// rect height (not offsetHeight): renderer placeholders are

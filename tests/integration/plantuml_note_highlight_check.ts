@@ -21,7 +21,13 @@ interface Sample {
 
 async function run(port: number): Promise<void> {
 	const targets = await getTargets(port);
-	const page = targets.find((t) => t.type === 'page' && ((t.url || '').startsWith('vscode-file') || (t.url || '').includes('localhost')));
+	// The workbench tab URL depends on the topology: a dev host serves
+	// `vscode-file://…`, code-server an http(s) origin that may be `localhost`
+	// or a remote/tailnet host. Prefer a recognizable workbench URL, else fall
+	// back to the sole `page` target.
+	const page =
+		targets.find((t) => t.type === 'page' && /vscode-file|localhost|code-server|:\d+/.test(t.url || '')) ??
+		targets.find((t) => t.type === 'page');
 	if (!page) throw new Error(`no workbench page target on port ${port}`);
 	const ws = new WebSocket(page.webSocketDebuggerUrl);
 	let id = 0;

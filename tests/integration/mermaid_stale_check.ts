@@ -23,14 +23,25 @@ async function run(port: number): Promise<void> {
 	}
 
 	// 1. Verify a mermaid diagram is present. (Under code-server the "d" here
-	//    is the preview document.)
+	//    is the preview document.) The render is async — a contributed preview
+	//    script replaces the fence after the fragment lands — so poll first;
+	//    a fast check otherwise races the render. Match every renderer: the
+	//    dev-host `.mermaid-wrapper` and the code-server `.mermaid-chart`
+	//    (bierner) / `span#markdown-mermaid` variants.
+	const hasDiagram = `!!d.querySelector('.mermaid-wrapper, pre.mermaid, .mermaid, .mermaid-chart, span#markdown-mermaid')`;
+	for (let i = 0; i < 60; i++) {
+		if (await handle.pEval(hasDiagram)) break;
+		await sleep(300);
+	}
+
 	const info = await handle.pEval(`(() => {
 		const wrapper = d.querySelector('.mermaid-wrapper');
 		const mermaidPre = d.querySelector('pre.mermaid, .mermaid');
+		const mermaidChart = d.querySelector('.mermaid-chart, span#markdown-mermaid');
 		const refreshBtn = d.querySelector('.toolbar-button[data-command="refresh"]');
 		return {
 			docName: (d.querySelector('.doc-name') || {}).textContent || '',
-			hasMermaid: !!(wrapper || mermaidPre),
+			hasMermaid: !!(wrapper || mermaidPre || mermaidChart),
 			hasWrapper: !!wrapper,
 			hasRefresh: !!refreshBtn,
 			childTags: Array.from(d.getElementById('preview').children).map(c => c.tagName + (c.className ? '.' + String(c.className).split(' ')[0] : ''))
@@ -62,7 +73,7 @@ async function run(port: number): Promise<void> {
 			const t0 = performance.now();
 			const poll = () => {
 				const holder = preview.querySelector('.hmk-stale-holder, .hmk-stale');
-				const svg = preview.querySelector('.mermaid-wrapper svg, .mermaid svg');
+				const svg = preview.querySelector('.mermaid-wrapper svg, .mermaid svg, .mermaid-chart svg, #markdown-mermaid svg');
 				samples.push({ t: Math.round(performance.now() - t0), h: holder ? 1 : 0, svg: svg ? 1 : 0 });
 				if (performance.now() - t0 < 3000) { setTimeout(poll, 10); }
 				else { d.defaultView.__staleResults = samples; }

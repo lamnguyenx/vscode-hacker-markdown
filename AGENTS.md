@@ -41,6 +41,31 @@ bun tests/integration/test_preview.ts 9024   # 16/21 checks under code-server (k
                                              # palette/open/save tests limited in browser)
 ```
 
+The meta repo's `docs/important/how-to-test-all.md` is the fuller playbook
+(trust/Restricted Mode, the REST control endpoint, install/restart hygiene).
+Gotchas that bite in this environment:
+
+- **Install into the Docker code-server from the meta repo root** with
+  `make install-code-server` (`local/install-code-server.sh`) — the container
+  loads extensions from the mounted `exp/code-server/...` profile, which the
+  host `code-server` CLI never touches. Reload the window **once** afterwards.
+- **Restricted Mode silently disables the extension.** The harness code-server
+  runs with `--disable-workspace-trust` (see the meta `docker-compose.yml`), so
+  workspace trust does not disable extensions there. Against a code-server
+  without that flag, trust the workspace — otherwise the extension gets no
+  commands and never binds its port (40620).
+- **Prefer the REST control extension over CDP palette clicking** to open
+  files/views: it listens on `HACKER_REST_CONTROL_PORT` (default 40620) and is
+  deterministic (`custom.eval`, `vscode.open`, …). See
+  `_submodules/vscode-hacker-rest-control/`.
+- **Repeated reloads leave orphaned extension hosts** (3h reconnection grace)
+  squatting the REST port; prefer a single reload or `hotload code-server`.
+- **`tests/integration/*_ix.ts` / `*_check.ts` are standalone probes, not one
+  suite.** Each assumes the preview is already open and its fixture is the
+  *active* editor; run `bun tests/integration/open_view.ts <port>` before each.
+  Running several back-to-back without re-opening the preview yields spurious
+  `NO_PREVIEW` / wrong-document failures.
+
 **Option B — Extension Development Host (local VS Code, port 9335):**
 
 ```bash
