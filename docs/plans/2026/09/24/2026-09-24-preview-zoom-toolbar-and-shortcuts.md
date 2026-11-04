@@ -4,7 +4,7 @@
 **Status:** DONE (verified on the dev host and on code-server via pp's CDP browser)
 **Files edited:** `package.json`, `src/previewHost.ts`, `src/previewManager.ts`,
 `src/webview/{types,main,menus}.ts`, `src/media/{media,main}.css`, `README.md`,
-`docs/important/{features,architecture,how-to-test}.md`
+`docs/important/features/features.md, docs/important/internals/architecture.md, docs/important/testing/how-to-test.md`
 
 ## Goal
 
@@ -125,7 +125,7 @@ Why zoom is the better primitive:
 ### code-server (Option A) on pp — the pipeline that just worked
 
 Once the environment existed (see
-`/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md`),
+`/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-env/dev-code-on-nuc-test-on-pp.md`),
 driving a real browser beat raw CDP on the dev host hands down: real user
 extensions, trusted clicks/keystrokes via MCP tools, screenshots. Gotchas
 that cost time the first time:

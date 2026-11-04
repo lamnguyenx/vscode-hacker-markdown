@@ -10,7 +10,7 @@ clamped)
 **Files edited:** `src/plantuml/fences.ts`, `src/previewManager.ts`,
 `src/webview/{types,cursor,source,main,stale,frames}.ts`, `src/media/main.css`,
 `tests/units/plantuml_check.cjs`,
-`docs/important/{architecture,editor-preview-sync,how-to-test}.md`
+`docs/important/internals/architecture.md, docs/important/internals/editor-preview-sync.md, docs/important/testing/how-to-test.md`
 
 ## Goal
 

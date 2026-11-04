@@ -7,7 +7,7 @@ built-in with it off, the editor panel survives window reloads and moves to a
 new window)
 **Files edited:** `package.json`, `src/extension.ts`, `src/previewManager.ts`,
 `src/previewHost.ts`, `src/webview/{types,main}.ts`,
-`docs/important/architecture.md`
+`docs/important/internals/architecture.md`
 
 ## Goal
 

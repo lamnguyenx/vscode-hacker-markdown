@@ -225,7 +225,7 @@ Captured live via CDP on the 9334 dev host (`--with-extensions`,
 | `syntaxes/plantuml.yaml-tmLanguage` | New `#SaltBlock` repository (cosmetic, scopes `{{salt … }}` braces and labels); referenced from `#General` and the `multi-line note of over` body. |
 | `syntaxes/plantuml.tmLanguage.json` | Rebuilt from YAML via `npm run build:syntax`. |
 | `tests/integration/plantuml_note_highlight_check.cjs` | New CDP regression test (added during diagnosis; useful for catching future Volar-vs-plantuml regressions). |
-| `docs/important/how-to-test.md` | New row in the quick-reference table for the new test; a note in §3f explaining the Volar/SALT interaction. |
+| `docs/important/testing/how-to-test.md` | New row in the quick-reference table for the new test; a note in §3f explaining the Volar/SALT interaction. |
 
 ## Reproduction (for the historical record)
 

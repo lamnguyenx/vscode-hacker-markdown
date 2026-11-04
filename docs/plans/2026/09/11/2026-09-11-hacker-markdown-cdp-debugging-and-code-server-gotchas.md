@@ -142,4 +142,4 @@ To force a fresh webview in code-server:
 
 (Refer to `git log` for the full diff — the key files are
 `src/media/markdown.css`, `src/media/media.css`, `src/previewHost.ts`,
-`src/plantuml/fences.ts`, `package.json`, and `docs/important/how-to-test.md`.)
+`src/plantuml/fences.ts`, `package.json`, and `docs/important/testing/how-to-test.md`.)

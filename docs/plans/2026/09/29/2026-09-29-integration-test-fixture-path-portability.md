@@ -5,7 +5,7 @@
 `_submodules/` checkout and the canonical mount)
 **Files edited:** `tests/integration/test_utils.ts`,
 `tests/integration/{custom_styles,editor_preview,link_nav,pin_lifecycle,plantuml_intellisense,plantuml_render_check,preview_misc}_ix.ts`,
-`docs/important/how-to-test.md`
+`docs/important/testing/how-to-test.md`
 
 ## Context
 
@@ -83,7 +83,7 @@ existing `WS` name, so no call sites changed:
 | `plantuml_intellisense_ix.ts` | `SAMPLES as WS` | `…/tests/samples` |
 | `preview_misc_ix.ts` | `SAMPLES as WS` | `…/tests/samples` |
 
-Documented the new knob in `docs/important/how-to-test.md` (intro, after the
+Documented the new knob in `docs/important/testing/how-to-test.md` (intro, after the
 `cdp.ts` description): fixture paths are resolved, and `HMK_EXT_ROOT` should be
 set when runner and extension host don't share a filesystem.
 
@@ -120,7 +120,7 @@ to the canonical mount (the code-server case). Every referenced fixture exists
 ## Diff summary (working tree)
 
 ```
-docs/important/how-to-test.md                 | 12 ++++++++++-
+docs/important/testing/how-to-test.md                 | 12 ++++++++++-
 tests/integration/custom_styles_ix.ts         |  4 +---
 tests/integration/editor_preview_ix.ts        |  4 +---
 tests/integration/link_nav_ix.ts              |  4 +---

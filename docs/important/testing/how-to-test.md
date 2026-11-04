@@ -1,8 +1,8 @@
 # How to Test This Extension
 
 > **General rules live in the meta repo** —
-> [`how-to-test-all.md`](../../../../docs/important/how-to-test-all.md)
-> (`/home/lamnt45/git/vscode-hacker-meta/docs/important/how-to-test-all.md`):
+> [`how-to-test-all.md`](../../../../../docs/important/testing/how-to-test-all.md)
+> (`/home/lamnt45/git/vscode-hacker-meta/docs/important/testing/how-to-test-all.md`):
 > environment choice, the REST-vs-CDP test model, determinism, state hygiene,
 > port/path pinning, cache-busting, A/B isolation, and flakiness guidance.
 > **Read it first.** This document keeps only what is specific to *hacker
@@ -11,22 +11,22 @@
 The extension has a webview UI, so it runs inside an out-of-process iframe
 (OOPIF) in a dev host, or a nest of same-page iframes under code-server. Two
 environments: **A — code-server in Docker (preferred; environment documented in
-`/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md`)**
+`/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-env/dev-code-on-nuc-test-on-pp.md`)**
 and **B — local dev host** (section 1). **Agents: ask the user which; default
 to A.**
 
 For the generalized "why is the tool doing this" knowledge (scroll-event
 timing, monaco virtualization, CDP keybinding flags, …), see
-[`docs/important/quirks.md`](quirks.md). For how the extension is wired up
+[`docs/important/internals/quirks.md`](../internals/quirks.md). For how the extension is wired up
 (source layout, rendering pipeline, pan/zoom frames, image `src` rewriting)
-see [`docs/important/architecture.md`](architecture.md). If you work over
-Remote-SSH, read [`native-vs-remote-ssh-vscode.md`](native-vs-remote-ssh-vscode.md)
+see [`docs/important/internals/architecture.md`](../internals/architecture.md). If you work over
+Remote-SSH, read [`native-vs-remote-ssh-vscode.md`](../install/native-vs-remote-ssh-vscode.md)
 first — the dev host must run the **native** desktop VS Code, not the
 remote CLI `code` on PATH.
 
-Test scripts live in [`tests/units/`](../../tests/units/), [`tests/integration/`](../../tests/integration/), [`tests/samples/`](../../tests/samples/) and [`tools/`](../../tools/):
+Test scripts live in [`tests/units/`](../../../tests/units), [`tests/integration/`](../../../tests/integration), [`tests/samples/`](../../../tests/samples) and [`tools/`](../../../tools):
 
-[`tests/integration/cdp.ts`](../../tests/integration/cdp.ts) is a shared CDP
+[`tests/integration/cdp.ts`](../../../tests/integration/cdp.ts) is a shared CDP
 helper supporting **both** OOPIF (dev host) and nested-iframe (code-server)
 topologies automatically. Connect via `connectPreview()` and use `pEval`/`pClick`
 without worrying about the topology.
@@ -55,13 +55,13 @@ without worrying about the topology.
 All tests are TypeScript and run with **bun**. The pure-logic unit checks
 import `src/**/*.ts` directly — no compile step needed. The CDP integration
 checks also run with bun but need a compiled extension (`npm run compile`) and
-a running environment (code-server or dev host). The [`cdp.ts`](../../tests/integration/cdp.ts)
+a running environment (code-server or dev host). The [`cdp.ts`](../../../tests/integration/cdp.ts)
 shared helper detects the topology (OOPIF vs nested-iframe) automatically and
 adapts `pEval`/`pClick` accordingly.
 
 **Fixture paths (`tests/samples/…`) are resolved, not hardcoded.** The
 `*_ix.ts` suites that open fixtures go through `SAMPLES`/`WORKSPACE` from
-[`tests/integration/test_utils.ts`](../../tests/integration/test_utils.ts),
+[`tests/integration/test_utils.ts`](../../../tests/integration/test_utils.ts),
 which picks the extension root as the extension host sees it: `HMK_EXT_ROOT`
 if set, else the canonical code-server mount
 `/home/lamnt45/git/vscode-hacker-markdown` when it exists, else the checkout
@@ -77,7 +77,7 @@ remote dev host).
   bundles `src/webview/**` → `build/index.js`) — only needed for the CDP tests
   and the extension itself, not for the pure-logic unit checks
 - **Option A only:** the code-server stack up —
-  `/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md`
+  `/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-env/dev-code-on-nuc-test-on-pp.md`
 - **Option B only:** a local build of VS Code on the `code` CLI
 
 ## Option A: code-server in Docker (preferred)
@@ -86,7 +86,7 @@ Everything about the environment — topology, ssh tunnels, docker compose,
 TLS certificate, login, browser launch, restart (`hotload`), gotchas — is
 documented **once**, in the meta repo:
 
-> **`/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md`**
+> **`/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-env/dev-code-on-nuc-test-on-pp.md`**
 > (*Dev on nuc, test on pp*). Read it first. This section covers only what
 > is specific to *this* extension: the install, the workspace URL, and how
 > to reach the preview webview DOM.
@@ -146,7 +146,7 @@ The inner document is the same DOM the dev-host tests see: `.toolbar`,
 ### Trade-offs vs the dev host (Option B)
 
 The general comparison is in
-[`how-to-test-all.md` §1](../../../../docs/important/how-to-test-all.md). The
+[`how-to-test-all.md` §1](../../../../../docs/important/testing/how-to-test-all.md). The
 trap that bites here: `hackerMarkdown.media.*` and other Global-scope settings
 persist in the mounted `…/code-server/User/settings.json` — before testing
 settings, `grep hackerMarkdown` there and clean stale keys. Browser-reserved
@@ -161,7 +161,7 @@ few palette-keyboard tests remain dev-host specific.
 The extension is not loaded in a normal VS Code window. `vscode_cdp` /
 `vscode_cdp_kill` mechanics, the `--disable-extensions` default, the
 `editContext` trap, and the Linux notes are generalized in
-[`how-to-test-all.md` §1](../../../../docs/important/how-to-test-all.md). The
+[`how-to-test-all.md` §1](../../../../../docs/important/testing/how-to-test-all.md). The
 profile and fixtures are this repo's:
 
 ```sh
@@ -194,7 +194,7 @@ or run `Hacker Markdown: Open` / `Hacker Markdown: Open Preview in Editor` /
 The general fresh-profile prep (dismiss the onboarding overlay, toggle the panel
 until the container switcher materializes, click the view tab, wait for the
 webview target) is in
-[`how-to-test-all.md` §1](../../../../docs/important/how-to-test-all.md). For
+[`how-to-test-all.md` §1](../../../../../docs/important/testing/how-to-test-all.md). For
 this extension the one-shot script is:
 
 ```sh
@@ -420,7 +420,7 @@ same behavior on `test.md`'s `<p>`-wrapped image.
 
 `puml` / `plantuml` / `uml` fences render as PlantUML-server SVG images
 **without** `jebbs.plantuml` (see `docs/plans/2026/08/04/2026-08-04-plantuml-markdown-preview-rendering.md`
-and `docs/important/architecture.md`). The rewrite happens extension-side on
+and `docs/important/internals/architecture.md`). The rewrite happens extension-side on
 the fragment returned by `markdown.api.render`, so the stock preview is
 unaffected. The rendering core (`src/plantuml/{fences,diagram,type,plantumlURL,include}.ts`)
 is pure (no `vscode` import) and is unit-checked against the real shipped code
@@ -757,7 +757,7 @@ last column is reachable by scrolling. It also checks the fit-mode fallback at
 the table must become its own scroll region instead of being clipped. The suite
 leaves the column-width setting untouched. Full write-up (root cause, rejected
 variants, measurements):
-[2026-11-04-narrow-preview-wide-tables.md](../plans/2026/11/04/2026-11-04-narrow-preview-wide-tables.md).
+[2026-11-04-narrow-preview-wide-tables.md](../../plans/2026/11/04/2026-11-04-narrow-preview-wide-tables.md).
 
 ## 3j. Ctrl/Cmd+Shift+V override & cross-window placement
 
@@ -793,7 +793,7 @@ Two placement/shortcut features worth an explicit check:
 ## 4. Reading the VS Code Logs
 
 The general logging rule is in
-[`how-to-test-all.md` §10](../../../../docs/important/how-to-test-all.md).
+[`how-to-test-all.md` §10](../../../../../docs/important/testing/how-to-test-all.md).
 Specific to this extension, `exp/devhost/logs/<timestamp>/window1/exthost/exthost.log`
 records extension activation, including the built-in markdown engine:
 
@@ -860,7 +860,7 @@ typed text into the open buffer, so `git checkout` the fixtures
 needed. The REST `*_ix.ts` suites clean up after themselves (`restCleanup()`),
 so they can be batched without re-running `open_view.ts` between them. General
 guidance (idempotency, batch limits, load sensitivity, session restore) is in
-[`how-to-test-all.md` §7/§12](../../../../docs/important/how-to-test-all.md).
+[`how-to-test-all.md` §7/§12](../../../../../docs/important/testing/how-to-test-all.md).
 
 **`make install` skips an unchanged version — bump it to reinstall.** The
 install here delegates to `vscode-hacker-meta`, which leaves an already-installed
@@ -879,7 +879,7 @@ vsix `extension/*` into
 | --- | --- |
 | Pick an environment (agents: **ask the user first**) | **A** = code-server in Docker (preferred) · **B** = dev host — general rules in the meta repo's `how-to-test-all.md` |
 | Restart code-server after a rebuild (Option A) | `npm run compile` here → `hotload code-server` from the meta repo (symlink install is one-time) |
-| code-server workspace / CDP endpoint (Option A) | browser: `https://localhost:9620/?folder=/home/lamnt45/git/vscode-hacker-markdown` · CDP: `http://localhost:9024` — environment in `/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-code-on-nuc-test-on-pp.md` |
+| code-server workspace / CDP endpoint (Option A) | browser: `https://localhost:9620/?folder=/home/lamnt45/git/vscode-hacker-markdown` · CDP: `http://localhost:9024` — environment in `/home/lamnt45/git/vscode-hacker-meta/docs/important/dev-env/dev-code-on-nuc-test-on-pp.md` |
 | Start dev host (port $CHROME_CDP_PORT$) | `vscode_cdp` (flags: `--port`, `--profile`, `--file`, `--with-extensions`, `--ext`, `--no-ext`; default: all extensions disabled; Linux: requires native `code` on PATH, `$DISPLAY` set) |
 | Stop dev host | `vscode_cdp_kill [port]` (graceful SIGTERM; no "Reopen?" dialog) |
 | List CDP targets | `curl -s http://127.0.0.1:$CHROME_CDP_PORT$/json/list` |
@@ -1037,7 +1037,7 @@ Extension-host caching / version-bumped reinstalls, extension-host logging, VLM
 screenshots, batch-test limits, `Ctrl+S` interception,
 `connectPreview()`-returns-first, lazily-rendered webview tabs, and the
 `bun -e` quoting trap are all consolidated in
-[`how-to-test-all.md`](../../../../docs/important/how-to-test-all.md)
+[`how-to-test-all.md`](../../../../../docs/important/testing/how-to-test-all.md)
 (§3, §4, §7, §9, §10, §14).
 
 **Two things specific to this extension:**
@@ -1055,7 +1055,7 @@ screenshots, batch-test limits, `Ctrl+S` interception,
 General rule: the **extension host** (not the browser) is what fetches the
 server, so a host-loopback-bound server is unreachable from a bridged
 container — see
-[`how-to-test-all.md` §8](../../../../docs/important/how-to-test-all.md). Here
+[`how-to-test-all.md` §8](../../../../../docs/important/testing/how-to-test-all.md). Here
 that shows up **silently** as diagrams rendering as `<img>` but never inlining
 to `<svg>` (so SALT cursor highlight and click-to-source quietly break). Verify
 from inside the container:

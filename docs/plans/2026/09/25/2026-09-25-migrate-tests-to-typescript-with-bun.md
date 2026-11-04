@@ -53,7 +53,7 @@ Goals:
 | `src/plantuml/invocations.ts`, `inlineSvg.ts`, `fences.ts` | Updated stale test-path comments |
 | `src/mermaid/fences.ts` | Updated stale test-path comment |
 | `src/completions/fences.ts`, `words.ts` | Updated stale test-path comment |
-| `docs/important/how-to-test.md` | Bulk-replaced `.cjs` → `.ts`, `node tests/` → `bun tests/`, removed `npm run compile` from unit-check snippets, updated quick-reference table |
+| `docs/important/testing/how-to-test.md` | Bulk-replaced `.cjs` → `.ts`, `node tests/` → `bun tests/`, removed `npm run compile` from unit-check snippets, updated quick-reference table |
 
 ## Architecture of `tests/integration/cdp.ts`
 

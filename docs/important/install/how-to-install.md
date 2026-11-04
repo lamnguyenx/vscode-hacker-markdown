@@ -4,7 +4,7 @@ How to build this extension from source and load it into VS Code, and how to
 keep the copy VS Code actually runs in sync with your edits. For launching the
 *development host* (the separate, debug-port instance used by the test
 pipeline) instead, see
-[`docs/important/how-to-test.md`](how-to-test.md#1-launch-the-extension-development-host).
+[`docs/important/testing/how-to-test.md`](../testing/how-to-test.md#1-launch-the-extension-development-host).
 
 ## 1. Build and install
 
@@ -195,6 +195,6 @@ edits to appear. Extension-host edits (`src/*.ts`) always need the reload.
   `renderer.log`: `grep "Unable to load and parse grammar" …/window*/renderer.log`.
 
 For how the extension and its webview behave once it is running, see
-[`docs/important/architecture.md`](architecture.md) and
-[`docs/important/quirks.md`](quirks.md). Back to the
-[`README`](../../README.md).
+[`docs/important/internals/architecture.md`](../internals/architecture.md) and
+[`docs/important/internals/quirks.md`](../internals/quirks.md). Back to the
+[`README`](../../../README.md).

@@ -11,7 +11,7 @@ is narrow; seems that in that case table will lose some text".
 **Files edited:** `src/media/media.css`, `package.json` (version),
 `tests/integration/cdp.ts`, `tests/integration/open_view.ts`,
 `tests/integration/test_preview.ts`, `tests/integration/editor_preview_ix.ts`,
-`README.md`, `docs/important/{architecture,all-features,how-to-test,quirks}.md`
+`README.md`, `docs/important/internals/architecture.md, docs/important/features/all-features.md, docs/important/testing/how-to-test.md, docs/important/internals/quirks.md`
 
 ## Goal
 

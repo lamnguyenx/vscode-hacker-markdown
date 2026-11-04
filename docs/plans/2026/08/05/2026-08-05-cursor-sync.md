@@ -6,7 +6,7 @@
 **Files edited:** `package.json`, `src/webview/{types,main}.ts`, `src/previewHost.ts`,
 `src/previewManager.ts`, `src/plantuml/fences.ts`, `src/media/main.css`,
 `tests/units/plantuml_check.cjs` + `tests/integration/test_preview.cjs`,
-`docs/important/{architecture,how-to-test}.md`
+`docs/important/internals/architecture.md, docs/important/testing/how-to-test.md`
 
 ## Goal
 

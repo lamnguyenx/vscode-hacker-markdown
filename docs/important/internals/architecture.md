@@ -53,7 +53,7 @@ details underneath the feature list, and the product limitations.
     a hard floor) becomes its own scroll region instead of being clipped. Pan
     mode keeps tokens intact and scrolls instead. Covered by
     `tests/integration/narrow_table_ix.ts`; full write-up in
-    [2026-11-04-narrow-preview-wide-tables.md](../plans/2026/11/04/2026-11-04-narrow-preview-wide-tables.md).
+    [2026-11-04-narrow-preview-wide-tables.md](../../plans/2026/11/04/2026-11-04-narrow-preview-wide-tables.md).
   - **Column width** input (any CSS length, e.g. `700px`, `45vw`): emitted as
     `--hmk-column-width` on the `<html>` element (same spot as the
     `markdown.preview` font overrides); the webview applies it live while
@@ -252,7 +252,7 @@ details underneath the feature list, and the product limitations.
   (`hackerMarkdown.clickToSource`, default on): clicking a rendered block in
   the preview moves the editor cursor to the matching source line — a salt
   mockup selects the exact source range that produced it (see
-  `docs/important/editor-preview-sync.md`).
+  `docs/important/internals/editor-preview-sync.md`).
 - **Clickable links.** Internal links open in the editor (and re-target the
   preview), external links open in the system browser, `#fragment` links
   scroll within the preview.
@@ -299,6 +299,6 @@ details underneath the feature list, and the product limitations.
   cursor does not scroll unless `scrollPreviewWithEditor` is also on.
 
 For how these internals interact with the test pipeline, see
-[`docs/important/how-to-test.md`](how-to-test.md); for generalized tool and
-webview behavior, see [`docs/important/quirks.md`](quirks.md). Back to the
-[`README`](../../README.md).
+[`docs/important/testing/how-to-test.md`](../testing/how-to-test.md); for generalized tool and
+webview behavior, see [`docs/important/internals/quirks.md`](quirks.md). Back to the
+[`README`](../../../README.md).

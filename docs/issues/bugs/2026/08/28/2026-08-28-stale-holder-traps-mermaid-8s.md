@@ -3,7 +3,7 @@
 **Status:** CLOSED (fixed 2026-08-28)
 **Affected:** `src/webview/stale.ts` (webview bundle → `build/index.js`)
 **Severity:** high (every mermaid refresh showed an 8-second "Re-rendering…" badge with blank whitespace around the wrong element, making the preview feel frozen despite the actual render taking ~40ms)
-**Regression test:** [`tests/integration/mermaid_stale_check.cjs`](../../../tests/integration/mermaid_stale_check.cjs)
+**Regression test:** [`tests/integration/mermaid_stale_check.ts`](../../../../../../tests/integration/mermaid_stale_check.ts)
 
 ## Summary
 
@@ -146,5 +146,5 @@ the bug was purely the webview-side stale keeper, not the host pipeline.
 - [`docs/issues/bugs/2026/08/18/2026-08-18-stale-holder-traps-inlined-svg-8s-frame-lost.md`](../18/2026-08-18-stale-holder-traps-inlined-svg-8s-frame-lost.md)
   — the sibling bug for inlined PlantUML SVGs (same 8s symptom, different
   cause: `holdPlaceholderHeight` waiting on already-rendered content).
-- [`docs/plans/2026/08/28/2026-08-28-distinct-invert-per-svg-source.md`](../../../plans/2026/08/28/2026-08-28-distinct-invert-per-svg-source.md)
+- [`docs/plans/2026/08/28/2026-08-28-distinct-invert-per-svg-source.md`](../../../../../plans/2026/08/28/2026-08-28-distinct-invert-per-svg-source.md)
   — same-day change that touches the same mermaid/PlantUML distinction in CSS.

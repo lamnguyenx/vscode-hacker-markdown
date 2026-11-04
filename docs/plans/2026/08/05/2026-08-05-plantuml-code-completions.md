@@ -4,7 +4,7 @@
 **Status:** DONE (verified: `npm run compile` + `node tests/units/plantuml_completion_check.cjs`)
 **Source:** `_refs/vscode-plantuml/src/plantuml/intellisense/languageCompletion/predefined.ts` (MIT (c) jebbs) — the static keyword catalog, ported (not the `-language` jar path).
 **Files added:** `src/completions/{words,fences,provider}.ts`, `tests/units/plantuml_completion_check.cjs`
-**Files edited:** `src/extension.ts`, `package.json`, `docs/important/{architecture,how-to-test,quirks}.md`
+**Files edited:** `src/extension.ts`, `package.json`, `docs/important/internals/architecture.md, docs/important/testing/how-to-test.md, docs/important/internals/quirks.md`
 
 ## Goal
 

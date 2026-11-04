@@ -7,8 +7,8 @@ behaviors of the tools, not bugs in this extension — each entry says what the
 quirk is, why it bites, and the workaround.
 
 For the pipeline itself, see
-[`docs/important/how-to-test.md`](how-to-test.md); for the code layout and
-limitations, see [`docs/important/architecture.md`](architecture.md).
+[`docs/important/testing/how-to-test.md`](../testing/how-to-test.md); for the code layout and
+limitations, see [`docs/important/internals/architecture.md`](architecture.md).
 
 ## Chromium scroll behavior
 

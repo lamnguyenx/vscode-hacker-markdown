@@ -41,7 +41,7 @@ bun tests/integration/test_preview.ts 9024   # 16/21 checks under code-server (k
                                              # palette/open/save tests limited in browser)
 ```
 
-The meta repo's `docs/important/how-to-test-all.md` is the fuller playbook
+The meta repo's `docs/important/testing/how-to-test-all.md` is the fuller playbook
 (trust/Restricted Mode, the REST control endpoint, install/restart hygiene).
 Gotchas that bite in this environment:
 
@@ -91,7 +91,7 @@ Caveats vs. the previous in-repo scripts: it does NOT restore the previously
 active app/window (the dev host steals focus on launch), does NOT locate the
 native desktop binary on Linux (the `code` on PATH must already be the native
 desktop build, not the Remote-SSH / vscode-server CLI wrapper — see
-`docs/important/native-vs-remote-ssh-vscode.md`), and does NOT auto-probe X
+`docs/important/install/native-vs-remote-ssh-vscode.md`), and does NOT auto-probe X
 displays on Linux (`$DISPLAY` must be set, or run under `xvfb-run`).
 
-See `docs/important/how-to-test.md` for the full pipeline and gotchas.
+See `docs/important/testing/how-to-test.md` for the full pipeline and gotchas.

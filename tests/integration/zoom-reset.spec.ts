@@ -15,8 +15,8 @@ import { test, expect, chromium, type FrameLocator, type Page } from '@playwrigh
  * `resetZoom()` directly (instant, like zoom-step buttons), with an echo guard
  * that ignores stale `mediaState` broadcasts within 3s of a local zoom action.
  *
- * See docs/important/how-to-test.md (Option A) and
- * docs/important/dev-code-on-nuc-test-on-pp.md for the CDP topology.
+ * See docs/important/testing/how-to-test.md (Option A) and
+ * docs/important/dev-env/dev-code-on-nuc-test-on-pp.md for the CDP topology.
  */
 
 const CDP_PORT = process.env.CDP_PORT || '9024';

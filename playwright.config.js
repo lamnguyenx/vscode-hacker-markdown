@@ -9,7 +9,7 @@ const test_1 = require("@playwright/test");
  * The tests call `chromium.connectOverCDP()` explicitly (Playwright's config
  * `connectOptions` uses the Playwright websocket protocol, not raw CDP).
  *
- * See docs/important/dev-code-on-nuc-test-on-pp.md for the topology.
+ * See docs/important/dev-env/dev-code-on-nuc-test-on-pp.md for the topology.
  */
 exports.default = (0, test_1.defineConfig)({
     testDir: './tests/playwright',

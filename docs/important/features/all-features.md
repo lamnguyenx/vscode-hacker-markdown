@@ -1,7 +1,7 @@
 # All Features
 
-Deep technical detail lives in [architecture.md](architecture.md); sync internals
-in [editor-preview-sync.md](editor-preview-sync.md).
+Deep technical detail lives in [architecture.md](../internals/architecture.md); sync internals
+in [editor-preview-sync.md](../internals/editor-preview-sync.md).
 
 ## Placement
 

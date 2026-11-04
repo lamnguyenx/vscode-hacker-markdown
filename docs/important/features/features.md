@@ -1,4 +1,4 @@
-# Features
+# Features (superseded)
 
 This file has been superseded by [all-features.md](all-features.md), which
 contains the complete, detailed feature list including newly discovered

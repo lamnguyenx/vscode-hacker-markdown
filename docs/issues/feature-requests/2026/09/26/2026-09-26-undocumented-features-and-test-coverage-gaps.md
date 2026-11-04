@@ -6,7 +6,7 @@ lack integration coverage)
 
 ## Context
 
-A full-code review of `src/` against `README.md` and `docs/important/features.md`
+A full-code review of `src/` against `README.md` and `docs/important/features/features.md`
 found (1) features implemented in code but not documented anywhere, and (2)
 features with only unit tests (pure-logic checks via bun) but **no CDP
 integration test** driving them through a real editor/preview.

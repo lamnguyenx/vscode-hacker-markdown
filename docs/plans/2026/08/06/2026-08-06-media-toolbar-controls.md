@@ -7,7 +7,7 @@ hardcoded `tests/samples/custom.css` values.
 **Files added:** `src/webview/menus.ts`
 **Files edited:** `package.json`, `src/previewHost.ts`, `src/previewManager.ts`,
 `src/webview/{types,main}.ts`, `src/media/main.css`, `tests/samples/custom.css`,
-`README.md`, `docs/important/architecture.md`
+`README.md`, `docs/important/internals/architecture.md`
 
 ## Goal
 

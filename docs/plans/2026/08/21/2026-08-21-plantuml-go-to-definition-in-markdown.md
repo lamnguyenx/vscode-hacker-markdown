@@ -4,7 +4,7 @@
 **Status:** DONE (pure checks green; verified live on the user's VS Code)
 **Files added:** `src/completions/definitions.ts`, `tests/units/plantuml_definition_check.cjs`
 **Files edited:** `src/plantuml/invocations.ts`, `src/extension.ts`,
-`docs/important/{architecture,how-to-test,features}.md`
+`docs/important/internals/architecture.md, docs/important/testing/how-to-test.md, docs/important/features/features.md`
 
 ## Goal
 
@@ -135,9 +135,9 @@ No new `activationEvents` entry needed.
 - **new** `tests/units/plantuml_definition_check.cjs` (~230 lines) — pure-logic checks
   for both `aliasDefinitions` (5 sections + 10 cases) and `invocationReferences`
   (1 section + 5 cases).
-- **doc** `docs/important/architecture.md` — deep-dive bullet + limitations.
-- **doc** `docs/important/how-to-test.md` — new section §3k, Quick Reference row.
-- **doc** `docs/important/features.md` — feature bullet.
+- **doc** `docs/important/internals/architecture.md` — deep-dive bullet + limitations.
+- **doc** `docs/important/testing/how-to-test.md` — new section §3k, Quick Reference row.
+- **doc** `docs/important/features/features.md` — feature bullet.
 - **doc** `docs/plans/...` — this plan document.
 
 ## How the "definition → references" fallthrough works (VS Code core)

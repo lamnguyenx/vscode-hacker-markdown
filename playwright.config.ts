@@ -8,7 +8,7 @@ import { defineConfig, devices } from '@playwright/test';
  * The tests call `chromium.connectOverCDP()` explicitly (Playwright's config
  * `connectOptions` uses the Playwright websocket protocol, not raw CDP).
  *
- * See docs/important/dev-code-on-nuc-test-on-pp.md for the topology.
+ * See docs/important/dev-env/dev-code-on-nuc-test-on-pp.md for the topology.
  */
 export default defineConfig({
 	testDir: './tests/playwright',

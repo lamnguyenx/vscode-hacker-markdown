@@ -6,7 +6,7 @@
 `src/mermaid/renderFragment.ts`, `tests/units/mermaid_check.cjs`
 **Files edited:** `package.json`, `src/webview/{types,main,frames,cursor}.ts`,
 `src/previewManager.ts`,
-`docs/important/{editor-preview-sync,architecture,how-to-test}.md`
+`docs/important/internals/editor-preview-sync.md, docs/important/internals/architecture.md, docs/important/testing/how-to-test.md`
 
 ## Goal
 
@@ -14,7 +14,7 @@ Click a rendered block in the preview -> the editor scrolls to the
 corresponding source line and moves the cursor there, keeping focus in the
 preview so you can keep clicking around. This is the reverse of the existing
 editor->preview cursor/scroll sync (see
-`docs/important/editor-preview-sync.md`).
+`docs/important/internals/editor-preview-sync.md`).
 
 One-way (preview -> editor), gated behind a new setting
 `hackerMarkdown.clickToSource` (default `true`, mirroring
@@ -96,13 +96,13 @@ In `onHostMessage` add `case 'editorLine'`. New method `revealEditorLine`:
 
 ### Docs
 
-- `docs/important/editor-preview-sync.md` — update "Direction" (both ways
+- `docs/important/internals/editor-preview-sync.md` — update "Direction" (both ways
   now), add a "Click-to-source (preview -> editor)" section, update the
   settings table and the limitations bullet that claimed "no reverse
   direction".
-- `docs/important/architecture.md` — extend the cursor-sync bullet + settings
+- `docs/important/internals/architecture.md` — extend the cursor-sync bullet + settings
   and adjust the limitation bullet.
-- `docs/important/how-to-test.md` — document the new smoke check in the
+- `docs/important/testing/how-to-test.md` — document the new smoke check in the
   cursor-sync section.
 
 ## Verification
