@@ -40,6 +40,23 @@ limitations, see [`docs/important/architecture.md`](architecture.md).
   at all and where the clamp lands. Geometry-dependent harnesses must set
   an explicit viewport size and re-verify it, or the scenario silently
   degrades into a different one.
+- **A table cannot shrink below its min-content width.** That width is the
+  sum of each column's longest *unbreakable token* plus cell padding — inline
+  code, URLs and paths dominate it. `overflow-wrap: break-word` breaks words
+  at paint time but does **not** reduce min-content; only
+  `overflow-wrap: anywhere` participates in the min-content calculation, so
+  only it lets a table fit a narrow column. Cell padding is a hard floor that
+  wrapping cannot remove.
+- **`overflow` is ignored on `display: table`.** Chromium keeps `overflow-x:
+  visible` on a table box; to make a table its own horizontal scroll region
+  you must change it to `display: block` (anonymous table boxes still lay the
+  rows out as a grid). Add `width: fit-content` or every table stretches to
+  the full column.
+- **Overlay scrollbars hide the pan affordance.** A table (or any region) that
+  scrolls horizontally can look exactly like clipped/lost content until the
+  user happens to scroll. `::-webkit-scrollbar` styling does not reliably force
+  a visible bar in the webview; do not build a "just scroll it" UX without an
+  explicit affordance.
 
 ## The webview OOPIF
 
@@ -286,6 +303,15 @@ Knowledge for anyone adding IntelliSense (or other language features) to an
   body moves the cursor somewhere; `Ctrl+G` + `End` (end of logical line)
   is the deterministic route. Inserting at column 1 of a code-block line
   merges the old content onto the inserted line — always `End` first.
+- **CDP wheel events do not exercise default scrolling in this harness.**
+  `Input.dispatchMouseEvent({type:'mouseWheel', deltaX})` and
+  `Input.synthesizeScrollGesture` land on the right element (a capture
+  listener sees the event with `target` inside the table) but never change
+  `scrollLeft` — for the table, for a plain `<div>` in the webview, and even
+  for a `<div>` in the top-level workbench page. Treat wheel input as
+  unavailable for scroll assertions; set `scrollLeft`/`scrollTop`
+  programmatically and assert the geometry (container right edge, last cell in
+  view).
 
 ## Harness design (webview logic in a plain page)
 

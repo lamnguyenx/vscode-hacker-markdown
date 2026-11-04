@@ -48,13 +48,14 @@ without worrying about the topology.
 | `tests/integration/plantuml_note_highlight_check.ts` | Live CDP check of `note on link`/`-->` keyword tokenization after `end note` (`vue.volar` corrupts `{{salt }}` SALT blocks; section 3f) |
 | `tests/integration/mermaid_stale_check.ts` | Live CDP regression check: no `.hmk-stale-holder` badge during a mermaid re-render |
 | `exp/e2e-anchor.cjs` | Scroll-anchor E2E: edit a mermaid block, assert the reading position survives the async re-render |
+| `tests/integration/narrow_table_ix.ts` | Narrow-viewport tables (fit wraps, pan scrolls): no table extends past the reading column and the last column stays reachable |
 
 ---
 
 All tests are TypeScript and run with **bun**. The pure-logic unit checks
 import `src/**/*.ts` directly — no compile step needed. The CDP integration
 checks also run with bun but need a compiled extension (`npm run compile`) and
-a running environment (code-server or dev host). The [`cdp.ts`](../tests/integration/cdp.ts)
+a running environment (code-server or dev host). The [`cdp.ts`](../../tests/integration/cdp.ts)
 shared helper detects the topology (OOPIF vs nested-iframe) automatically and
 adapts `pEval`/`pClick` accordingly.
 
@@ -268,6 +269,13 @@ The 21 checks (current status: **all passing**):
 
 ### Sequence gotchas worth knowing
 
+- **Never pick the workbench page by target order.** A stray `chrome://newtab`
+  or `about:blank` tab can be the first `page` target on the CDP port; every
+  palette/eval call then goes to the wrong tab and `open_view.ts` times out
+  with `PREVIEW_TIMEOUT` even though the preview is open. Use
+  `openWorkbenchPage()` (in `cdp.ts`) — it probes each page for
+  `.monaco-workbench`, the same "stable app anchor, not target order" rule as
+  for webviews.
 - `File: New Untitled Text File` opens the untitled file in a **new editor
   group**; the empty-state check therefore clicks the `Untitled-1` tab to make
   it the active editor, because the preview follows the *active* editor (a
@@ -719,6 +727,38 @@ This exercises 31 checks across 11 sections, including `aliasOccurrences`
 - The provider also fires on `(` so `SALT(` immediately shows all aliases.
 - Verified by the catalog-sanity checks in `tests/units/plantuml_completion_check.ts`.
 
+## 3m. Narrow previews & wide tables
+
+The preview is often docked in a narrow sidebar/panel, where a table's natural
+(min-content) width can exceed the reading column. Two modes (toolbar dropdown,
+`hackerMarkdown.media.tables`):
+
+- **pan** (default) — cells stay on one line and the table is its own
+  horizontal scroll region (`display: block; overflow-x: auto`).
+- **fit** — cells wrap, and `overflow-wrap: anywhere` lets unbreakable tokens
+  (inline code, URLs, long paths) break so the table can shrink to the column.
+  Without that rule the table kept its 833px min-content width in a ~280px
+  sidebar and the body's `overflow-x: hidden` clipped the right-hand columns
+  with no way to scroll to them (the "table loses text" symptom;
+  `tests/samples/long-table-fail-02.md` reproduces it).
+
+```sh
+bun tests/integration/open_view.ts 9324       # preview open on long-table-fail-02.md
+bun tests/integration/narrow_table_ix.ts 9324
+```
+
+The suite snapshots/restores `media.tables` and shrinks the workbench page over
+CDP (`Emulation.setDeviceMetricsOverride`, 500px) so the preview reflows to a
+narrow pane (a few hundred px, depending on the layout). It then asserts: fit
+mode keeps every table inside the reading column with the last column visible
+and no horizontal scrolling; pan mode keeps the table a scroll region whose
+last column is reachable by scrolling. It also checks the fit-mode fallback at
+200% zoom (the cells' padding floor can exceed the column even after wrapping):
+the table must become its own scroll region instead of being clipped. The suite
+leaves the column-width setting untouched. Full write-up (root cause, rejected
+variants, measurements):
+[2026-11-04-narrow-preview-wide-tables.md](../plans/2026/11/04/2026-11-04-narrow-preview-wide-tables.md).
+
 ## 3j. Ctrl/Cmd+Shift+V override & cross-window placement
 
 Two placement/shortcut features worth an explicit check:
@@ -863,6 +903,7 @@ vsix `extension/*` into
 | PlantUML IntelliSense (code lens, folding, F12 go-to-definition) | `bun tests/integration/plantuml_intellisense_ix.ts $VSCODE_CDP_PORT$` |
 | Pin lifecycle (pin → editor switch → unpin) | `bun tests/integration/pin_lifecycle_ix.ts $VSCODE_CDP_PORT$` |
 | Media toolbar dropdowns (invert / tables / column width) | `bun tests/integration/media_controls_ix.ts $VSCODE_CDP_PORT$` |
+| Narrow-preview tables (fit wraps, pan scrolls; open `long-table-fail-02.md` first) | `bun tests/integration/narrow_table_ix.ts $VSCODE_CDP_PORT$` |
 | Link navigation (relative `.md` link, `#fragment`) | `bun tests/integration/link_nav_ix.ts $VSCODE_CDP_PORT$` |
 | renderOnSave gate (typing doesn't re-render) | `bun tests/integration/render_on_save_ix.ts $VSCODE_CDP_PORT$` |
 | Editor-area preview (palette command creates tab) | `bun tests/integration/editor_preview_ix.ts $VSCODE_CDP_PORT$` |

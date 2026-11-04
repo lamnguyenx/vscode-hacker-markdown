@@ -44,6 +44,30 @@ export function getTargets(port: string | number): Promise<CdpTarget[]> {
 	});
 }
 
+/**
+ * Opens the VS Code **workbench** page target.
+ *
+ * Never pick page targets by order: the browser may have stray
+ * `chrome://newtab` / `about:blank` tabs and Chrome does not guarantee the
+ * workbench is first. Probe each page for the workbench shell (`.monaco-workbench`)
+ * instead — the same "stable app anchor, not target order" rule as for webviews.
+ */
+export async function openWorkbenchPage(port: string | number): Promise<CdpSession | null> {
+	const targets = await getTargets(port);
+	for (const target of targets.filter((t) => t.type === 'page')) {
+		let session: CdpSession | null = null;
+		try {
+			session = await openCdpSession(target.webSocketDebuggerUrl);
+			const isWorkbench = await session.eval(`!!document.querySelector('.monaco-workbench')`);
+			if (isWorkbench) return session;
+		} catch {
+			// Target vanished or is not scriptable (e.g. a Chrome UI page).
+		}
+		session?.close();
+	}
+	return null;
+}
+
 export async function openCdpSession(wsUrl: string): Promise<CdpSession> {
 	const ws = new WebSocket(wsUrl);
 	let id = 0;
@@ -102,9 +126,8 @@ export interface PreviewHandle {
  */
 export async function connectPreview(port: string | number): Promise<PreviewHandle | null> {
 	const targets = await getTargets(port);
-	const page = targets.find((t) => t.type === 'page');
-	if (!page) return null;
-	const pageSession = await openCdpSession(page.webSocketDebuggerUrl);
+	const pageSession = await openWorkbenchPage(port);
+	if (!pageSession) return null;
 
 	// --- OOPIF topology (dev host) -----------------------------------------
 	const oopifs = targets.filter((t) => t.type === 'iframe' && (t.url || '').startsWith('vscode-webview://'));

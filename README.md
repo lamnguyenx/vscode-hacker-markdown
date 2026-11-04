@@ -13,6 +13,22 @@ See **[all-features.md](docs/important/all-features.md)** for the full feature l
 | `Hacker Markdown: Toggle Preview` | `Ctrl/Cmd+Shift+V` | Toggle this preview (shadows the built-in preview's keybinding) |
 | `Hacker Markdown: Refresh Preview` | — | Re-render the current document |
 
+## Preview controls
+
+The pinned toolbar (and the editor preview) carries four controls, persisted in
+`hackerMarkdown.media.*` settings:
+
+- **Invert media** — `auto` (follow the theme), `dark`, `light`, `off`.
+- **Wide tables** — `pan` (each table scrolls horizontally with columns kept on
+  one line) or `fit` (cells wrap to the reading column; long inline code, URLs
+  and paths break so a narrow sidebar never clips the right-hand columns).
+- **Reading column width** — any CSS length (`700px`, `45vw`, `100%`), with a
+  reset button.
+- **Zoom** — 50–200% in 5% steps; `Ctrl+=` / `Ctrl+-` / `Ctrl+0` also work.
+
+Fit mode falls back to an internal scroll region when a table cannot fit even
+after wrapping (for example at 200% zoom), so table text is never clipped.
+
 ## Quick start
 
 ```sh

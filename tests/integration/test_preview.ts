@@ -5,7 +5,7 @@
 // (code-server) topologies via the shared {@link connectPreview} helper.
 //
 // Usage: bun tests/integration/test_preview.ts [port]
-import { connectPreview, evalUntil, getTargets, openCdpSession, sleep, type CdpSession } from './cdp';
+import { connectPreview, evalUntil, openWorkbenchPage, sleep, type CdpSession } from './cdp';
 import { restEval } from './rest';
 
 async function openTestMd(page: CdpSession): Promise<void> {
@@ -74,9 +74,9 @@ async function main(): Promise<void> {
 
 	const run = handle.pEval;
 	const pageSession = async (): Promise<CdpSession> => {
-		const targets = await getTargets(port);
-		const page = targets.find((t) => t.type === 'page')!;
-		return openCdpSession(page.webSocketDebuggerUrl);
+		const page = await openWorkbenchPage(port);
+		if (!page) throw new Error(`no workbench page target on port ${port}`);
+		return page;
 	};
 
 	const results: { name: string; ok: boolean }[] = [];

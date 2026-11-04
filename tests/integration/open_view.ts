@@ -4,7 +4,7 @@
 //   3. Poll until the preview document is reachable and has rendered content.
 //
 // Usage: bun tests/integration/open_view.ts [port]
-import { connectPreview, evalUntil, getTargets, openCdpSession, runPaletteCommand, sleep } from './cdp';
+import { connectPreview, evalUntil, openWorkbenchPage, runPaletteCommand, sleep } from './cdp';
 
 async function main(): Promise<void> {
 	const port = process.env.CDP_PORT || process.argv[2] || '9024';
@@ -12,34 +12,42 @@ async function main(): Promise<void> {
 	let handle = await connectPreview(port);
 
 	if (!handle) {
-		// Open the preview via the command palette.
-		const targets = await getTargets(port);
-		const page = targets.find((t) => t.type === 'page');
-		if (!page) { console.error('NO_PAGE_TARGET'); process.exit(2); }
-		const pageSession = await openCdpSession(page.webSocketDebuggerUrl);
-
-		// Dismiss onboarding overlay (fresh dev-host profiles show it once).
-		for (let i = 0; i < 10; i++) {
-			const dismissed = await pageSession.eval(`(() => {
-				const b = document.querySelector('.onboarding-a-close-btn');
-				if (b) { b.click(); return 'dismissed'; }
-				return document.querySelector('.onboarding-a-signin') ? 'present' : 'none';
-			})()`);
-			if (dismissed === 'none') break;
-			await sleep(500);
-		}
-
-		// Reveal the preview.
+		// Reveal the preview. Prefer the REST control endpoint (exact, works
+		// with the browser unfocused); fall back to the palette for
+		// environments without it.
 		let revealed = false;
-		for (let i = 0; i < 3 && !revealed; i++) {
-			try {
-				await runPaletteCommand(pageSession, 'Hacker Markdown: Open');
-				revealed = true;
-			} catch {
-				await sleep(1000);
-			}
+		try {
+			const { restCmd } = await import('./rest');
+			await restCmd('hackerMarkdown.open');
+			revealed = true;
+		} catch {
+			// REST not available — drive the palette instead.
 		}
-		pageSession.close();
+		if (!revealed) {
+			const pageSession = await openWorkbenchPage(port);
+			if (!pageSession) { console.error('NO_PAGE_TARGET'); process.exit(2); }
+
+			// Dismiss onboarding overlay (fresh dev-host profiles show it once).
+			for (let i = 0; i < 10; i++) {
+				const dismissed = await pageSession.eval(`(() => {
+					const b = document.querySelector('.onboarding-a-close-btn');
+					if (b) { b.click(); return 'dismissed'; }
+					return document.querySelector('.onboarding-a-signin') ? 'present' : 'none';
+				})()`);
+				if (dismissed === 'none') break;
+				await sleep(500);
+			}
+
+			for (let i = 0; i < 3 && !revealed; i++) {
+				try {
+					await runPaletteCommand(pageSession, 'Hacker Markdown: Open');
+					revealed = true;
+				} catch {
+					await sleep(1000);
+				}
+			}
+			pageSession.close();
+		}
 
 		// Poll for the preview to appear.
 		const deadline = Date.now() + 60000;

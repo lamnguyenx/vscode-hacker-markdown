@@ -135,6 +135,12 @@ in [editor-preview-sync.md](editor-preview-sync.md).
   ±5% steps, clamp 50–200%). Ctrl+=/Ctrl+-/Ctrl+0 also work when the
   preview is focused. Persisted in `hackerMarkdown.media.*` settings
   (`ConfigurationTarget.Global`).
+  - **`pan`** (default) keeps each cell on one line and makes the table its
+    own horizontal scroll region — readable columns, at the cost of scrolling.
+  - **`fit`** wraps cells to the reading column and breaks unbreakable tokens
+    (inline code, URLs, long paths) so no column is ever clipped in a narrow
+    sidebar. If even that cannot fit (e.g. 200% zoom), the table scrolls
+    internally instead of losing text.
 - **SALT mockup cursor highlight with SVG `vector-effect`** — SALT mockups
   inside inlined PlantUML SVGs are highlighted via injected `<rect>` overlays
   using `vector-effect: non-scaling-stroke`, so the highlight stays visually

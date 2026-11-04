@@ -32,16 +32,28 @@ details underneath the feature list, and the product limitations.
   neutralizes user styles that force diagrams to `width: 100vw`, which in a
   narrow sidebar overflow the visible webview and clip the diagram's side
   edges.
-- **Media toolbar controls.** The pinned toolbar carries three media
+- **Media toolbar controls.** The pinned toolbar carries four media
   controls whose state lives in user settings (`hackerMarkdown.media.*`,
   `ConfigurationTarget.Global` — the toolbar is a quick control over normal
   settings):
   - **Invert** dropdown (`auto | dark | light | off`): the webview body gets
     `data-invert`, and *auto* resolves in CSS via VS Code's `vscode-dark`
     webview body class, so theme switches apply live without a rebuild.
-  - **Tables** dropdown (`pan | fit`): `data-tables` on the body; the user
+  - **Tables** dropdown (`pan | fit`): `data-tables` on the body; the
     stylesheet pans each wide table inside its own scroll region
     (`display: block; overflow-x: auto`) or fits it (`fit`).
+    Fit mode sets `overflow-wrap: anywhere` on cells, because a table's
+    min-content width is the longest unbreakable token (inline code, URLs,
+    paths): without it a table wider than a narrow sidebar stays wider than the
+    reading column and is clipped by the body's `overflow-x: hidden`, so the
+    right-hand columns vanish with no way to reach them. Those cells are also
+    `display: block; overflow-x: auto; width: fit-content; max-width: 100%`:
+    `fit-content` keeps small tables at their natural width, while a table
+    that cannot fit even after wrapping (e.g. 200% zoom, where cell padding is
+    a hard floor) becomes its own scroll region instead of being clipped. Pan
+    mode keeps tokens intact and scrolls instead. Covered by
+    `tests/integration/narrow_table_ix.ts`; full write-up in
+    [2026-11-04-narrow-preview-wide-tables.md](../plans/2026/11/04/2026-11-04-narrow-preview-wide-tables.md).
   - **Column width** input (any CSS length, e.g. `700px`, `45vw`): emitted as
     `--hmk-column-width` on the `<html>` element (same spot as the
     `markdown.preview` font overrides); the webview applies it live while

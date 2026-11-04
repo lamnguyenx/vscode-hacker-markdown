@@ -8,7 +8,7 @@
 // (scan iframes for webview DOM content).
 //
 // Usage: bun tests/integration/editor_preview_ix.ts [cdp-port]
-import { connectPreview, evalUntil, sleep, getTargets, openCdpSession } from './cdp';
+import { connectPreview, evalUntil, sleep, openWorkbenchPage } from './cdp';
 import { restOpenFile, restCmd } from './rest';
 import { createSuite, WORKSPACE as WS } from './test_utils';
 
@@ -20,9 +20,8 @@ async function main(): Promise<void> {
 		process.exit(2);
 	}
 
-	const targets = await getTargets(port);
-	const pageTarget = targets.find((t) => t.type === 'page')!;
-	const page = await openCdpSession(pageTarget.webSocketDebuggerUrl);
+	const page = await openWorkbenchPage(port);
+	if (!page) throw new Error(`no workbench page target on port ${port}`);
 	const { check, finish } = createSuite();
 
 	// Ensure test.md is open.

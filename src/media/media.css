@@ -50,6 +50,32 @@ body[data-tables="pan"] .markdown-body table th {
 	white-space: nowrap;
 }
 
+/* Fit mode promises "wraps to the column", but a native table cannot shrink
+ * below the longest unbreakable token in each cell (inline code, URLs, long
+ * paths). In a narrow view — sidebar, docked panel — such a table stays wider
+ * than the reading column and the page body clips it with `overflow-x: hidden`
+ * (main.css), so the right-hand columns vanish with no way to scroll to them.
+ * `overflow-wrap: anywhere` (not `break-word`: only `anywhere` affects the
+ * min-content width) lets those tokens break, collapsing the table's min-content
+ * to the column so every cell stays visible. Scoped to fit mode on purpose:
+ * pan mode keeps tokens on one line and mirrors them inside a scroll region.
+ *
+ * `display: block` + `width: fit-content` is the fallback for the cases where
+ * even that cannot fit — a 6-column table at 200% zoom in a 320px preview is
+ * below the cells' padding floor. The table then becomes its own scroll region
+ * instead of being clipped by the page; `fit-content` keeps small tables at
+ * their natural width (no full-width stretch). */
+body[data-tables="fit"] .markdown-body table {
+	display: block;
+	overflow-x: auto;
+	width: fit-content;
+	max-width: 100%;
+}
+body[data-tables="fit"] .markdown-body table td,
+body[data-tables="fit"] .markdown-body table th {
+	overflow-wrap: anywhere;
+}
+
 /* Media inversion: dark/light force the mode; auto follows the theme
  * (VS Code's webview body classes, including high contrast). Scoped to
  * .markdown-body so the toolbar's own SVGs are untouched.
