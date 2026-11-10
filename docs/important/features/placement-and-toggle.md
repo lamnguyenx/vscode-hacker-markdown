@@ -20,6 +20,16 @@ any of them between containers (Panel ↔ Primary Side Bar ↔ Secondary Side Ba
 with VS Code's normal view dragging. A `WebviewView` is window-bound: use the
 editor/new-window commands to move the preview across windows.
 
+### Moving a docked container
+
+VS Code's container context menu lists only the **other** locations. The
+Activity Bar icon *is* the Primary Side Bar, so a container currently there
+offers **Move To → Panel** and **Move To → Secondary Side Bar**, not Primary.
+Use **Move To → Panel** (or `Hacker Markdown: Open in Panel`) to bring a moved
+preview back; placement is workbench state, so this needs no reload or
+code-server restart. The three placements are separate containers — moving one
+does not move the other two.
+
 The new-window command opens a separate preview tab first, then asks VS Code to
 move it. The move is fire-and-forget because some browser-based builds do not
 implement the window move; the command still returns after opening the preview.
@@ -53,8 +63,20 @@ paste), so without that handler the preview would be a one-way trip. With it,
 pressing the same keys while the preview is focused toggles back to the source.
 
 You can also return to the source from the preview toolbar's **Show Source**
-button (`data-command="reopenAsSource"`) or the editor title's
-`Hacker Markdown: Show Source` action.
+button (`data-command="reopenAsSource"`) or the editor title's `Show Source`
+action (palette name: `Hacker Markdown: Show Source`).
+
+### Editor title action
+
+When a Markdown-family file is active, the editor title bar shows a
+`$(preview)` icon for this command. The manifest uses a short `title`
+(`Toggle Preview`) plus `category: "Hacker Markdown"`, so the command palette
+still shows `Hacker Markdown: Toggle Preview` while menus and the tooltip stay
+compact. **If the action renders as a long text button instead of the icon**,
+the window is running a stale extension host — often with a "Cannot reconnect"
+dialog. Reload the window once; a code-server restart is not required for a
+manifest/command change. See the
+[2026-11-10 design log](../../plans/2026/11/10/2026-11-10-toggle-preview-icon-and-placement-menu.md).
 
 ## Behavior with other placements
 

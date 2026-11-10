@@ -11,7 +11,7 @@
 // host instead.
 //
 // Usage: bun tests/integration/toggle_preview_ix.ts [cdp-port]
-import { sleep } from './cdp';
+import { sleep, openWorkbenchPage } from './cdp';
 import { restCmd, restEval, restOpenFile } from './rest';
 import { createSuite, WORKSPACE as WS } from './test_utils';
 
@@ -40,6 +40,20 @@ async function main(): Promise<void> {
 	await sleep(1000);
 	await restOpenFile(`${WS}/test.md`);
 	await sleep(1000);
+
+	// The editor-title action must stay compact: a codicon, not the long
+	// command title rendered as a text button (which is what a stale extension
+	// host / mid-reload window can show, eating the whole title bar).
+	const page = await openWorkbenchPage(process.argv[2] || '9024');
+	const titleAction = page ? await page.eval(`(() => {
+		const el = Array.from(document.querySelectorAll('.editor-actions .action-label'))
+			.find((a) => ((a.getAttribute('aria-label') || '').startsWith('Toggle Preview')));
+		return el ? { aria: el.getAttribute('aria-label'), cls: el.className } : null;
+	})()`) : null;
+	page?.close();
+	check('editor title: Toggle Preview is an icon action',
+		!!titleAction && /\bcodicon-preview\b/.test(titleAction.cls) && !/Hacker Markdown:/.test(titleAction.aria || ''),
+		`action=${JSON.stringify(titleAction)}`);
 
 	// Toggle source -> preview.
 	await restCmd('hackerMarkdown.togglePreview');

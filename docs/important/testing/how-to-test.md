@@ -37,6 +37,7 @@ without worrying about the topology.
 | `vscode_cdp_kill` (from `bach_cli/bach/vscode.sh`) | Gracefully shut down the dev host on a port (SIGTERM to the main process, so no "Closed … Reopen?" dialog; frees orphaned CDP-port fd holders on Linux) |
 | `tests/integration/open_view.ts` | One-shot prep: dismiss overlay, open panel, click the view tab, wait for the OOPIF target |
 | `tests/integration/test_preview.ts` | Full functional smoke test — 15 checks under code-server, 21 under dev host (eval-based checks across both; keyboard/palette tests limited under browser CDP) |
+| `tests/integration/toggle_preview_ix.ts` | In-place `Toggle Preview` custom editor + compact editor-title action (3 checks) |
 | `tests/integration/cdp_eval.ts` | Evaluate an expression in the webview OOPIF (debugging) |
 | `tests/integration/rest.ts` | REST Control helper: arrange/act via the `vscode` API — open/type/save/settings — plus `restCleanup()` used by every `*_ix.ts` suite's `finish()`. Connects to the port in `HACKER_REST_CONTROL_PORT` (set in `docker-compose.yml`) |
 | `tests/integration/test_utils.ts` | Shared suite runner: `createSuite()` (`check()` + `finish()`; `finish()` auto-runs `restCleanup()`) |
@@ -790,6 +791,44 @@ Two placement/shortcut features worth an explicit check:
   the command and the shortcut always show a preview — even in a fresh window
   where the panel view was never opened.
 
+## 3n. In-place Toggle Preview & editor-title action
+
+`toggle_preview_ix.ts` covers the same-tab custom editor and the compact
+editor-title action:
+
+```sh
+bun tests/integration/toggle_preview_ix.ts 9024
+```
+
+It closes all editors, opens `tests/samples/workspace/test.md`, asserts the
+editor title has an `aria-label` starting with `Toggle Preview` and a
+`codicon-preview` class (not a text fallback), toggles the tab to
+`hackerMarkdown.previewEditor`, then toggles back to the source. The palette
+still shows `Hacker Markdown: Toggle Preview` because the command contributes
+`category: "Hacker Markdown"` plus the short `title: "Toggle Preview"`.
+
+Gotchas:
+
+- **A long text button means a stale host.** If the toolbar renders
+  `Hacker Markdown: Toggle Preview` instead of the `$(preview)` icon, look for
+  the workbench's "Cannot reconnect" dialog. Reload the window once; a
+  code-server restart is not needed for a manifest/command change.
+- **A restored custom-editor tab can block `closeAllEditors`.** code-server
+  does not mount the custom-editor webview, so a restored
+  `hackerMarkdown.previewEditor` tab can make
+  `workbench.action.closeAllEditors` and `tabGroups.close(..., true)` wait
+  forever. Activate that tab and run `reopenActiveEditorWith default`
+  (`Show Source`) to turn it back into a text tab before running the suite.
+- **Focus the quick input before typing.** `Input.insertText` goes to whatever
+  has focus; a palette probe that types before focusing the quick-input can
+  dirty the active editor. Check `document.activeElement` or click the
+  quick-input `<input>` first.
+- **The container menu is not a placement inventory.** If the Activity Bar
+  container's **Move To** shows Panel + Secondary Side Bar, it is already in
+  the Primary Side Bar (the Activity Bar). The current location is always
+  omitted. See the
+  [2026-11-10 design log](../../plans/2026/11/10/2026-11-10-toggle-preview-icon-and-placement-menu.md).
+
 ## 4. Reading the VS Code Logs
 
 The general logging rule is in
@@ -885,6 +924,7 @@ vsix `extension/*` into
 | List CDP targets | `curl -s http://127.0.0.1:$CHROME_CDP_PORT$/json/list` |
 | Prepare the view | `bun tests/integration/open_view.ts $CHROME_CDP_PORT$` |
 | Full functional smoke test | `bun tests/integration/test_preview.ts $CHROME_CDP_PORT$` |
+| In-place Toggle Preview + editor-title icon check | `bun tests/integration/toggle_preview_ix.ts $CHROME_CDP_PORT$` |
 | Scroll-anchor E2E (start host with `tests/samples/workspace/e2e-anchor.md`) | `node exp/e2e-anchor.cjs $CHROME_CDP_PORT$` |
 | Harness (webview logic; needs ports 8377/8378) | open `http://127.0.0.1:8377/exp/scroll-anchor-test.html` (section 3c) |
 | Puml pan/zoom check (start host with `tests/samples/enroll-flow-elements.puml.md`; needs `plantuml.server` in the dev host profile) | `node exp/probe_all.cjs $CHROME_CDP_PORT$` + `node exp/persist_test.cjs $CHROME_CDP_PORT$` (section 3d) |

@@ -84,6 +84,13 @@ window still behave like the old build?" is almost always **"the window was
 not reloaded"** — or, less often, the installed copy predates the latest
 build (see Troubleshooting).
 
+A **window reload** picks up extension code, command metadata, and manifest
+changes such as `contributes.commands` labels. Restarting **code-server** is
+only needed for its service-worker asset cache (bump `package.json#version` +
+reinstall) or to garbage-collect obsolete extension folders; it does not
+change view placement and is not a substitute for fixing a disconnected
+window.
+
 ### Installing a `.vsix` instead
 
 `make vsix` produces `build/<publisher>.<name>-<version>.vsix`; install it
@@ -165,6 +172,19 @@ edits to appear. Extension-host edits (`src/*.ts`) always need the reload.
   (check the running page's `main.css?v=…`) and that the file on disk was
   actually refreshed (compare `stat` on
   `~/.vscode/extensions/lamnt45.vscode-hacker-markdown-2026.08.17-1/build/main.css`).
+- **The editor action shows its full command title instead of its icon.** The
+  manifest's `contributes.commands[].icon` (`$(preview)` for
+  `hackerMarkdown.togglePreview`) is used only when the window is running the
+  current manifest and its extension host is connected. A window that has not
+  been reloaded after an install — or one showing the **"Cannot reconnect"**
+  dialog — can fall back to the command title as a text button. Reload the
+  window once. A code-server restart is not required for this; it is only for
+  the service-worker asset cache (version bump) or obsolete-folder cleanup.
+- **A view container's "Move To" menu does not offer its current location.**
+  This is stock VS Code behavior, not a stale manifest. The Activity Bar icon
+  *is* the Primary Side Bar, so a container there offers Panel and Secondary
+  Side Bar. Use **Move To → Panel** or `Hacker Markdown: Open in Panel` to move
+  it back; placements are workbench state and need no restart.
 - **"Works in the dev host, but a normal window looks stale."** The dev host
   runs straight from the repo (`--extensionDevelopmentPath="$PWD"`), so it
   always shows the latest build; a normal window runs the *installed* copy,

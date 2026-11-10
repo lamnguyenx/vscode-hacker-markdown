@@ -2,7 +2,7 @@
 	"name": "hacker-markdown",
 	"displayName": "Hacker Markdown",
 	"description": "A Markdown preview you can dock in the Panel, Primary Side Bar, or Secondary Side Bar, open in the Editor, move to a new window, or toggle over the Markdown tab in place.",
-	"version": "2026.11.6",
+	"version": "2026.11.7",
 	"publisher": "lamnguyenx",
 	"license": "MIT",
 	"repository": {
@@ -231,37 +231,45 @@
 		"commands": [
 			{
 				"command": "hackerMarkdown.open",
-				"title": "Hacker Markdown: Open in Panel"
+				"category": "Hacker Markdown",
+				"title": "Open in Panel"
 			},
 			{
 				"command": "hackerMarkdown.openInPrimarySidebar",
-				"title": "Hacker Markdown: Open in Primary Side Bar"
+				"category": "Hacker Markdown",
+				"title": "Open in Primary Side Bar"
 			},
 			{
 				"command": "hackerMarkdown.openInSecondarySidebar",
-				"title": "Hacker Markdown: Open in Secondary Side Bar"
+				"category": "Hacker Markdown",
+				"title": "Open in Secondary Side Bar"
 			},
 			{
 				"command": "hackerMarkdown.openInEditor",
-				"title": "Hacker Markdown: Open Preview in Editor"
+				"category": "Hacker Markdown",
+				"title": "Open Preview in Editor"
 			},
 			{
 				"command": "hackerMarkdown.openInNewWindow",
-				"title": "Hacker Markdown: Open Preview in New Window"
+				"category": "Hacker Markdown",
+				"title": "Open Preview in New Window"
 			},
 			{
 				"command": "hackerMarkdown.togglePreview",
-				"title": "Hacker Markdown: Toggle Preview",
+				"category": "Hacker Markdown",
+				"title": "Toggle Preview",
 				"icon": "$(preview)"
 			},
 			{
 				"command": "hackerMarkdown.reopenAsSource",
-				"title": "Hacker Markdown: Show Source",
+				"category": "Hacker Markdown",
+				"title": "Show Source",
 				"icon": "$(file-code)"
 			},
 			{
 				"command": "hackerMarkdown.refresh",
-				"title": "Hacker Markdown: Refresh Preview"
+				"category": "Hacker Markdown",
+				"title": "Refresh Preview"
 			}
 		],
 		"keybindings": [

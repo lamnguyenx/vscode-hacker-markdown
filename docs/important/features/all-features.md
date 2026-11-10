@@ -15,6 +15,20 @@ in [editor-preview-sync.md](../internals/editor-preview-sync.md).
 - **Open in Editor** — opens a second preview in the editor area, to the side.
 - **Open in New Window** — opens the in-place preview custom editor tab and
   moves it with `workbench.action.moveEditorToNewWindow`.
+- **Compact editor-title action** — an active Markdown-family tab gets a
+  `$(preview)` icon. The command contributes `category: "Hacker Markdown"` plus
+  a short `title`, so the command palette still says
+  `Hacker Markdown: Toggle Preview` while menus and the tooltip say
+  `Toggle Preview`. A long text button instead of the icon means the window is
+  running a stale extension host — reload once (a code-server restart is not
+  required). See the
+  [2026-11-10 design log](../../plans/2026/11/10/2026-11-10-toggle-preview-icon-and-placement-menu.md).
+- **Container placement menu** — VS Code's "Move To" lists only the **other**
+  locations. The Activity Bar icon is the Primary Side Bar, so a container
+  there offers Panel and Secondary Side Bar (not Primary). Use
+  **Move To → Panel** or `Hacker Markdown: Open in Panel` to bring it back.
+  The three placements are separate containers, so moving one does not move
+  the others.
 - **Toggle Preview over the same tab** — `Hacker Markdown: Toggle Preview`
   reopens the active Markdown tab as a custom editor (`hackerMarkdown.previewEditor`)
   and toggles back to the source. No extra tab is created; undo/redo, dirty
@@ -185,3 +199,7 @@ workbench does not receive `Ctrl/Cmd+V` from a focused webview.
 | `Hacker Markdown: Toggle Preview` | `Ctrl/Cmd+K Ctrl/Cmd+V`, `Ctrl/Cmd+Shift+V` | Toggle the preview over the same Markdown tab |
 | `Hacker Markdown: Show Source` | — | Reopen the active preview tab as the Markdown source |
 | `Hacker Markdown: Refresh Preview` | — | Re-render the current document |
+
+The **command palette** shows the category-qualified names above. Menus, the
+editor-tab context menu, and the editor-title tooltip use the short titles
+(`Toggle Preview`, `Show Source`, …).

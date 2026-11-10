@@ -134,6 +134,23 @@ limitations, see [`docs/important/internals/architecture.md`](architecture.md).
   the document has many. Use the keyboard (`Cmd+End` / `Ctrl+G`) or moderate
   incremental `scrollTop` steps to reach the bottom; avoid max-scroll as a
   "get to the end" technique.
+- **A command `title` is the label on every non-icon surface.** The command
+  palette combines `category` + `title`; menus use `title` alone. When the
+  palette should keep `Hacker Markdown: …` but the editor-tab context menu
+  should stay short, set `category: "Hacker Markdown"` and a short `title`
+  (`Toggle Preview`), not a prefixed `title`. `shortTitle` only helps menus
+  that opt into `renderShortTitle` (the editor-title context menu does not).
+- **An icon-backed editor action can fall back to its text title on a stale
+  extension host.** If the workbench shows "Cannot reconnect", or the window
+  was not reloaded after installing a new manifest, the toolbar may render
+  `Hacker Markdown: Toggle Preview` as a text button even though
+  `package.json` has `"icon": "$(preview)"`. Reload the window once; restarting
+  code-server is not required for a manifest change.
+- **View-container "Move To" menus list only the other locations.** The
+  Activity Bar icon *is* the Primary Side Bar. A container there offers Panel
+  and Secondary Side Bar; the current location is never listed. To move the
+  preview back to the Panel, use **Move To → Panel** or the
+  `Hacker Markdown: Open in Panel` command.
 
 ## VS Code grammar (TextMate) loading
 
@@ -561,3 +578,12 @@ VS Code) rather than the desktop native build:
   `resolveWebviewView()` call. To force a fresh webview without bumping
   version: open a new editor-area preview via "Hacker Markdown: Open Preview
   in Editor", which creates a new `WebviewPanel` with fresh HTML.
+
+- **A restored custom-editor tab can hang editor cleanup.** code-server does
+  not mount the custom-editor webview, so a `hackerMarkdown.previewEditor` tab
+  restored from a previous session can make
+  `workbench.action.closeAllEditors` and
+  `vscode.window.tabGroups.close(..., true)` wait forever. Activate the tab and
+  run `reopenActiveEditorWith default` (the `Show Source` path) to turn it back
+  into a normal text tab, then close that normally. This also makes the
+  `toggle_preview_ix` suite runnable again.

@@ -20,6 +20,10 @@ tables, contributed markdown-it plugins).
 | `Hacker Markdown: Show Source` | — | Reopen the active preview tab as the Markdown source |
 | `Hacker Markdown: Refresh Preview` | — | Re-render the current document |
 
+The command palette shows the full category-qualified names above. Menus, the
+editor-tab context menu, and the editor-title tooltip use the short labels
+(`Toggle Preview`, `Show Source`, …).
+
 ## Quick start
 
 ```sh
@@ -46,7 +50,7 @@ provided), or launch an Extension Development Host manually — see
 ### [Features](docs/important/features/)
 
 - [All features](docs/important/features/all-features.md): the complete feature list, including placement, rendering, media controls, and language features.
-- [Placement & in-place toggle](docs/important/features/placement-and-toggle.md): Panel / Primary / Secondary Side Bar / Editor / new window, and the same-tab `Toggle Preview` custom editor.
+- [Placement & in-place toggle](docs/important/features/placement-and-toggle.md): Panel / Primary / Secondary Side Bar / Editor / new window, the same-tab `Toggle Preview` custom editor, and the icon-only editor action with short menu labels.
 - [Preview controls](docs/important/features/preview-controls.md): invert media, wide tables, reading-column width, and zoom.
 - [Features (superseded)](docs/important/features/features.md): pointer to `all-features.md`; kept for old links.
 
