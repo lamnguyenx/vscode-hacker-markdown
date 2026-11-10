@@ -5,11 +5,11 @@ details underneath the feature list, and the product limitations.
 
 ## How it works
 
-- `package.json` contributes a **panel view container** (`viewsContainers.panel`) and a **webview view** inside it, so the preview can be docked in the Panel, Primary Sidebar, or Secondary Sidebar.
-- `src/extension.ts` registers the `WebviewViewProvider` plus the three commands (`Hacker Markdown: Open`, `Open Preview in Editor`, `Refresh Preview`).
-- `src/previewManager.ts` tracks the active Markdown editor, renders via the built-in `markdown-language-features` engine (`markdown.api.render`), and drives every attached preview (docked views + editor panels).
+- `package.json` contributes **three view containers** — Panel (`hacker-markdown`), Primary Side Bar (`hacker-markdown-primary`), and Secondary Side Bar (`hacker-markdown-secondary`) — each with a webview view (`hackerMarkdown.preview`, `.previewPrimary`, `.previewSecondary`). The views share one manager and render the same active document; `Hacker Markdown: Open in …` reveals the matching container. It also contributes a **custom text editor** (`hackerMarkdown.previewEditor`, `priority: option`) for the in-place toggle.
+- `src/extension.ts` registers the three `WebviewViewProvider`s, the custom editor provider, and the commands (`Open in Panel`, `Open in Primary/Secondary Side Bar`, `Open Preview in Editor`, `Open Preview in New Window`, `Toggle Preview`, `Show Source`, `Refresh Preview`).
+- `src/previewManager.ts` tracks the active Markdown editor, renders via the built-in `markdown-language-features` engine (`markdown.api.render`), and drives every attached preview (docked views + editor panel + bound custom-editor tabs). Following hosts track the active document; custom-editor hosts are bound to the document their tab was opened for.
 - `src/previewHost.ts` builds the webview HTML (CSP with nonce, `markdown.css` / `highlight.css`, toolbar) and handles host messages (link clicks, scroll sync, toolbar commands). It also injects `markdown.previewScripts` / `markdown.previewStyles` contributed by other extensions (e.g. the mermaid renderer) and adds their folders to `localResourceRoots`. Webview asset URLs (the `build/*` bundle and css) are mtime-busted here (`cacheBustBuild`).
-- `src/webview/**` (strict TS, bundled by esbuild → `build/index.js`) renders the HTML fragment, preserves the reading position across re-renders, reports the topmost visible line for scroll sync, and dispatches `vscode.markdown.updateContent` after each render so contributed scripts (mermaid) re-render on live edits.
+- `src/webview/**` (strict TS, bundled by esbuild → `build/index.js`) renders the HTML fragment, preserves the reading position across re-renders, reports the topmost visible line for scroll sync, dispatches `vscode.markdown.updateContent` after each render so contributed scripts (mermaid) re-render on live edits, and detects `Ctrl/Cmd+K Ctrl/Cmd+V` / `Ctrl/Cmd+Shift+V` while the preview has focus so the toggle can return to the source.
 - `syntaxes/` holds the editor-side PlantUML TextMate grammars (vendored from
   `jebbs/plantuml`, MIT): `plantuml.yaml-tmLanguage` is converted by
   `scripts/build-syntax.cjs` (js-yaml, dev-only) into
@@ -182,28 +182,42 @@ details underneath the feature list, and the product limitations.
   Markdown file and re-renders **on save** by default
   (`hackerMarkdown.renderOnSave`), or live (debounced) as you type when the
   setting is disabled.
-- **Placement anywhere.** The preview can live in the Panel or either Sidebar
-  (drag the docked view's header between containers), as an editor tab
-  (`Hacker Markdown: Open Preview in Editor` or the toolbar's *Open in
-  Editor* button), and in **another window**: the editor tab can be dragged
-  to a new window / `Move Editor to New Window`, or survive a window reload —
-  the extension registers a `WebviewPanelSerializer`
-  (`hackerMarkdown.panel`, `onWebviewPanel:` activation) and the webview
-  persists the shown document with `acquireVsCodeApi().setState`, so VS Code
-  re-creates the panel in the target window and the serializer re-opens that
-  document. (The docked *view* itself is window-bound — VS Code cannot move
-  `WebviewView`s across windows; open it in the editor first.)
+- **Placement anywhere.** The extension contributes three webview views —
+  Panel, Primary Side Bar, and Secondary Side Bar — all sharing the manager.
+  Commands reveal each one (`Open in Panel` / `Open in Primary Side Bar` /
+  `Open in Secondary Side Bar`), and the views can still be dragged between
+  containers. The preview can also live as an editor tab (`Open Preview in
+  Editor` or the toolbar's *Open in Editor* button) and in **another
+  window**: `Open Preview in New Window` opens the in-place preview tab and
+  lets VS Code move it (`workbench.action.moveEditorToNewWindow`). The legacy
+  editor `WebviewPanel` survives a window reload too — the extension registers
+  a `WebviewPanelSerializer` (`hackerMarkdown.panel`, `onWebviewPanel:`
+  activation) and the webview persists the shown document with
+  `acquireVsCodeApi().setState`, so VS Code re-creates the panel in the target
+  window and the serializer re-opens that document. (A docked *view* itself is
+  window-bound — VS Code cannot move `WebviewView`s across windows; use the
+  editor/new-window command.)
+- **In-place toggle.** `hackerMarkdown.previewEditor` is a custom text editor
+  (`priority: option`) bound to one Markdown document. `Hacker Markdown:
+  Toggle Preview` calls the workbench's `reopenActiveEditorWith` with that
+  view type, replacing the active source tab with the preview without opening
+  a second tab; toggling again reopens it as the default text editor. Because
+  the host is bound to the tab's document (rather than the active editor), it
+  never displays another file; docked/editor-panel hosts still follow the
+  active editor. The preview's toolbar hides the pin button (it is inherently
+  bound) and adds a **Show Source** button. The webview listens for
+  `Ctrl/Cmd+K Ctrl/Cmd+V` and `Ctrl/Cmd+Shift+V` itself and posts a
+  `togglePreview` command, since the workbench does not receive `Ctrl/Cmd+V`
+  from a focused webview.
 - **Ctrl/Cmd+Shift+V override.** The built-in markdown preview binds
   `Ctrl/Cmd+Shift+V` to `markdown.togglePreview` (and third-party preview
-  extensions fight over the same key). This extension contributes its own
-  `hackerMarkdown.togglePreview` binding on that key with a markdown-scoped
-  `when`, and — because the resolver picks the *last* registered candidate —
-  bumps its weight (it is the 2nd contributed keybinding, weight 402, beating
-  the 401-weight competitors) so it wins in markdown contexts. The
-  `hackerMarkdown.overridePreviewShortcut` setting (default `true`) decides
-  what the command does: open this preview, or delegate to the built-in
-  `markdown.togglePreview`. (The companion `ctrl+alt+shift+h` →
-  `hackerMarkdown.open` binding exists to raise the weight.)
+  extensions fight over the same key). This extension contributes
+  `hackerMarkdown.togglePreview` on that key with a markdown-scoped `when`
+  that includes `config.hackerMarkdown.overridePreviewShortcut`, plus a
+  weight-bumping first binding (`ctrl+alt+shift+h` → `hackerMarkdown.open`).
+  When the setting is `false`, our binding does not match and the built-in
+  command keeps the shortcut. The `Ctrl/Cmd+K Ctrl/Cmd+V` chord is
+  independent of the setting and always toggles this preview.
 - **Pin (lock) the preview to a document.** The toolbar pin button
   (`togglePin` command message) freezes the preview on the current document:
   editor switches no longer change it, while edits to the pinned document
@@ -261,7 +275,8 @@ details underneath the feature list, and the product limitations.
 
 ## Limitations
 
-- The editor-area preview is a separate `WebviewPanel` instance (views cannot move into the editor area; see `viewsExtensionPoint.ts` — a view id can only be registered in one container). It is serializable (`WebviewPanelSerializer`), so it survives window reloads and moves to other windows.
+- The editor-area preview is a separate `WebviewPanel` instance (views cannot move into the editor area; see `viewsExtensionPoint.ts` — a view id can only be registered in one container). It is serializable (`WebviewPanelSerializer`), so it survives window reloads and moves to other windows. The in-place toggle uses a separate custom text editor, which the workbench can restore/reopen on its own. Docked views cannot move to another window.
+- The in-place custom editor only matches files with a Markdown-looking name (the built-in preview's selector set: `.md`, `.markdown`, `.mdown`, …). Untitled/extensionless Markdown buffers fall back to the docked Panel preview.
 - Rendering happens through `markdown.api.render`, which cannot rewrite relative image paths, so image `src` attributes are rewritten extension-side against the document folder (same behavior as the built-in preview's resource provider).
 - PlantUML fences are rewritten from the rendered HTML fragment, so the fence source takes the HTML-escape round-trip (only `& < > "`; `&amp;` is decoded last to keep literal `&lt;` intact). The rendered diagram (inlined `<svg>`) carries no `data-line`, but the rewrite adds a fence-level `data-hmk-from`/`data-hmk-to` span for cursor sync and click-to-source. The server must be CSP-compatible (`https`, or `http://` on `localhost`/`127.0.0.1`), same as the stock preview, and the extension host fetches the SVG directly (no CORS involved).
 - Contributed preview scripts and styles are loaded (mermaid, KaTeX, …), but the extension has no control over *when* other extensions activate; a script contributed by an extension that never activates simply never loads. `markdown.css` / `highlight.css` are copied from `microsoft/vscode` (MIT) to keep rendering identical to the stock preview.

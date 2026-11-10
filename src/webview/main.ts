@@ -20,6 +20,65 @@ import { initMediaControls, applyMediaState } from './menus';
 post({ type: 'ready' });
 
 initMediaControls();
+initToggleShortcuts();
+
+/**
+ * Toggle shortcuts while the preview itself has focus.
+ *
+ * The workbench keybindings stop at the webview boundary for clipboard keys
+ * such as Ctrl/Cmd+V (the webview consumes them), so chord/shortcut presses
+ * inside the preview are detected here and forwarded as a command message.
+ * This makes `Ctrl/Cmd+K Ctrl/Cmd+V` and `Ctrl/Cmd+Shift+V` toggle back to the
+ * Markdown source even when the preview tab is focused.
+ */
+function initToggleShortcuts(): void {
+	let chordArmed = false;
+	let chordTimer: number | undefined;
+
+	const isTextInput = (target: EventTarget | null): boolean => {
+		const element = target as HTMLElement | null;
+		return !!element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.isContentEditable);
+	};
+
+	const armChord = (): void => {
+		chordArmed = true;
+		if (chordTimer !== undefined) {
+			window.clearTimeout(chordTimer);
+		}
+		chordTimer = window.setTimeout(() => {
+			chordArmed = false;
+			chordTimer = undefined;
+		}, 3000);
+	};
+
+	const toggle = (): void => {
+		chordArmed = false;
+		post({ type: 'command', id: 'togglePreview' });
+	};
+
+	window.addEventListener('keydown', (e) => {
+		if ((!e.ctrlKey && !e.metaKey) || e.altKey || isTextInput(e.target)) {
+			chordArmed = false;
+			return;
+		}
+		const key = e.key.toLowerCase();
+		if (!e.shiftKey && key === 'k') {
+			// Don't swallow Ctrl/Cmd+K: it is a chord prefix for many other
+			// workbench commands. Just remember it so the following V can be
+			// handled here too (the workbench never receives Ctrl/Cmd+V from
+			// a focused webview).
+			armChord();
+			return;
+		}
+		if ((!e.shiftKey && key === 'v' && chordArmed) || (e.shiftKey && key === 'v')) {
+			e.preventDefault();
+			e.stopPropagation();
+			toggle();
+			return;
+		}
+		chordArmed = false;
+	}, true);
+}
 
 let lastScrollLine = -1;
 

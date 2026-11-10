@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { PreviewHost, isCssLength } from './previewHost';
+import { PreviewHost, isCssLength, type PreviewHostOptions } from './previewHost';
 import { rewritePumlFences } from './plantuml/renderFragment';
 import { inlinePlantumlSvgs } from './plantuml/inlineSvg';
 import { saltInvocationLines, type ProcRange } from './plantuml/invocations';
@@ -41,25 +41,29 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 					// matter which editor (or non-markdown doc) is focused.
 					return;
 				}
-				if (editor?.document) {
-					this.setDocument(editor.document);
-					// A doc switch does not always fire a selection-change, so
-					// push the cursor position here so the highlight shows
-					// immediately (the webview re-applies it after rendering).
-					if (isMarkdownDocument(editor.document) && this.cursorSyncEnabled()) {
-						for (const host of this.hosts) {
-							host.cursorLine(editor.selection.active.line);
-						}
+				this.followActiveEditor();
+				// A doc switch does not always fire a selection-change, so
+				// push the cursor position here so the highlight shows
+				// immediately (the webview re-applies it after rendering).
+				if (editor?.document && isMarkdownDocument(editor.document) && this.cursorSyncEnabled()) {
+					for (const host of this.hostsForDocument(editor.document)) {
+						host.cursorLine(editor.selection.active.line);
 					}
 				}
 			}),
+			// The active tab can change without `activeTextEditor` changing
+			// (notably when switching to/from a custom editor tab). Keep the
+			// preview on the document of the active tab in that case too.
+			vscode.window.tabGroups.onDidChangeTabGroups(() => {
+				this.followActiveEditor();
+			}),
 			vscode.workspace.onDidChangeTextDocument((e) => {
-				if (this.doc && e.document === this.doc && !this.renderOnSave()) {
+				if (this.isDisplayedDocument(e.document) && !this.renderOnSave()) {
 					this.scheduleRender();
 				}
 			}),
 			vscode.workspace.onDidSaveTextDocument((document) => {
-				if (this.doc === document && this.renderOnSave()) {
+				if (this.isDisplayedDocument(document) && this.renderOnSave()) {
 					this.scheduleRender();
 				}
 			}),
@@ -99,14 +103,14 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 					if (!stillOpen) {
 						this.pinnedDoc = undefined;
 						this.pushPinState();
-						this.setDocument(vscode.window.activeTextEditor?.document);
+						this.setDocument(this.activeDocument());
 					}
 					break;
 				}
 			}),
 			vscode.window.onDidChangeTextEditorSelection((e) => {
-				if (e.textEditor.document === this.doc) {
-					this.onEditorSelection(e.selections[0].active.line);
+				if (this.isDisplayedDocument(e.textEditor.document)) {
+					this.onEditorSelection(e.textEditor.document, e.selections[0].active.line);
 				}
 			}),
 			vscode.workspace.onDidChangeConfiguration((e) => {
@@ -135,7 +139,12 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 	}
 
 	public hasMarkdownDocument(): boolean {
-		return !!this.doc;
+		return !!this.displayedDocument();
+	}
+
+	/** The document currently followed by the docked/editor-panel previews. */
+	public displayedDocument(): vscode.TextDocument | undefined {
+		return this.doc ?? this.activeDocument();
 	}
 
 	private renderOnSave(): boolean {
@@ -145,7 +154,7 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 	public createHost(
 		webview: vscode.Webview,
 		onDisposed: vscode.Event<void>,
-		options: { readonly showOpenInEditor: boolean },
+		options: PreviewHostOptions,
 	): PreviewHost {
 		const host = new PreviewHost(webview, onDisposed, this.extensionUri, options, (message) => {
 			this.onHostMessage(host, message);
@@ -156,8 +165,30 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 			host.dispose();
 		});
 		host.post({ type: 'mediaState', ...this.mediaState() });
-		this.pushCurrentState(host);
+		if (host.boundDocument) {
+			// Custom editor tab: always render the document it was opened for,
+			// independent of whichever editor is active. Pinning doesn't apply
+			// (the tab is already bound to one document).
+			this.bindHostDocument(host, host.boundDocument);
+			this.scheduleRender(0);
+		} else {
+			this.pushCurrentState(host);
+		}
 		return host;
+	}
+
+	/**
+	 * Creates the preview for the in-place custom editor tab. The host is
+	 * bound to `document`, so switching editors never changes what this tab
+	 * shows (matching a normal editor tab).
+	 */
+	public resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): void {
+		this.createHost(panel.webview, panel.onDidDispose, {
+			showOpenInEditor: false,
+			showPin: false,
+			showShowSource: true,
+			boundDocument: document
+		});
 	}
 
 	// --- pin ----------------------------------------------------------------
@@ -175,13 +206,15 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 		this.pushPinState();
 		if (!this.pinnedDoc) {
 			// Unpinned: follow the active editor immediately.
-			this.setDocument(vscode.window.activeTextEditor?.document);
+			this.setDocument(this.activeDocument());
 		}
 	}
 
 	private pushPinState(): void {
 		for (const host of this.hosts) {
-			host.post({ type: 'pinState', pinned: !!this.pinnedDoc });
+			if (!host.boundDocument) {
+				host.post({ type: 'pinState', pinned: !!this.pinnedDoc });
+			}
 		}
 	}
 
@@ -217,30 +250,102 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 
 	// --- document tracking --------------------------------------------------
 
-	private setDocument(document: vscode.TextDocument | undefined): void {
-		this.doc = document && isMarkdownDocument(document) ? document : undefined;
+	private setDocument(document: vscode.TextDocument | undefined, force = false): void {
+		const next = document && isMarkdownDocument(document) ? document : undefined;
+		if (!force && this.doc === next) {
+			return;
+		}
+		this.doc = next;
 		for (const host of this.hosts) {
-			host.docUri = this.doc?.uri;
-			if (this.doc) {
-				host.setResourceRoots(this.doc.uri.scheme === 'file' ? [vscode.Uri.joinPath(this.doc.uri, '..')] : []);
-				host.setDocument(this.doc.uri);
-			} else {
-				host.empty();
+			if (host.boundDocument) {
+				continue;
 			}
+			this.bindHostDocument(host, this.doc);
 		}
 		this.scheduleRender(0);
 	}
 
-	private pushCurrentState(host: PreviewHost): void {
-		host.docUri = this.doc?.uri;
-		if (this.doc) {
-			host.setResourceRoots(this.doc.uri.scheme === 'file' ? [vscode.Uri.joinPath(this.doc.uri, '..')] : []);
-			host.setDocument(this.doc.uri);
-			this.scheduleRender(0);
+	/**
+	 * Re-binds a following (docked / editor-panel) host to the active
+	 * document, or shows its empty state. Bound custom-editor hosts are
+	 * skipped by the callers.
+	 */
+	private bindHostDocument(host: PreviewHost, document: vscode.TextDocument | undefined): void {
+		host.docUri = document?.uri;
+		if (document) {
+			host.setResourceRoots(document.uri.scheme === 'file' ? [vscode.Uri.joinPath(document.uri, '..')] : []);
+			host.setDocument(document.uri);
 		} else {
 			host.empty();
 		}
+	}
+
+	private pushCurrentState(host: PreviewHost): void {
+		this.bindHostDocument(host, this.doc);
 		host.post({ type: 'pinState', pinned: !!this.pinnedDoc });
+		if (this.doc) {
+			this.scheduleRender(0);
+		}
+	}
+
+	/**
+	 * Follows the active editor/tab. A custom editor (the in-place preview or
+	 * any Markdown custom editor) has no `activeTextEditor`, so resolve its
+	 * document from the active tab instead of blanking the preview.
+	 */
+	private followActiveEditor(): void {
+		if (this.pinnedDoc) {
+			return;
+		}
+		const editor = vscode.window.activeTextEditor;
+		if (editor) {
+			this.setDocument(editor.document);
+			return;
+		}
+		const doc = this.activeDocument();
+		if (doc) {
+			this.setDocument(doc);
+		}
+		// No text editor and no Markdown custom editor: keep the last
+		// document (focus may have moved to a panel, terminal or settings).
+	}
+
+	private activeDocument(): vscode.TextDocument | undefined {
+		const editor = vscode.window.activeTextEditor;
+		if (editor) {
+			return isMarkdownDocument(editor.document) ? editor.document : undefined;
+		}
+		const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+		if (!tab?.input || !(tab.input instanceof vscode.TabInputCustom)) {
+			return undefined;
+		}
+		const uri = tab.input.uri.toString();
+		const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri)
+			?? [...this.hosts].map((host) => host.boundDocument).find((d) => d?.uri.toString() === uri);
+		return doc && isMarkdownDocument(doc) ? doc : undefined;
+	}
+
+	/** True when `document` is rendered by the active preview or a bound tab. */
+	private isDisplayedDocument(document: vscode.TextDocument): boolean {
+		if (this.doc === document) {
+			return true;
+		}
+		for (const host of this.hosts) {
+			if (host.boundDocument === document) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private hostsForDocument(document: vscode.TextDocument): PreviewHost[] {
+		const hosts: PreviewHost[] = [];
+		for (const host of this.hosts) {
+			if ((host.boundDocument ?? this.doc) === document) {
+				hosts.push(host);
+			}
+		}
+		return hosts;
 	}
 
 	// --- rendering ----------------------------------------------------------
@@ -256,47 +361,44 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 	}
 
 	private async render(): Promise<void> {
-		const doc = this.doc;
-		if (!doc) {
-			return;
-		}
 		if (this.renderInFlight) {
 			this.renderQueued = true;
 			return;
 		}
+		const docs = new Map<string, vscode.TextDocument>();
+		const add = (doc: vscode.TextDocument | undefined) => {
+			if (doc) {
+				docs.set(doc.uri.toString(), doc);
+			}
+		};
+		add(this.doc);
+		for (const host of this.hosts) {
+			add(host.boundDocument);
+		}
+		if (!docs.size) {
+			return;
+		}
 		this.renderInFlight = true;
 		try {
-			let fragment = await vscode.commands.executeCommand<string>('markdown.api.render', doc);
-			if (!fragment) {
-				return;
-			}
-			// Render `puml`/`plantuml`/`uml` fences to PlantUML-server images
-			// for this preview only (the stock preview is untouched — we
-			// rewrite our own copy of the fragment, not the shared engine).
-			fragment = rewritePumlFences(fragment, doc);
-			// Replace the diagram `<img>`s with the fetched SVGs so the
-			// webview can read the server's `data-source-code` salt ranges
-			// (cursor highlight + click-to-source). A failed fetch keeps the
-			// `<img>` — the diagram still renders as a plain image.
-			fragment = await inlinePlantumlSvgs(fragment);
-			// Procedure-rendered salt mockups (`SALT(x)` invocations) get no
-			// `data-source-code` from the server, so embed the first-occurrence
-			// invocation lines per fence (`data-hmk-salts`); the webview zips
-			// them onto the SVG's rangeless mockup groups in order.
-			const saltResult = saltInvocationLines(doc.getText());
-			fragment = attachSaltInvocationLines(fragment, saltResult);
-			// The mermaid plugin drops the engine's `data-line` source map, so
-			// attach the fence/container spans from the document instead
-			// (cursor highlight + click-to-source for rendered diagrams).
-			fragment = rewriteMermaidFences(fragment, doc);
-			// Only broadcast if the document didn't change while rendering.
-			if (this.doc === doc) {
-				for (const host of this.hosts) {
-					host.render(this.rewriteImageSources(fragment, doc, host));
+			for (const doc of docs.values()) {
+				try {
+					const fragment = await this.renderDocument(doc);
+					if (!fragment) {
+						continue;
+					}
+					// Only broadcast if the host still shows this document (the
+					// active editor may have changed while rendering).
+					for (const host of this.hosts) {
+						if ((host.boundDocument ?? this.doc) === doc) {
+							host.render(this.rewriteImageSources(fragment, doc, host));
+						}
+					}
+				} catch (e) {
+					// One unreadable/unrenderable document must not prevent the
+					// other previews (e.g. the docked view) from rendering.
+					console.error(`Hacker Markdown: render failed for ${doc.uri.toString()}`, e);
 				}
 			}
-		} catch (e) {
-			console.error('Hacker Markdown: render failed', e);
 		} finally {
 			this.renderInFlight = false;
 			if (this.renderQueued) {
@@ -304,6 +406,34 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 				this.scheduleRender(0);
 			}
 		}
+	}
+
+	/** Renders one document to an HTML fragment (engine + diagram rewrites). */
+	private async renderDocument(doc: vscode.TextDocument): Promise<string | undefined> {
+		let fragment = await vscode.commands.executeCommand<string>('markdown.api.render', doc);
+		if (!fragment) {
+			return undefined;
+		}
+		// Render `puml`/`plantuml`/`uml` fences to PlantUML-server images
+		// for this preview only (the stock preview is untouched — we
+		// rewrite our own copy of the fragment, not the shared engine).
+		fragment = rewritePumlFences(fragment, doc);
+		// Replace the diagram `<img>`s with the fetched SVGs so the
+		// webview can read the server's `data-source-code` salt ranges
+		// (cursor highlight + click-to-source). A failed fetch keeps the
+		// `<img>` — the diagram still renders as a plain image.
+		fragment = await inlinePlantumlSvgs(fragment);
+		// Procedure-rendered salt mockups (`SALT(x)` invocations) get no
+		// `data-source-code` from the server, so embed the first-occurrence
+		// invocation lines per fence (`data-hmk-salts`); the webview zips
+		// them onto the SVG's rangeless mockup groups in order.
+		const saltResult = saltInvocationLines(doc.getText());
+		fragment = attachSaltInvocationLines(fragment, saltResult);
+		// The mermaid plugin drops the engine's `data-line` source map, so
+		// attach the fence/container spans from the document instead
+		// (cursor highlight + click-to-source for rendered diagrams).
+		fragment = rewriteMermaidFences(fragment, doc);
+		return fragment;
 	}
 
 	/**
@@ -342,8 +472,13 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 				// the active editor so a pinned preview re-pushes the pinned
 				// document, not whatever editor is focused.
 				host.post({ type: 'mediaState', ...this.mediaState() });
-				host.post({ type: 'pinState', pinned: !!this.pinnedDoc });
-				this.setDocument(this.doc);
+				if (host.boundDocument) {
+					this.bindHostDocument(host, host.boundDocument);
+					this.scheduleRender(0);
+				} else {
+					host.post({ type: 'pinState', pinned: !!this.pinnedDoc });
+					this.setDocument(this.doc, true);
+				}
 				break;
 			case 'openLink':
 				this.openLink(host, String(message.href ?? ''));
@@ -352,13 +487,17 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 				this.onPreviewScroll(host, Number(message.line) || 0);
 				break;
 			case 'editorLine': {
+				const doc = host.boundDocument ?? this.doc;
+				if (!doc) {
+					break;
+				}
 				const line = Number(message.line) || 0;
 				const from = typeof message.from === 'number' ? message.from : NaN;
 				const to = typeof message.to === 'number' ? message.to : NaN;
 				if (!isNaN(from) && !isNaN(to)) {
-					this.revealEditorRange(from, to);
+					this.revealEditorRange(doc, from, to);
 				} else {
-					this.revealEditorLine(line);
+					this.revealEditorLine(doc, line);
 				}
 				break;
 			}
@@ -371,12 +510,27 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 						this.refresh();
 						break;
 					case 'openSource':
-						if (this.doc) {
-							void vscode.commands.executeCommand('vscode.open', this.doc.uri, { preview: true });
+						if (host.docUri) {
+							void vscode.commands.executeCommand('vscode.open', host.docUri, { preview: true });
 						}
 						break;
 					case 'openInEditor':
 						this.openInEditor();
+						break;
+					case 'reopenAsSource':
+						void vscode.commands.executeCommand('reopenActiveEditorWith', 'default');
+						break;
+					case 'togglePreview':
+						void vscode.commands.executeCommand('hackerMarkdown.togglePreview');
+						break;
+					case 'openInNewWindow':
+						void vscode.commands.executeCommand('hackerMarkdown.openInNewWindow');
+						break;
+					case 'openInPrimarySidebar':
+						void vscode.commands.executeCommand('hackerMarkdown.openInPrimarySidebar');
+						break;
+					case 'openInSecondarySidebar':
+						void vscode.commands.executeCommand('hackerMarkdown.openInSecondarySidebar');
 						break;
 					case 'openPumlSettings':
 						void vscode.commands.executeCommand('workbench.action.openSettings', 'hackerMarkdown.plantuml.server');
@@ -444,7 +598,8 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 			void vscode.env.openExternal(vscode.Uri.parse(href));
 			return;
 		}
-		if (!this.doc) {
+		const doc = host.boundDocument ?? this.doc;
+		if (!doc) {
 			return;
 		}
 		const fragmentIndex = href.indexOf('#');
@@ -460,7 +615,7 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 			return;
 		}
 		try {
-			target = vscode.Uri.joinPath(vscode.Uri.joinPath(this.doc.uri, '..'), path).with({ fragment });
+			target = vscode.Uri.joinPath(vscode.Uri.joinPath(doc.uri, '..'), path).with({ fragment });
 		} catch {
 			return;
 		}
@@ -472,13 +627,14 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 
 	// --- scroll sync ---------------------------------------------------------
 
-	private onEditorSelection(line: number): void {
+	private onEditorSelection(document: vscode.TextDocument, line: number): void {
 		const config = vscode.workspace.getConfiguration('hackerMarkdown');
+		const hosts = this.hostsForDocument(document);
 		// Cursor highlight is independent of scroll sync: it has no preview ->
 		// editor direction, so it needs neither the scroll setting nor the
 		// scroll-sync grace timer.
 		if (this.cursorSyncEnabled()) {
-			for (const host of this.hosts) {
+			for (const host of hosts) {
 				host.cursorLine(line);
 			}
 		}
@@ -489,7 +645,7 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 			return;
 		}
 		this.lastEditorSyncAt = Date.now();
-		for (const host of this.hosts) {
+		for (const host of hosts) {
 			host.scrollToLine(line);
 		}
 	}
@@ -507,11 +663,17 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 		if (Date.now() - this.lastEditorSyncAt < SCROLL_SYNC_GRACE_MS) {
 			return;
 		}
-		const editor = vscode.window.activeTextEditor;
-		if (!editor || editor.document !== this.doc) {
+		const doc = host.boundDocument ?? this.doc;
+		if (!doc) {
 			return;
 		}
-		const target = Math.min(line, editor.document.lineCount - 1);
+		// `activeTextEditor` is not reliable while a webview has focus (and
+		// the source of a toggled-away preview is not visible at all).
+		const editor = vscode.window.visibleTextEditors.find((candidate) => candidate.document === doc);
+		if (!editor) {
+			return;
+		}
+		const target = Math.min(line, doc.lineCount - 1);
 		const range = new vscode.Range(target, 0, target, 0);
 		editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
 	}
@@ -526,14 +688,10 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 	 * scroll-sync grace timer swallow that echo, so the clicked block stays put.
 	 * Focus stays in the preview (`preserveFocus`) so you can keep clicking.
 	 */
-	private revealEditorLine(line: number): void {
-		if (!this.doc) {
-			return;
-		}
+	private revealEditorLine(doc: vscode.TextDocument, line: number): void {
 		if (!vscode.workspace.getConfiguration('hackerMarkdown').get<boolean>('clickToSource', true)) {
 			return;
 		}
-		const doc = this.doc;
 		this.lastPreviewScrollAt = Date.now();
 		const target = Math.min(Math.max(0, line), doc.lineCount - 1);
 		const range = new vscode.Range(target, 0, target, 0);
@@ -546,14 +704,10 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 	 * the server embeds in the SVG. Reveals and selects the full lines so the
 	 * exact code that produced the element is visible.
 	 */
-	private revealEditorRange(startLine: number, endLine: number): void {
-		if (!this.doc) {
-			return;
-		}
+	private revealEditorRange(doc: vscode.TextDocument, startLine: number, endLine: number): void {
 		if (!vscode.workspace.getConfiguration('hackerMarkdown').get<boolean>('clickToSource', true)) {
 			return;
 		}
-		const doc = this.doc;
 		this.lastPreviewScrollAt = Date.now();
 		const start = Math.min(Math.max(0, startLine), doc.lineCount - 1);
 		const end = Math.min(Math.max(0, endLine), doc.lineCount - 1);
@@ -564,6 +718,12 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 	// --- editor area ---------------------------------------------------------
 
 	public static readonly panelViewType = 'hackerMarkdown.panel';
+
+	/**
+	 * The custom editor used by `Hacker Markdown: Toggle Preview` to take over
+	 * the Markdown tab in place (and give it back when toggled again).
+	 */
+	public static readonly previewEditorViewType = 'hackerMarkdown.previewEditor';
 
 	private editorPanel?: vscode.WebviewPanel;
 	private editorPanelAlive = false;
@@ -636,8 +796,9 @@ export class PreviewManager implements vscode.Disposable, vscode.WebviewPanelSer
 	}
 }
 
+/** Languages the built-in Markdown preview treats as Markdown. */
 function isMarkdownDocument(document: vscode.TextDocument): boolean {
-	return document.languageId === 'markdown';
+	return /^(markdown|prompt|instructions|chatagent|skill)$/.test(document.languageId);
 }
 
 /**

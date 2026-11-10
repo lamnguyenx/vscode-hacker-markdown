@@ -5,16 +5,28 @@ in [editor-preview-sync.md](../internals/editor-preview-sync.md).
 
 ## Placement
 
-- **Dockable preview** — lives in a Webview View; drag the header to any
-  sidebar / panel container to re-dock it.
+- **Dockable in every container** — the extension contributes a
+  "Hacker Markdown" container with a **Markdown Preview** view to the Panel,
+  the Primary Side Bar (Activity Bar), and the Secondary Side Bar. Each view is
+  an independent host that renders the same document; commands open each one
+  directly (`Open in Panel` / `Open in Primary Side Bar` /
+  `Open in Secondary Side Bar`), and the views can still be dragged between
+  containers.
 - **Open in Editor** — opens a second preview in the editor area, to the side.
+- **Open in New Window** — opens the in-place preview custom editor tab and
+  moves it with `workbench.action.moveEditorToNewWindow`.
+- **Toggle Preview over the same tab** — `Hacker Markdown: Toggle Preview`
+  reopens the active Markdown tab as a custom editor (`hackerMarkdown.previewEditor`)
+  and toggles back to the source. No extra tab is created; undo/redo, dirty
+  state, and the tab's position are preserved. See
+  [placement-and-toggle.md](placement-and-toggle.md).
 - **Survives window reloads** — the editor-area preview is serializable: it
   survives a window reload and can be dragged to another window ("Move Editor
   to New Window"), re-opening the same document. The webview persists the
   document URI via `acquireVsCodeApi().setState`.
-- **`retainContextWhenHidden`** — both the docked view and editor panel use
-  `retainContextWhenHidden: true`, so the webview state survives being hidden
-  without re-initializing.
+- **`retainContextWhenHidden`** — the docked views, editor panel, and in-place
+  custom editor use `retainContextWhenHidden: true`, so webview state survives
+  being hidden without re-initializing.
 
 ## Rendering
 
@@ -148,18 +160,28 @@ in [editor-preview-sync.md](../internals/editor-preview-sync.md).
 
 ## Shortcuts
 
-- `Ctrl/Cmd+Shift+V` — toggle the Hacker Markdown preview (shadows the
-  built-in preview's keybinding; `hackerMarkdown.overridePreviewShortcut`
-  decides whether it opens this preview or falls back to the built-in one).
-- `Ctrl+Alt+Shift+H` — open the preview.
+- `Ctrl/Cmd+K Ctrl/Cmd+V` — toggle the preview over the active Markdown tab
+  (always).
+- `Ctrl/Cmd+Shift+V` — toggle the Hacker Markdown preview (shadows the built-in
+  preview's keybinding while `hackerMarkdown.overridePreviewShortcut` is on;
+  when off, the built-in preview keeps this shortcut).
+- `Ctrl+Alt+Shift+H` — open the preview in the Panel.
 - `Ctrl+=` / `Ctrl+-` / `Ctrl+0` — zoom in / out / reset when the preview
   webview is focused.
+
+Both toggle shortcuts also work while the preview webview itself has focus:
+the webview detects the chord and posts a toggle command, because the
+workbench does not receive `Ctrl/Cmd+V` from a focused webview.
 
 ## Commands
 
 | Command | Keybinding | Description |
 | --- | --- | --- |
-| `Hacker Markdown: Open` | `Ctrl+Alt+Shift+H` | Reveal and focus the docked preview (picks a Markdown file if none is open) |
+| `Hacker Markdown: Open in Panel` | `Ctrl+Alt+Shift+H` | Reveal and focus the Panel preview (picks a Markdown file if none is open) |
+| `Hacker Markdown: Open in Primary Side Bar` | — | Reveal the Primary Side Bar preview |
+| `Hacker Markdown: Open in Secondary Side Bar` | — | Reveal the Secondary Side Bar preview |
 | `Hacker Markdown: Open Preview in Editor` | — | Open a preview as an editor tab, to the side |
-| `Hacker Markdown: Toggle Preview` | `Ctrl/Cmd+Shift+V` | Toggle this preview (shadows the built-in preview's keybinding) |
+| `Hacker Markdown: Open Preview in New Window` | — | Open the preview tab and move it to a new window |
+| `Hacker Markdown: Toggle Preview` | `Ctrl/Cmd+K Ctrl/Cmd+V`, `Ctrl/Cmd+Shift+V` | Toggle the preview over the same Markdown tab |
+| `Hacker Markdown: Show Source` | — | Reopen the active preview tab as the Markdown source |
 | `Hacker Markdown: Refresh Preview` | — | Re-render the current document |

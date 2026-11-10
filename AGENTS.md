@@ -39,6 +39,7 @@ npm run compile                              # only needed for CDP tests (extens
 bun tests/integration/open_view.ts 9024      # ensure the preview is visible
 bun tests/integration/test_preview.ts 9024   # 16/21 checks under code-server (keyboard-based
                                              # palette/open/save tests limited in browser)
+bun tests/integration/toggle_preview_ix.ts 9024  # in-place Toggle Preview tab model
 ```
 
 The meta repo's `docs/important/testing/how-to-test-all.md` is the fuller playbook
